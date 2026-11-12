@@ -83,7 +83,10 @@ def codes_in(text, problems, where, known):
 
 
 def spec_codes(spec):
-    """'A1 to A3, A5, A7 to A9' -> {'A1', 'A2', ...}, or None if unreadable."""
+    """'A1 to A3, A5, A7 to A9' -> {'A1', 'A2', ...}, 'none' -> set(), or None
+    if unreadable."""
+    if spec.strip().lower() == "none":
+        return set()
     out = set()
     for part in re.split(r",\s*|\s+and\s+", spec):
         m = re.fullmatch(r"A(\d+)(?: to A(\d+))?", part.strip())

@@ -27,6 +27,7 @@ import re
 import silkscreen
 import label_blocks
 import script_bundle
+import build_info
 import pcblib_file
 import uuid
 
@@ -6208,6 +6209,9 @@ async def get_server_status(ctx: Context) -> str:
     altium_bridge.config.discover_altium()
     status = {
         "server": "Running",
+        # Which code answered: the manifest's version and, in a packaged copy,
+        # its BUILD.txt line (None in a git checkout).
+        **build_info.build_info(),
         "altium_exe": altium_bridge.config.altium_exe_path,
         "script_path": altium_bridge.config.script_path,
         "altium_found": os.path.exists(altium_bridge.config.altium_exe_path),

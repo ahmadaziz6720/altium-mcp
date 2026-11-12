@@ -134,5 +134,37 @@ class UnroutedTest(unittest.TestCase):
         self.assertEqual(board, "b.PcbDoc")
 
 
+class BeyondAreaTest(unittest.TestCase):
+    def _sq(self, x1, y1, x2, y2):
+        return [{"x": x1, "y": y1}, {"x": x2, "y": y1}, {"x": x2, "y": y2}, {"x": x1, "y": y2}]
+
+    def test_bbox_takes_in_the_arc_bulge(self):
+        # a 100 x 100 square whose top edge is a half circle bulging up to y=150
+        outline = [{"x": 0, "y": 0}, {"x": 100, "y": 0},
+                   {"x": 100, "y": 100, "arc": {"center": [50, 100], "radius": 50, "start_angle": 0, "end_angle": 180}},
+                   {"x": 0, "y": 100}]
+        self.assertEqual(pl.outline_bbox(outline), [0, 0, 100, 150])
+        # the same arc the other way round (180 to 0 counter-clockwise) bulges down to y=50
+        outline[2]["arc"].update(start_angle=180, end_angle=0)
+        self.assertEqual(pl.outline_bbox(outline), [0, 0, 100, 100])
+        self.assertIsNone(pl.outline_bbox([]))
+
+    def test_pours_reaching_out_are_set_aside(self):
+        layout = {"area": [0, 0, 100, 100],
+                  "pours": [{"name": "GND_TOP", "net": "GND", "layer": "Top Layer", "outline": self._sq(-500, -500, 500, 500)},
+                            {"name": "SMALL", "net": "GND", "layer": "Top Layer", "outline": self._sq(10, 10, 90, 90)}],
+                  "regions": [{"net": "", "layer": "Bottom Layer", "outline": self._sq(50, 50, 150, 80)}],
+                  "cutouts": [{"layer": "Top Layer", "outline": self._sq(0, 0, 100, 100)}]}
+        pl.set_aside_beyond_area(layout)
+        self.assertEqual([p["name"] for p in layout["pours"]], ["SMALL"])
+        self.assertEqual(layout["regions"], [])
+        self.assertEqual(len(layout["cutouts"]), 1, "an outline on the area's edge is inside")
+        self.assertEqual(layout["beyond_area"],
+                         [{"type": "pour", "name": "GND_TOP", "net": "GND", "layer": "Top Layer",
+                           "bbox": [-500, -500, 500, 500], "vertices": 4},
+                          {"type": "region", "net": "", "layer": "Bottom Layer", "bbox": [50, 50, 150, 80],
+                           "vertices": 4}])
+
+
 if __name__ == "__main__":
     unittest.main()

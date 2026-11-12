@@ -4524,7 +4524,7 @@ def _names(values, what):
 @_tool(read_only=True)
 async def get_layout(ctx: Context, designators: list = None, area: list = None, margin_mils: float = 40,
                      include_touching: bool = False, include_local_nets: bool = True, include_pads: bool = False,
-                     board_path: str = "", out_file: str = "") -> str:
+                     full_outlines: bool = False, board_path: str = "", out_file: str = "") -> str:
     """
     Read the layout of a group of components or of an area: the components'
     placement and the copper around them (tracks, arcs, vias, fills, copper
@@ -4546,7 +4546,10 @@ async def get_layout(ctx: Context, designators: list = None, area: list = None, 
             (default 40).
         include_touching (bool): Also list copper that only reaches into the
             area, such as a track leaving the group. By default only copper
-            wholly inside the area is listed: the group's own routing.
+            wholly inside the area is listed: the group's own routing. A
+            pour, region or cutout that reaches beyond the area (a
+            board-wide ground pour, say) is then given in beyond_area, by
+            its net, layer and bounding box, not with its outline.
         include_local_nets (bool): With designators, also list the copper of
             their own nets (nets with no pad on any other part) wherever it
             runs, such as a route between two of them that leaves the area
@@ -4554,6 +4557,9 @@ async def get_layout(ctx: Context, designators: list = None, area: list = None, 
         include_pads (bool): Also list every pad reaching into the area
             (designator, pad, x, y, layer, shape, size [x, y], rotation,
             hole, net), e.g. to see what new copper must keep clear of.
+        full_outlines (bool): With include_touching, give the pours, regions
+            and cutouts that reach beyond the area whole, in their lists,
+            as before (default false).
         board_path (str): Full path of the .PcbDoc; empty for the focused
             board, or the one the PCB tools last used.
         out_file (str): Write the layout to this JSON file and return only a
@@ -4575,8 +4581,10 @@ async def get_layout(ctx: Context, designators: list = None, area: list = None, 
         remove_necks, neck_width_mils, grid, track_width, arc_approximation,
         pour_index, locked, obey_cutouts, optimal_void_rotation, outline:
         vertices {x, y} with "arc" {center, radius, start_angle, end_angle}
-        when the edge to the next vertex is an arc); counts and
-        missing_designators. All in mils and degrees.
+        when the edge to the next vertex is an arc); beyond_area (type
+        "pour", "region" or "cutout", name, net, layer, bbox [x1, y1, x2,
+        y2], vertices: the count), not in place_copper's form and not read
+        by it; counts and missing_designators. All in mils and degrees.
     """
     names, err = _names(designators, "designators")
     if err:
@@ -4607,10 +4615,14 @@ async def get_layout(ctx: Context, designators: list = None, area: list = None, 
     if not isinstance(text, str) or text.startswith("ERROR"):
         return json.dumps({"success": False, "error": str(text)[:500]})
     layout = pcb_layout.parse_layout(text)
+    if include_touching and not full_outlines:
+        pcb_layout.set_aside_beyond_area(layout)
+    else:
+        layout["beyond_area"] = []
     found = {d.upper() for d in layout.pop("found")}
     layout["missing_designators"] = [d for d in names if d.upper() not in found]
     layout["counts"] = {k: len(layout[k]) for k in ("components", "tracks", "arcs", "vias", "fills", "regions", "cutouts",
-                                                     "pours", "pads")}
+                                                     "pours", "pads", "beyond_area")}
     if not include_pads:
         layout.pop("pads")
         layout["counts"].pop("pads")
@@ -4938,7 +4950,7 @@ async def route_connections(ctx: Context, designators: list = None, nets: list =
     margin = 150.0
     box = [min(xs) - margin, min(ys) - margin, max(xs) + margin, max(ys) + margin]
     lay = json.loads(await get_layout(ctx, area=box, include_touching=True, include_local_nets=False,
-                                      include_pads=True, board_path=board_path))
+                                      include_pads=True, full_outlines=True, board_path=board_path))
     if not lay.get("success"):
         return json.dumps(lay)
     signal = sorted({p["layer"] for p in lay["pads"] if p["layer"] != "Multi Layer"} |
@@ -5080,7 +5092,7 @@ async def fanout_pads(ctx: Context, designators: list, nets: list = None, pads: 
         return json.dumps({"success": False, "error": err})
     lay = json.loads(await get_layout(ctx, designators=names, margin_mils=max_distance_mils + 60,
                                       include_touching=True, include_local_nets=False, include_pads=True,
-                                      board_path=board_path))
+                                      full_outlines=True, board_path=board_path))
     if not lay.get("success"):
         return json.dumps(lay)
     want_nets = {n.upper() for n in (nets or [])}

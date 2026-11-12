@@ -291,6 +291,58 @@ def encode_copper(layout, transform=None, nets=None):
     return lines
 
 
+def outline_bbox(outline):
+    """[x1, y1, x2, y2] of an outline in get_layout's form, arc edges
+    included: each arc runs counter-clockwise from start_angle to end_angle
+    about its center."""
+    xs, ys = [], []
+    for v in outline:
+        xs.append(v["x"])
+        ys.append(v["y"])
+        arc = v.get("arc")
+        if not arc:
+            continue
+        (cx, cy), r = arc["center"], arc["radius"]
+        start = arc["start_angle"]
+        sweep = (arc["end_angle"] - start) % 360
+        for a in [start, start + sweep] + [q for q in (0, 90, 180, 270) if (q - start) % 360 <= sweep]:
+            xs.append(cx + r * math.cos(math.radians(a)))
+            ys.append(cy + r * math.sin(math.radians(a)))
+    if not xs:
+        return None
+    return [round(min(xs), 3), round(min(ys), 3), round(max(xs), 3), round(max(ys), 3)]
+
+
+def set_aside_beyond_area(layout, tolerance=0.01):
+    """Move the pours, regions and cutouts that reach beyond layout["area"]
+    out of their lists into layout["beyond_area"], each as its kind, net,
+    layer, name (a pour's), bounding box and vertex count, with no outline:
+    a board-wide pour that only reaches into the area would otherwise be
+    given whole. What stays in the lists is still place_copper's form."""
+    beyond = []
+    area = layout.get("area")
+    if area:
+        x1, y1, x2, y2 = area
+        for kind, label in (("pours", "pour"), ("regions", "region"), ("cutouts", "cutout")):
+            kept = []
+            for entry in layout.get(kind, []):
+                box = outline_bbox(entry.get("outline") or [])
+                if box is None or (box[0] >= x1 - tolerance and box[1] >= y1 - tolerance and
+                                   box[2] <= x2 + tolerance and box[3] <= y2 + tolerance):
+                    kept.append(entry)
+                    continue
+                item = {"type": label}
+                for k in ("name", "net", "layer"):
+                    if k in entry:
+                        item[k] = entry[k]
+                item["bbox"] = box
+                item["vertices"] = len(entry["outline"])
+                beyond.append(item)
+            layout[kind] = kept
+    layout["beyond_area"] = beyond
+    return layout
+
+
 def parse_unrouted(text):
     """The bridge's get_unrouted_connections lines: (pads, connections, board)."""
     pads, conns, board = [], [], ""

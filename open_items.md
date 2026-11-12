@@ -10,18 +10,21 @@ Three sections: **Open**, not yet fixed; **Waiting**, fixed and not yet settled 
 merged, a fix not yet run in a session); **Closed**, merged upstream, run and held, or
 decided against, with the record.
 
-**Open: A1.**
+**Open: none.**
 
 ---
 
 ## Open
+
+## Waiting
 
 **A1. `get_server_status` reports no version or commit.** It returns the Altium exe and the
 script path only, so a result cannot be tied to the code that ran. Until fixed, the release
 folder in `script_path` names the stamp, and its `BUILD.txt` the commit (`CLAUDE.md`,
 *Release and run*). Local: add the `manifest.json` version and the content of `BUILD.txt`
 when present; upstream PR for the version part.
-
-## Waiting
+Fixed in `e2ecb5c`: the status adds `version` and `build` (the `BUILD.txt` line, `null` in a
+checkout); offline tests in `test_build_info.py`. Waits for a release, its scenario test,
+and the upstream PR for the version part.
 
 ## Closed

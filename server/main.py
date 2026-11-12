@@ -5732,7 +5732,13 @@ async def get_pcb_layer_stackup(ctx: Context) -> str:
     """
     Get the detailed layer stackup information from the current Altium PCB including
     copper thickness, dielectric materials, constants, and heights
-    
+
+    "layers" lists the stack top to bottom: each copper layer and each dielectric
+    (core, prepreg, solder mask) is an entry of its own, told apart by
+    "material_type" ("Copper" or "Dielectric"). Overlay and paste layers are left
+    out. "total_layers" counts the copper layers, "dielectric_layers" the
+    dielectrics, and "total_thickness_mils" sums both.
+
     Returns:
         str: JSON object with detailed layer stackup information
     """

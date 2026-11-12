@@ -12,8 +12,8 @@ decided against, with the record.
 
 **Open: A3, A5, A8.**
 
-Next release (owner, 2026-11-12): A2, A7, A4 and A6 go out in one build, so one scenario
-test covers them; A3 and A8 are not waited for. A live test uses the helpers in
+A2, A7, A4 and A6 went out together in `build-20261112-120520` (owner, 2026-11-12), so one
+scenario test covers them; A3 and A8 were not waited for. A live test uses the helpers in
 `server/tests/live_altium.py` (`ALTIUM_LIVE=1`, the server's own tools, its own boards
 closed unsaved).
 
@@ -83,8 +83,8 @@ overlays and pastes left out; `total_thickness_mils` sums both, `total_layers` s
 copper, `dielectric_layers` added. A dielectric with no type set reads `eNoDielectric` on
 AD25 and is given as "Dielectric". Live test `tests/test_live_layer_stackup.py`
 (`ALTIUM_LIVE=1`): a new board (16.2 mil) and a copy of the 16-layer Mini PC example
-(cores and prepregs in turn, 79.84 mil); 2/2 pass in AD25, 2/2 fail on the old script. Not
-released yet; then the scenario test, then the upstream PR.
+(cores and prepregs in turn, 79.84 mil); 2/2 pass in AD25, 2/2 fail on the old script.
+Released in `build-20261112-120520`; then the scenario test, then the upstream PR.
 
 **A7. `get_pcb_rules` repeats each rule's scope.** 9.3k characters for 38 rules, the scope
 given in `descriptor` and again in `filter1`/`filter2`. Local: one of the two, and upstream
@@ -93,8 +93,8 @@ Fixed in `c011483`: `descriptor` is given as `constraint`, the scope cut from it
 (kept whole when it does not end in the filters), and `filter2` is left out of a unary
 rule (`IPCB_Rule.IsUnary`; AD25 reports the Fanout rules binary). Offline tests in
 `test_pcb_rules.py`; live test `tests/test_live_pcb_rules.py` (a new board's default
-rules): 1/1 pass in AD25, fails on the old script. Not released yet; then the scenario
-test, then the upstream PR.
+rules): 1/1 pass in AD25, fails on the old script. Released in `build-20261112-120520`;
+then the scenario test, then the upstream PR.
 
 **A4. `get_unrouted_connections` leaves the board modified.** On a freshly opened board
 `get_project_info` read "open" before the call and "modified" after, with no primitive count
@@ -107,8 +107,8 @@ ratsnest is the one built when it was opened); one with unsaved changes still is
 result says which, as `analyzed`. Live test `tests/test_live_unrouted.py` on a copy of the
 WiFi board of Altium's Mini PC example (on the old script the read left it modified, its
 track count unchanged, as in the finding; on a copy of the Mini PC motherboard the old
-script also joined 11 tracks): 1/1 pass in AD25, fails on the old script. Not released
-yet.
+script also joined 11 tracks): 1/1 pass in AD25, fails on the old script. Released in
+`build-20261112-120520`; then the scenario test.
 
 **A6. `get_layout(include_touching=true)` returns whole pours.** For two small chip parts it
 returned 8.6k characters, most of it the full outlines of two board-wide ground pours that
@@ -120,7 +120,7 @@ edges included) reaches beyond the area goes into `beyond_area` (type, name, net
 bbox, vertex count) and out of the lists `place_copper` reads; `full_outlines=true` gives
 them whole, which the router's two calls ask for (regions are its obstacles). Offline
 tests in `test_pcb_layout.py`; live test `tests/test_live_layout.py` (a new board, a
-2000 mil pour and a small one): 2/2 pass in AD25, both fail on the old code. Not released
-yet.
+2000 mil pour and a small one): 2/2 pass in AD25, both fail on the old code. Released in
+`build-20261112-120520`; then the scenario test.
 
 ## Closed

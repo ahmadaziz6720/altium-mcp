@@ -151,3 +151,5 @@ Release `bin\0.7.0-20261112-120520` (build line `0.7.0-ad25-20261112-120520 31e7
    save, on the modified board, `analyzed` true also gave 0. The board was in 3D view
    throughout (2D not tried). So the ratsnest built at open lacks the connection objects
    too, not only the analyzed one.
+
+Sorted into A2 (1); A7 (2); A4 (3); A6 (4); A17 (5); A18 (6); A3 (7).

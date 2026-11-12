@@ -10,12 +10,15 @@ Three sections: **Open**, not yet fixed; **Waiting**, fixed and not yet settled 
 merged, a fix not yet run in a session); **Closed**, merged upstream, run and held, or
 decided against, with the record.
 
-**Open: A3, A5, A8.**
+**Open: A3, A5, A8, A9.**
 
 A2, A7, A4 and A6 went out together in `build-20261112-120520` (owner, 2026-11-12), so one
 scenario test covers them; A3 and A8 were not waited for. A live test uses the helpers in
 `server/tests/live_altium.py` (`ALTIUM_LIVE=1`, the server's own tools, its own boards
-closed unsaved).
+closed unsaved). A board a test saves and reopens is a copy of an existing one: a new
+document saved by script writes no file, and a net a script creates is gone after a save.
+Altium's 16-layer example board is opened once per run at most: three opens filled its
+memory (findings 2026-11-12, second entry, 3 to 5).
 
 ---
 
@@ -54,6 +57,11 @@ compile calls to remove a `.PrjPcbStructure` they created where none was before.
 did nothing (no document, no dialog); it was done by hand through the menu. Local: find a
 way that works from a script (the process with its parameters, or building the library from
 the board's footprints through the PcbLib API), then a tool. (2026-11-12, 7.)
+
+**A9. `run_altium_script`'s compile check reads one declaration per `var` line.** A
+leading `var Board : IPCB_Board; Net : IPCB_Net; i : Integer;` on one line was refused
+before it ran, "'Net' is not declared"; one declaration per line passed. Delphi allows
+several. Local: read every declaration of the line. (2026-11-12, second entry, 2.)
 
 ## Waiting
 

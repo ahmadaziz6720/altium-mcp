@@ -84,3 +84,31 @@ Release `bin\0.7.0-20261112-101037` (build line `0.7.0-ad25-20261112-101037 fb7c
    did nothing (no document, no dialog); it was done by hand through the menu.
 
 Sorted into A1 (1); A2 (2); A3 (3); A4 (4); A5 (5); A6, A7 (6); A8 (7).
+
+**2026-11-12: fixing three read tools, with live tests on new boards and copies of Altium's examples**
+
+A checkout of `ad25` driven from its live tests (`ALTIUM_LIVE=1`), not a release.
+
+1. A3, met again, on a copy of a small example board Altium installs, freshly opened
+   (the view not checked): every free track, arc and via of a 2-pad signal net removed by a script,
+   then `get_unrouted_connections(nets=[it])` with the nets analyzed returned
+   `connection_count` 0 and success, while `run_drc(nets=[it])` gave the one Un-Routed Net
+   between its two pads. A board iterator on `eConnectionObject` found none on the whole
+   board, before and after `AnalyzeNet`. On a 16-layer example board the same iterator
+   found 564 after one net was analyzed.
+2. `run_altium_script` refused a script before running it, "'Net' is not declared", for a
+   leading `var Board : IPCB_Board; Net : IPCB_Net; i : Integer;` on one line: the check
+   reads only the first declaration of a line. One declaration per line passed.
+3. A new PCB document saved by script with `IServerDocument.DoSafeChangeFileNameAndSave(path,
+   'PCB')` returned True and wrote no file; `DoFileSave('PCB')` after it also returned True
+   and wrote nothing. `DoFileSave('')` on a board opened from a file did write it.
+4. A net a script creates (`PCBObjectFactory(eNetObject, ...)`, `AddPCBObject`, pads and
+   tracks given it) holds until the board is saved: after save, close and reopen the pads
+   and tracks have no net, and the net is gone. A test that needs a net uses one the board
+   already has.
+5. Three opens of a 16-layer example board in one Altium run brought Altium to 3.7 GB
+   (7 GB machine), and the server refused every further call until Altium was restarted
+   (its memory guard, as designed).
+
+Sorted into A3 (1); A9 (2). Not filed (3, 4, 5): lessons for live tests, in the
+paragraph on live tests at the top of `open_items.md`.

@@ -112,3 +112,42 @@ A checkout of `ad25` driven from its live tests (`ALTIUM_LIVE=1`), not a release
 
 Sorted into A3 (1); A9 (2). Not filed (3, 4, 5): lessons for live tests, in the
 paragraph on live tests at the top of `open_items.md`.
+
+**2026-11-12: scenario test of a release fixing four read tools, on a small 2-layer board (read, edit, short checks of silkscreen, footprint library, output job)**
+
+Release `bin\0.7.0-20261112-120520` (build line `0.7.0-ad25-20261112-120520 31e7047`).
+
+1. `get_pcb_layer_stackup` (A2, held): the stack top to bottom, mask 0.4 / copper 1.4 /
+   core 60 (FR-4, er 4.8) / copper 1.4 / mask 0.4, `total_thickness_mils` 63.6,
+   `dielectric_layers` 3. Matches a `LayerStack_V7` walk; the core's type is unset there
+   (0), so "Dielectric" is right.
+2. `get_pcb_rules` (A7, held): 38 rules, the scope once in `filter1`/`filter2`, `filter2`
+   only on binary rules, `constraint` without the scope. The reply went from 9.3k to 8.5k
+   characters (about 9 % less, some 220 per rule): what is left is mostly the key names and
+   the indentation repeated on every rule, not the scope.
+3. `get_unrouted_connections` (A4, held): on a freshly opened board `analyzed` false and
+   the board still "open" in `get_project_info` after the call; on a board with unsaved
+   changes `analyzed` true.
+4. `get_layout(designators=[two small chip parts], include_touching=true)` (A6, held):
+   5.0k characters, was 8.6k; the two board-wide ground pours come as `beyond_area`
+   entries (net, layer, bbox, vertex count), the tracks and vias as before.
+5. `run_drc` leaves the board marked modified. On a freshly reopened board, after
+   `get_board_summary`, `get_pcb_layer_stackup` and `get_all_nets` the state was still
+   "open"; after one `run_drc` it was "modified". It happened on a call that reported
+   `ran` false too (point 6), so it is something the tool does before Altium's check runs.
+   Same effect as A4: a read makes Altium ask to save on close and fails the "nothing
+   unsaved" check. Whether Altium's own DRC from the menu also marks the board was not
+   checked. Workaround: close the board with its modified flag cleared.
+6. `run_drc` returned `success` false, `ran` false, "the Design Rule Checker dialog never
+   appeared", on the first DRC after the board was closed unsaved and reopened by script;
+   the same call repeated at once ran normally. Reported as a failure, as it should be, but
+   the reply still carried `report` with its per-rule counts and `violation_count` 4: that
+   report was the file a previous run had left, not marked as stale, and it looks like a
+   result. Workaround: call again.
+7. A3, met again, without `AnalyzeNet`: a board saved with one connection open (DRC gave
+   1 Un-Routed Net before the save), closed and reopened, then
+   `get_unrouted_connections(nets=[it])` returned `analyzed` false and `connection_count` 0,
+   and a board iterator on `eConnectionObject` found none on the whole board. Before the
+   save, on the modified board, `analyzed` true also gave 0. The board was in 3D view
+   throughout (2D not tried). So the ratsnest built at open lacks the connection objects
+   too, not only the analyzed one.

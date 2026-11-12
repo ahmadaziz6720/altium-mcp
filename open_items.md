@@ -24,7 +24,7 @@ folder in `script_path` names the stamp, and its `BUILD.txt` the commit (`CLAUDE
 *Release and run*). Local: add the `manifest.json` version and the content of `BUILD.txt`
 when present; upstream PR for the version part.
 Fixed in `e2ecb5c`: the status adds `version` and `build` (the `BUILD.txt` line, `null` in a
-checkout); offline tests in `test_build_info.py`. Waits for a release, its scenario test,
-and the upstream PR for the version part.
+checkout); offline tests in `test_build_info.py`. Released in `build-20261112-101037`.
+Waits for its scenario test and the upstream PR for the version part.
 
 ## Closed

@@ -759,6 +759,8 @@ var
     Lines    : TStringList;
     NetName  : String;
     i        : Integer;
+    Analyze  : Boolean;
+    Doc      : IServerDocument;
 begin
     Board := GetBoardSafe(0);
     if Board = nil then
@@ -794,19 +796,27 @@ begin
         // first (all 223 nets of a 6-layer board took 0.25 s).
         // Net.ConnectivelyInValidate does not clear such a line. Analyzing can
         // join straight track segments that continue each other; the copper
-        // stays the same.
-        Iterator := Board.BoardIterator_Create;
-        Iterator.AddFilter_ObjectSet(MkSet(eNetObject));
-        Iterator.AddFilter_LayerSet(AllLayers);
-        Iterator.AddFilter_Method(eProcessAll);
-        Prim := Iterator.FirstPCBObject;
-        while Prim <> nil do
+        // stays the same, but the board is then modified. A board with no
+        // unsaved change is as it was loaded, its ratsnest built then, so it
+        // is not analyzed and a read leaves it unmodified.
+        // A board Altium has no document for (not expected) is analyzed.
+        Doc := Client.GetDocumentByPath(Board.FileName);
+        Analyze := (Doc = nil) or DocumentModified(Doc);
+        if Analyze then
         begin
-            if (NetNames.Count = 0) or (NetNames.IndexOf(UpperCase(Prim.Name)) >= 0) then
-                Board.AnalyzeNet(Prim);
-            Prim := Iterator.NextPCBObject;
+            Iterator := Board.BoardIterator_Create;
+            Iterator.AddFilter_ObjectSet(MkSet(eNetObject));
+            Iterator.AddFilter_LayerSet(AllLayers);
+            Iterator.AddFilter_Method(eProcessAll);
+            Prim := Iterator.FirstPCBObject;
+            while Prim <> nil do
+            begin
+                if (NetNames.Count = 0) or (NetNames.IndexOf(UpperCase(Prim.Name)) >= 0) then
+                    Board.AnalyzeNet(Prim);
+                Prim := Iterator.NextPCBObject;
+            end;
+            Board.BoardIterator_Destroy(Iterator);
         end;
-        Board.BoardIterator_Destroy(Iterator);
 
         Iterator := Board.BoardIterator_Create;
         Iterator.AddFilter_ObjectSet(MkSet(eConnectionObject));
@@ -824,6 +834,7 @@ begin
             Prim := Iterator.NextPCBObject;
         end;
         Board.BoardIterator_Destroy(Iterator);
+        Lines.Add('Z|' + BoolToStr(Analyze, True));
         Lines.Add('B|' + Board.FileName);
         Result := Lines.Text;
     finally

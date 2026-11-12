@@ -4752,14 +4752,17 @@ async def get_unrouted_connections(ctx: Context, designators: list = None, nets:
     ones leaving it, not the rest of a board-wide net such as GND.
 
     Altium does not update its ratsnest after copper added by a script, so
-    the nets are analyzed first. Analyzing can join straight track segments
-    that continue each other into one (the copper stays the same), as
-    Altium does after interactive routing.
+    on a board with unsaved changes the nets are analyzed first. Analyzing
+    can join straight track segments that continue each other into one (the
+    copper stays the same), as Altium does after interactive routing. A
+    board with no unsaved change is not analyzed (its ratsnest is the one
+    built when it was opened), so the read leaves it unmodified.
 
     Returns:
         JSON: connection_count, inside_count (both ends in the area),
-        by_net counts, area, and connections (net, from, to, from_pad,
-        to_pad, length in mils, inside), longest first.
+        by_net counts, area, analyzed (whether the nets were analyzed),
+        and connections (net, from, to, from_pad, to_pad, length in mils,
+        inside), longest first.
     """
     names, err = _names(designators, "designators")
     if err:
@@ -4803,6 +4806,7 @@ async def get_unrouted_connections(ctx: Context, designators: list = None, nets:
                        "inside_count": sum(1 for c in labelled if c["inside"]),
                        "by_net": dict(sorted(by_net.items(), key=lambda kv: -kv[1])),
                        "area": [round(v, 2) for v in box] if box else None,
+                       "analyzed": "Z|True" in text.splitlines(),
                        "missing_designators": missing, "connections": labelled[:max(0, limit)]}, indent=1)
 
 

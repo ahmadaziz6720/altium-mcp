@@ -12,6 +12,11 @@ decided against, with the record.
 
 **Open: A3 to A8.**
 
+Next release (owner, 2026-11-12): A2 waits unreleased, to go out in one build with A7, A4
+and A6 once they are fixed, so one scenario test covers them; A3 and A8 are not waited for.
+A live test follows `server/tests/test_live_layer_stackup.py` (`ALTIUM_LIVE=1`, the
+server's own tools, its own boards closed unsaved).
+
 ---
 
 ## Open

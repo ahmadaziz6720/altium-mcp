@@ -10,21 +10,11 @@ Three sections: **Open**, not yet fixed; **Waiting**, fixed and not yet settled 
 merged, a fix not yet run in a session); **Closed**, merged upstream, run and held, or
 decided against, with the record.
 
-**Open: A2 to A8.**
+**Open: A3 to A8.**
 
 ---
 
 ## Open
-
-**A2. `get_pcb_layer_stackup` reports success with the dielectrics missing.** On a 2-layer
-board with a 60 mil FR-4 core and a 0.4 mil solder mask on each side it returns
-`total_layers` 2, `total_thickness_mils` 2.8 (the two coppers only) and "No Dielectric",
-height 0, on both copper layers. The script walks `Board.ElectricalLayerIterator` and reads
-`LayerObject.Dielectric` of each copper layer, which is empty on AD25; a walk of
-`Board.LayerStack_V7` with `First/Next(eLayerClass_Dielectric)` lists all three (core
-h=60 mil, er=4.8, FR-4; masks h=0.4 mil, er=3.5). Local: list the stack in order from
-`LayerStack_V7`, the dielectric layers as entries of their own, and sum the thickness from
-them; upstream PR, the code is upstream's. (2026-11-12, 2.)
 
 **A3. `get_unrouted_connections` reports 0 for a net that is open.** After the only track
 between two pads of a 3-pad net was deleted (`delete_pcb_objects`), `run_drc` gave one
@@ -81,5 +71,23 @@ checkout); offline tests in `test_build_info.py`. Released in `build-20261112-10
 Scenario test of that build held (2026-11-12, 1): `version` 0.7.0, `build` equal to the
 release folder's `BUILD.txt`, `script_path` in the same folder. Waits for the upstream PR
 for the version part.
+
+**A2. `get_pcb_layer_stackup` reports success with the dielectrics missing.** On a 2-layer
+board with a 60 mil FR-4 core and a 0.4 mil solder mask on each side it returns
+`total_layers` 2, `total_thickness_mils` 2.8 (the two coppers only) and "No Dielectric",
+height 0, on both copper layers. The script walks `Board.ElectricalLayerIterator` and reads
+`LayerObject.Dielectric` of each copper layer, which is empty on AD25; a walk of
+`Board.LayerStack_V7` with `First/Next(eLayerClass_Dielectric)` lists all three (core
+h=60 mil, er=4.8, FR-4; masks h=0.4 mil, er=3.5). Local: list the stack in order from
+`LayerStack_V7`, the dielectric layers as entries of their own, and sum the thickness from
+them; upstream PR, the code is upstream's. (2026-11-12, 2.)
+Fixed in `975fe36`: `layers` is the stack top to bottom from `LayerStack_V7`
+(`eLayerClass_Physical`), copper and dielectric entries told apart by `material_type`,
+overlays and pastes left out; `total_thickness_mils` sums both, `total_layers` still counts
+copper, `dielectric_layers` added. A dielectric with no type set reads `eNoDielectric` on
+AD25 and is given as "Dielectric". Live test `tests/test_live_layer_stackup.py`
+(`ALTIUM_LIVE=1`): a new board (16.2 mil) and a copy of the 16-layer Mini PC example
+(cores and prepregs in turn, 79.84 mil); 2/2 pass in AD25, 2/2 fail on the old script. Not
+released yet; then the scenario test, then the upstream PR.
 
 ## Closed

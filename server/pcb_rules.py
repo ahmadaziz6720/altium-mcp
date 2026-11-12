@@ -83,3 +83,32 @@ def encode_values(kind: str, values: dict) -> Tuple[str, str]:
         if hole in vals and vals[hole] >= vals[diameter]:
             return "", f"{hole}_mils must be smaller than {diameter}_mils"
     return ";".join(out), ""
+
+
+def _scope_suffixes(filter1: str, filter2: str):
+    """The ways a rule's Descriptor ends with its scope, longest first."""
+    return (f"({filter1}),({filter2})", f"( ({filter1}) )", f"({filter1})")
+
+
+def compact_rule(rule: dict) -> dict:
+    """One get_pcb_rules entry with its scope given once.
+
+    Altium's Descriptor is the constraint followed by the scope, which
+    filter1 and filter2 give again. The scope is cut from it, leaving
+    "constraint" ("Clearance Constraint (Gap=10mil)"); a descriptor that does
+    not end in the scope is kept whole as the constraint. filter2 is left
+    out of a unary rule, which has one scope.
+    """
+    out = {k: v for k, v in rule.items() if k not in ("descriptor", "unary", "filter2")}
+    f1, f2 = str(rule.get("filter1", "")), str(rule.get("filter2", ""))
+    text = str(rule.get("descriptor", "")).rstrip()
+    for suffix in _scope_suffixes(f1, f2):
+        head = text[:-len(suffix)].rstrip()
+        # a comma left over: the descriptor's two scopes are not the filters
+        if text.endswith(suffix) and not head.endswith(","):
+            text = head
+            break
+    out["constraint"] = text
+    if not rule.get("unary", False):
+        out["filter2"] = f2
+    return out

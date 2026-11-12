@@ -5573,8 +5573,11 @@ async def get_pcb_rules(ctx: Context) -> str:
     
     Returns:
         str: JSON array of PCB design rules: name, enabled, priority (1 is
-             the highest within a rule kind), descriptor, rule_kind and the
-             two scope expressions (filter1, filter2)
+             the highest within a rule kind), rule_kind, filter1 and, for a
+             binary rule (one between two objects, such as Clearance),
+             filter2: the scope expressions; and constraint, Altium's
+             descriptor of the rule without its scope, e.g. "Clearance
+             Constraint (Gap=10mil)".
     """
     logger.info("Getting PCB design rules")
     
@@ -5598,6 +5601,9 @@ async def get_pcb_rules(ctx: Context) -> str:
         return json.dumps({"message": "No PCB rules found in the current document"})
     
     logger.info(f"Retrieved PCB rules data")
+    import pcb_rules
+    if isinstance(rules_data, list):
+        rules_data = [pcb_rules.compact_rule(r) if isinstance(r, dict) else r for r in rules_data]
     return json.dumps(rules_data, indent=2)
 
 @_tool()

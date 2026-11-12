@@ -1868,6 +1868,8 @@ begin
                 AddJSONProperty(RuleProps, 'rule_kind', Rule.GetState_ShortDescriptorString);
                 AddJSONProperty(RuleProps, 'filter1', Rule.Scope1Expression);
                 AddJSONProperty(RuleProps, 'filter2', Rule.Scope2Expression);
+                // The server gives filter2 only for a binary rule
+                AddJSONBoolean(RuleProps, 'unary', Rule.IsUnary);
 
                 // Add to rules array
                 RulesArray.Add(BuildJSONObject(RuleProps, 1));

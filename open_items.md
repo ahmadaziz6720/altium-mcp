@@ -10,12 +10,12 @@ Three sections: **Open**, not yet fixed; **Waiting**, fixed and not yet settled 
 merged, a fix not yet run in a session); **Closed**, merged upstream, run and held, or
 decided against, with the record.
 
-**Open: A3 to A8.**
+**Open: A3, A5, A8.**
 
-Next release (owner, 2026-11-12): A2 waits unreleased, to go out in one build with A7, A4
-and A6 once they are fixed, so one scenario test covers them; A3 and A8 are not waited for.
-A live test follows `server/tests/test_live_layer_stackup.py` (`ALTIUM_LIVE=1`, the
-server's own tools, its own boards closed unsaved).
+Next release (owner, 2026-11-12): A2, A7, A4 and A6 go out in one build, so one scenario
+test covers them; A3 and A8 are not waited for. A live test uses the helpers in
+`server/tests/live_altium.py` (`ALTIUM_LIVE=1`, the server's own tools, its own boards
+closed unsaved).
 
 ---
 
@@ -32,13 +32,14 @@ start. Local, to reproduce first: a live test that deletes a track and expects t
 connection, in 2D and 3D view; if the connection objects cannot be had reliably, take the
 open connections from a DRC Un-Routed Net run instead. Usage until then:
 `run_drc(nets=[...])` gives the open connection with its ends. (2026-11-12, 3.)
-
-**A4. `get_unrouted_connections` leaves the board modified.** On a freshly opened board
-`get_project_info` read "open" before the call and "modified" after, with no primitive count
-changed. A read then makes Altium ask to save on close and fails the "nothing unsaved"
-check. Likely the `AnalyzeNet` pass, which can join collinear track segments (the script's
-own comment). Local: no `AnalyzeNet` on an unchanged board, or restore the document's
-modified flag after the read when nothing was changed. (2026-11-12, 4.)
+Reproduced 2026-11-12 in a session fixing A4, on a copy of the WiFi board of Altium's Mini PC
+example, freshly opened: every free track, arc and via of a 2-pad signal net removed by a
+script, then `get_unrouted_connections(nets=[it])` (nets analyzed, the board being
+modified) gave 0 while `run_drc(nets=[it])` gave the one Un-Routed Net between its two
+pads, and a board iterator on `eConnectionObject` found none on the whole board, before
+and after analyzing. On a copy of the Mini PC motherboard the same iterator found 564 after
+one net was analyzed. So it is not the 3D view alone; whether a board has connection
+objects at all varies.
 
 **A5. Read calls leave files in the project folder.** `run_drc` writes `Design Rule Check -
 <board>.drc` and `.html` beside the board or in `Project Outputs for <project>`, and
@@ -47,16 +48,6 @@ On a project that must stay untouched they were deleted by hand. Local: an optio
 `run_drc` to delete its report once read (or write it elsewhere, if Altium allows), and the
 compile calls to remove a `.PrjPcbStructure` they created where none was before.
 (2026-11-12, 5.)
-
-**A6. `get_layout(include_touching=true)` returns whole pours.** For two small chip parts it
-returned 8.6k characters, most of it the full outlines of two board-wide ground pours that
-only reach into the area. Local: a polygon or region larger than the area is given clipped
-to it, or by its net, layer and bounding box with its full outline left out unless asked.
-(2026-11-12, 6.)
-
-**A7. `get_pcb_rules` repeats each rule's scope.** 9.3k characters for 38 rules, the scope
-given in `descriptor` and again in `filter1`/`filter2`. Local: one of the two, and upstream
-PR. (2026-11-12, 6.)
 
 **A8. No tool to make a PcbLib from a board.** `RunProcess('PCB:MakeLibrary')` and
 `Client.SendMessage('PCB:MakeLibrary', ...)` from `run_altium_script` returned success and
@@ -94,5 +85,42 @@ AD25 and is given as "Dielectric". Live test `tests/test_live_layer_stackup.py`
 (`ALTIUM_LIVE=1`): a new board (16.2 mil) and a copy of the 16-layer Mini PC example
 (cores and prepregs in turn, 79.84 mil); 2/2 pass in AD25, 2/2 fail on the old script. Not
 released yet; then the scenario test, then the upstream PR.
+
+**A7. `get_pcb_rules` repeats each rule's scope.** 9.3k characters for 38 rules, the scope
+given in `descriptor` and again in `filter1`/`filter2`. Local: one of the two, and upstream
+PR. (2026-11-12, 6.)
+Fixed in `c011483`: `descriptor` is given as `constraint`, the scope cut from its end
+(kept whole when it does not end in the filters), and `filter2` is left out of a unary
+rule (`IPCB_Rule.IsUnary`; AD25 reports the Fanout rules binary). Offline tests in
+`test_pcb_rules.py`; live test `tests/test_live_pcb_rules.py` (a new board's default
+rules): 1/1 pass in AD25, fails on the old script. Not released yet; then the scenario
+test, then the upstream PR.
+
+**A4. `get_unrouted_connections` leaves the board modified.** On a freshly opened board
+`get_project_info` read "open" before the call and "modified" after, with no primitive count
+changed. A read then makes Altium ask to save on close and fails the "nothing unsaved"
+check. Likely the `AnalyzeNet` pass, which can join collinear track segments (the script's
+own comment). Local: no `AnalyzeNet` on an unchanged board, or restore the document's
+modified flag after the read when nothing was changed. (2026-11-12, 4.)
+Fixed in `6ad21e8`: a board whose document has no unsaved change is not analyzed (its
+ratsnest is the one built when it was opened); one with unsaved changes still is; the
+result says which, as `analyzed`. Live test `tests/test_live_unrouted.py` on a copy of the
+WiFi board of Altium's Mini PC example (on the old script the read left it modified, its
+track count unchanged, as in the finding; on a copy of the Mini PC motherboard the old
+script also joined 11 tracks): 1/1 pass in AD25, fails on the old script. Not released
+yet.
+
+**A6. `get_layout(include_touching=true)` returns whole pours.** For two small chip parts it
+returned 8.6k characters, most of it the full outlines of two board-wide ground pours that
+only reach into the area. Local: a polygon or region larger than the area is given clipped
+to it, or by its net, layer and bounding box with its full outline left out unless asked.
+(2026-11-12, 6.)
+Fixed in `6ae1092`: with `include_touching`, a pour, region or cutout whose outline (arc
+edges included) reaches beyond the area goes into `beyond_area` (type, name, net, layer,
+bbox, vertex count) and out of the lists `place_copper` reads; `full_outlines=true` gives
+them whole, which the router's two calls ask for (regions are its obstacles). Offline
+tests in `test_pcb_layout.py`; live test `tests/test_live_layout.py` (a new board, a
+2000 mil pour and a small one): 2/2 pass in AD25, both fail on the old code. Not released
+yet.
 
 ## Closed

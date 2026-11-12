@@ -82,3 +82,5 @@ Release `bin\0.7.0-20261112-101037` (build line `0.7.0-ad25-20261112-101037 fb7c
 7. Missing tool: no way to make a PcbLib from a board. `RunProcess('PCB:MakeLibrary')` and
    `Client.SendMessage('PCB:MakeLibrary', ...)` from `run_altium_script` returned success and
    did nothing (no document, no dialog); it was done by hand through the menu.
+
+Sorted into A1 (1); A2 (2); A3 (3); A4 (4); A5 (5); A6, A7 (6); A8 (7).

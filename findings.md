@@ -210,3 +210,34 @@ Release `bin\0.7.0-20261114-145312` (build line `0.7.0-ad25-20261114-145312 1abb
 
 Sorted into A17 (1); A18 (2); A19 (3); A20 (4). Not filed (5): a lesson for scripts that
 open a project, in the paragraph on live tests at the top of `open_items.md`.
+
+**2026-11-14: scenario test of a release fixing `run_drc` and `get_project_info` (A19, A20, A5), on a small 2-layer board (read, edit, short checks of project, silkscreen, footprint library, output job)**
+
+Release `bin\0.7.0-20261114-163431` (build line `0.7.0-ad25-20261114-163431 d7e5c32`).
+
+1. A19, held: on a project freshly opened with `DM_OpenProject` and its board, the first
+   full `run_drc` gave `project` and `project_modified` false, `board_modified` false, and
+   the `.PrjPcb` document's own flag read 0 by script; so did the filtered checks after it.
+   With the project file marked modified by script beforehand, `get_project_info` gave
+   `project_modified` true and `modified_document_count` 1, and `run_drc` left it modified
+   (`project_modified` true). Saved, the project file gained the `[GeneratedDocument1]`
+   entry naming the report's `.html` (deleted by then) and the two sections moved, as the
+   item says; closed and reopened, a full `run_drc` brought up no dialog and left project
+   and board unmodified.
+2. A20, held: `rules=["Un-Routed Net"]` gave one report entry and `rules_omitted` 13, the
+   totals (4 violations) the whole check's; `rules=["Clearance"]` the electrical clearance
+   entry only, not Hole To Hole Clearance; a rule's own name (the solder mask sliver rule,
+   4 violations) kept its kind's entry. A filtered call was 0.66–0.89k characters against
+   2.1k before; a full call is still 5.8k (4 violations listed).
+3. A5, held: after a full and three filtered `run_drc` on a project folder holding only
+   the project's documents, the listing (names, sizes, times) was the same as before,
+   `report.deleted` true and no `path`. `keep_report=true` kept both files and named the
+   `.drc`; the next check without it gave `restored` true and the earlier report's bytes
+   (hash) and times were unchanged. A board with unsaved changes (5 tracks deleted) gave
+   `board_modified` true, the report narrowed and 1 unrouted connection, and still deleted
+   and restored. The `.PrjPcbStructure` appeared when the project was closed, as the
+   usage line says, and was deleted by hand.
+4. Small, not a fault in what is checked: the folder's **own** modification time changes
+   each check (the output folder is made and removed inside it), so a listing that
+   includes `.` differs while every file in it is the same. Worth one line in the tool's
+   description or the item, so a caller comparing folders by time is not misled.

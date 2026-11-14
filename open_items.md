@@ -250,6 +250,16 @@ unasked, and ending and restarting `X2.EXE` when Altium hangs.
   Next, on the owner's word of 2026-11-14, in a new session: the release of A22 and A24
   (steps 1 to 5 of *Release and run*, the push of `ad25` with it) and its scenario test,
   then A29 (a tool to answer a message), then A30's probe; groups 4 and 5 after.
+  Opening answer of that session (the owner, 2026-11-14): yes to all of it: the push, the
+  release, the tag, the registration, the release page, the scenario test headless and the
+  commit of its entry unasked, A29 committed, A30 a probe only (its decision back to the
+  owner), and ending a hung `X2.EXE`.
+- [x] A22 and A24: offline and live tests, pushed, released (build:
+  `build-20261114-225815`; 368 offline, 46 live; Altium restarted before the live tests)
+- [ ] A22 and A24: scenario test (session id: `6faad091-22be-4278-adbf-a02f1cf447ef`), entry
+  committed and sorted, release page
+- [ ] A29: committed (or left Open, why written into it)
+- [ ] A30: probe, its result written into the item
 - [ ] A13: committed (or left Open, why written into it)
 - [ ] A14: committed (or left Open, why written into it)
 - [ ] A12: committed (or left Open, why written into it)
@@ -534,8 +544,8 @@ time Altium is in front measured from the events): before, "Altium had the foreg
 pass. Offline tests in `test_foreground.py` (11). Offline 352 OK; the live set 43 tests, 42
 pass: `test_add_documents` was refused once by the "Altium is not responding" check before
 its call was launched (Altium busy just after a 7 s `add_project_document`), and its module
-passed 9/9 twice alone after. Local: on `ad25`, in the commit that moves it here; not yet in
-a build. Upstream: not yet decided.
+passed 9/9 twice alone after. Fixed in `842e6f8`. Local: on `ad25`, released in
+`build-20261114-225815`. Upstream: not yet decided.
 
 **A24. A modal message no driver knows blocks the call until the bridge's limit.** When
 Altium puts up a message the server does not expect, the script that raised it waits on it,
@@ -583,8 +593,8 @@ tool's own driver to answer first. Not changed: the "busy" box a refused launch 
 before, 3/3 fail ("the call waited 42 s", twice; "the next call waited 44 s"); after, 3/3
 pass, the five tests of the file in 25 s. Offline tests in `test_altium_messages.py` (16).
 Offline 368 OK; the live set 46/46 pass (Altium not restarted before it).
-Local: on `ad25`, in the commit that moves it here; not yet in a build. Upstream: not yet
-decided.
+Fixed in `83623df`. Local: on `ad25`, released in `build-20261114-225815`. Upstream: not
+yet decided.
 
 ## Closed
 

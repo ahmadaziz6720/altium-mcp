@@ -194,8 +194,9 @@ unasked, and ending and restarting `X2.EXE` when Altium hangs.
 - [x] A19: committed
 - [x] A20: committed
 - [x] A5: committed
-- [ ] group 1: offline and live tests, pushed, released (build: …)
-- [ ] group 1: scenario test (session id: …), entry committed and sorted, release page
+- [x] group 1: offline and live tests, pushed, released (build: `build-20261114-163431`;
+  Altium not restarted before the live tests, see the report)
+- [ ] group 1: scenario test (session id: `abd53408-395b-493b-9258-37a2b678aa3b`), entry committed and sorted, release page
 - [ ] A3: committed (or left Open, why written into it)
 - [ ] A9: committed (or left Open, why written into it)
 - [ ] group 2: offline and live tests, pushed, released (build: …)
@@ -374,7 +375,7 @@ project's generated documents, which marks the `.PrjPcb` document modified, whet
 check finds violations or not (reproduced 2026-11-14 on a copy of the WiFi board's
 project of Altium's Mini PC example: 0 violations, project file marked). `get_project_info`
 walked the project's logical documents only, so the project file itself was never read.
-Fixed in the commit that moves it here: `run_drc`'s script finds the project the board is
+Fixed in `7a8ff22`: `run_drc`'s script finds the project the board is
 a document of (none for a board under Free Documents), reads its document's flag before
 the check and clears it after when the project had no unsaved change, as A17 does the
 board; the result gives `project` and `project_modified` for a board in a project. The
@@ -394,8 +395,8 @@ Decided 2026-11-14 by the run, not the owner: a board under Free Documents gives
 `project` or `project_modified`, and the project file is not added to `documents` in
 `get_project_info`, because Free Documents has no file to save, and `documents` lists the
 project's own documents, which a caller walks by kind.
-Local: on `ad25`, in the commit that moves it here; not yet in a build. Upstream: not yet
-decided.
+Local: on `ad25`, in `7a8ff22`. Released in `build-20261114-163431`; scenario test not run
+yet. Upstream: not yet decided.
 
 **A20. `run_drc`'s report ignores the rule filter.** `run_drc(rules=[one kind])` whose
 filter matched no violation still returned the per-rule report of all 14 rules, about
@@ -404,7 +405,7 @@ filter matched no violation still returned the per-rule report of all 14 rules, 
 Cause: `run_drc` filtered the violations with `drc.matches` and then attached the parsed
 `.drc` report whole. A report entry names a rule by its kind and settings (`Clearance
 Constraint (Gap=0.2mm) (All),(All)`), never by the rule's own name.
-Fixed in the commit that moves it here: with `rules` given, `drc.narrow_report` keeps the
+Fixed in `aeb2a9f`: with `rules` given, `drc.narrow_report` keeps the
 report entries whose kind is one of `rules` (compared as `matches` compares, `rule_key`:
 any case, spacing, a trailing "Constraint"), so "Clearance" keeps the Clearance entries
 and not Hole To Hole Clearance. A rule's own name in `rules` keeps the kinds of the
@@ -424,8 +425,8 @@ Decided 2026-11-14 by the run, not the owner: the report is narrowed to the rule
 for only, not also to "the rules with violations" (the other half of the item's first
 wording), because the plan's decision is the filter alone, and a rule that was checked
 and passed is a fact the caller may be asking for.
-Local: on `ad25`, in the commit that moves it here; not yet in a build. Upstream: not yet
-decided.
+Local: on `ad25`, in `aeb2a9f`. Released in `build-20261114-163431`; scenario test not run
+yet. Upstream: not yet decided.
 
 **A5. Read calls leave files in the project folder.** `run_drc` writes `Design Rule Check -
 <board>.drc` and `.html` beside the board or in `Project Outputs for <project>`, and
@@ -444,7 +445,7 @@ folder as it was, also 5 to 15 s later; the file appeared when the project was c
 as well after a project was only opened and closed with no call at all. An existing one
 was written back with the same content. So it is Altium's close of the project, not the
 call.
-Fixed in the commit that moves it here: once the Design Rule Checker dialog is up, before
+Fixed in `d7e5c32`: once the Design Rule Checker dialog is up, before
 the check runs, `run_drc` notes the folders where the report may go and any report already
 there (`drc.snapshot_reports`), for the board the bridge script names in the exchange
 folder's `last_board.txt` as it brings the board to the front (so also with no
@@ -490,8 +491,8 @@ for the board named in `last_board.txt`, not by a call made before the check, be
 no `board_path` only the bridge script knows the board, and that moment comes before the
 check writes anything at no extra call; when the reply names another board nothing is
 deleted (`delete_error`).
-Local: on `ad25`, in the commit that moves it here; not yet in a build. Upstream: not yet
-decided.
+Local: on `ad25`, in `d7e5c32`. Released in `build-20261114-163431`; scenario test not run
+yet. Upstream: not yet decided.
 
 ## Closed
 

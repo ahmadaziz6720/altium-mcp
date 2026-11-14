@@ -2064,9 +2064,14 @@ async def create_footprints_batch(ctx: Context, spec_file: str) -> str:
 @_tool()
 async def build_schematic(ctx: Context, parts: list, wires: list = None,
                           junctions: list = None, net_labels: list = None,
-                          power_ports: list = None, notes: list = None) -> str:
+                          power_ports: list = None, notes: list = None,
+                          project_path: str = "", sheet_path: str = "") -> str:
     """
     Build a wired schematic on a NEW sheet from a circuit description.
+
+    Without project_path the sheet is a new, unsaved free document. With
+    project_path and sheet_path it is saved at sheet_path and added to that
+    project (as add_project_document does), the project file saved.
 
     READ dev/SCHEMATIC_CONVENTIONS.md BEFORE CALLING. This tool places exactly
     what it is given; it does not lay out or correct spacing. The conventions
@@ -2105,6 +2110,10 @@ async def build_schematic(ctx: Context, parts: list, wires: list = None,
             "show_net_name":false}]. Harvest style/orientation from an existing
             sheet rather than guessing: 5 = digital ground, 2 = supply bar.
         notes: [{"x":..,"y":..,"text":".."}] free text.
+        project_path: full path of an existing .PrjPcb to add the sheet to
+            (create one with create_project). Needs sheet_path.
+        sheet_path: full path the sheet is saved at, a .SchDoc that does not
+            exist yet. Only with project_path.
 
         All coordinates are mils and keep their fractions, so a metric sheet
         can be drawn exactly (1 mm = 39.3700787 mil). The pin_map has the
@@ -2114,8 +2123,24 @@ async def build_schematic(ctx: Context, parts: list, wires: list = None,
     Returns:
         JSON with the created sheet name, counts, and the pin map - every
         placed pin's true connection point, for routing a follow-up call.
+        With project_path also sheet_path and project: add_project_document's
+        result (the project's documents read back from Altium, and whether
+        the saved project file lists the sheet). A sheet with missing parts
+        is not saved into the project (project_note says so).
     """
     logger.info(f"Building schematic: {len(parts)} parts")
+
+    if bool(project_path) != bool(sheet_path):
+        return json.dumps({"success": False,
+                           "error": "project_path and sheet_path go together: the sheet is saved at "
+                                    "sheet_path and added to the project; give both, or neither for "
+                                    "an unsaved free sheet"})
+    if project_path:
+        project_path, error = _project_path(project_path)
+        if not error:
+            sheet_path, error = _new_document_path(sheet_path, (".schdoc",))
+        if error:
+            return json.dumps({"success": False, "error": error})
 
     # The spec carries Altium coords (10000 per mil). Whole mils missed a
     # metric grid by up to half a mil, and a wire that far out of level turns
@@ -2198,6 +2223,17 @@ async def build_schematic(ctx: Context, parts: list, wires: list = None,
     result["pin_map"] = pin_map
     result["pin_map_note"] = ("Absolute electrical connection points. Route "
                               "wires from these, not from predicted offsets.")
+    if project_path:
+        if not result.get("success"):
+            result["project_note"] = ("Not saved into the project: parts were missing. The sheet is "
+                                      "open unsaved; fix the parts and build again.")
+        else:
+            added = await _add_to_project(project_path, sheet_path, source_document=result.get("sheet", ""))
+            result["sheet_path"] = sheet_path
+            result["project"] = added
+            if not added.get("success"):
+                result["success"] = False
+                result["error"] = f"The sheet was built but not saved into the project: {added.get('error')}"
     return json.dumps(result, indent=2)
 
 @_tool()
@@ -6158,6 +6194,141 @@ async def get_erc_violations(ctx: Context, compile: bool = True, project_path: s
                                  "ERC violations")
 
 
+def _new_document_path(path: str, extensions: tuple):
+    """A file to create, as Altium will name it, and an error ('' when
+    fine): one of extensions, not there yet (nothing is overwritten); its
+    folder is made when missing."""
+    import project_setup
+
+    if not path:
+        return path, "a full path is needed"
+    path = project_setup.new_file_path(path)
+    if os.path.splitext(path)[1].lower() not in extensions:
+        return path, f"{path} must end in {' or '.join(extensions)}"
+    if os.path.exists(path):
+        return path, f"A file already exists at {path}: not overwritten"
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+    except OSError as e:
+        return path, f"could not make the folder of {path}: {e}"
+    # The folder is there now, so its 8.3 names can be expanded
+    return project_setup.new_file_path(path), ""
+
+
+async def _add_to_project(project_path: str, document_path: str, new_kind: str = "",
+                          source_document: str = "") -> dict:
+    """add_project_document's bridge call, and whether the saved project file
+    lists the document afterwards."""
+    import project_setup
+
+    result, error = await _bridge_json("add_project_document", {
+        "project_path": project_path, "document_path": document_path,
+        "new_kind": new_kind, "source_document": source_document})
+    if error:
+        return {"success": False, "error": error}
+    try:
+        listed = project_setup.project_file_documents(project_path)
+        result["in_project_file"] = any(project_setup.same_path(p, document_path) for p in listed)
+    except OSError as e:
+        result["in_project_file"] = False
+        result["project_file_error"] = str(e)
+    return result
+
+
+@_tool()
+async def create_project(ctx: Context, project_path: str) -> str:
+    """
+    Create a new, empty PCB project (.PrjPcb) and open it in Altium.
+
+    Altium makes the project, so its file holds Altium's own default project
+    settings. The folder is made when it is not there. Refused when a file
+    already exists at project_path: nothing is overwritten. Then add the
+    sheets and the board with add_project_document (create=True for new
+    ones), or build_schematic with project_path.
+
+    Args:
+        project_path (str): Full path of the new .PrjPcb.
+
+    Returns:
+        str: JSON with project_path as Altium has it, documents [{path,
+             kind}] (none yet, read from Altium), project_modified (false:
+             it is saved) and created.
+    """
+    path, error = _new_document_path(project_path, (".prjpcb",))
+    if error:
+        return json.dumps({"success": False, "error": error})
+    result, error = await _bridge_json("create_project", {"project_path": path})
+    if error:
+        return json.dumps({"success": False, "error": error})
+    if not os.path.isfile(path):
+        return json.dumps({"success": False, "error": f"Altium reported the project made, but {path} is not "
+                                                      f"on disk", "altium": result})
+    return json.dumps(result, indent=2)
+
+
+@_tool()
+async def add_project_document(ctx: Context, project_path: str, document_path: str, create: bool = False) -> str:
+    """
+    Add a document to a PCB project, or create a new schematic or board in it.
+
+    With create=False the document must exist: any document a project holds
+    (.SchDoc, .PcbDoc, .OutJob, .SchLib, .PcbLib, ...). With create=True a
+    new, empty .SchDoc or .PcbDoc (by document_path's extension) is made,
+    saved at document_path and left open; refused when a file is there,
+    nothing is overwritten. A new board has Altium's default shape: set it
+    with set_board_shape.
+
+    The project is opened when it is not, and its file is saved after the
+    add, so the add holds when the project is closed. A document already in
+    the project is left as it is (already_in_project). Altium may first take
+    a new document into the project that has focus; it is taken out of it
+    again (detached_from), that project's file left unmodified when it had
+    no unsaved change.
+
+    Args:
+        project_path (str): Full path of an existing .PrjPcb.
+        document_path (str): Full path of the document.
+        create (bool): Make a new .SchDoc or .PcbDoc there first.
+
+    Returns:
+        str: JSON with project_path, documents [{path, kind}] as Altium lists
+             them after the add (Altium may list an ActiveBOM.VirtualBom
+             document of its own, which has no file and is not in the
+             project file), document, created, already_in_project,
+             project_saved, project_modified, in_project_file (the saved
+             .PrjPcb lists the document) and detached_from when a project
+             had taken the new document.
+    """
+    import project_setup
+
+    project_path, error = _project_path(project_path)
+    if not project_path and not error:
+        error = "project_path is needed"
+    if error:
+        return json.dumps({"success": False, "error": error})
+    new_kind = ""
+    if create:
+        document_path, error = _new_document_path(document_path, tuple(project_setup.NEW_KINDS))
+        if error:
+            return json.dumps({"success": False,
+                               "error": error + (" (create makes a .SchDoc or a .PcbDoc)"
+                                                 if "must end" in error else "")})
+        new_kind = project_setup.NEW_KINDS[os.path.splitext(document_path)[1].lower()]
+    else:
+        document_path = long_path(document_path)
+        if not document_path or not os.path.isfile(document_path):
+            return json.dumps({"success": False, "error": f"Document not found: {document_path} "
+                                                          "(create=True makes a new .SchDoc or .PcbDoc)"})
+    result = await _add_to_project(project_path, document_path, new_kind=new_kind)
+    if result.get("success") and not result.get("in_project_file"):
+        result["success"] = False
+        result["error"] = "Altium lists the document, but the saved project file does not"
+    return json.dumps(result, indent=2)
+
+
+MUTATING_COMMANDS.update({"create_project", "add_project_document"})
+
+
 @_tool(read_only=True)
 async def get_board_summary(ctx: Context) -> str:
     """
@@ -6174,6 +6345,141 @@ async def get_board_summary(ctx: Context) -> str:
              texts on Top/Bottom Overlay, e.g. board name and revision)
     """
     return await _simple_command("get_board_summary", {}, "board summary")
+
+
+def _shape_lines(text: str) -> dict:
+    """The records of a board_layer_shapes or set_board_outline reply, by kind."""
+    out = {}
+    for line in str(text).splitlines():
+        line = line.strip()
+        if "|" in line:
+            out.setdefault(line.split("|", 1)[0], []).append(line)
+    return out
+
+
+@_tool()
+async def set_board_shape(ctx: Context, outline: list = None, unit: str = "mil", mechanical_layer: str = "",
+                          board_path: str = "") -> str:
+    """
+    Set a PCB's board shape, from an outline or from a closed shape drawn on
+    a mechanical layer. The board is changed, not saved.
+
+    outline is the vertices in order around the shape, closed back to the
+    first by itself; either direction. A vertex is [x, y], a corner with a
+    straight edge to the next vertex, or {"x", "y", "arc_center": [cx, cy],
+    "clockwise": false}, whose edge to the next vertex is an arc around
+    arc_center (counter-clockwise unless clockwise); both ends of an arc must
+    be the same distance from its centre. A round board is two arc vertices
+    on one centre. Coordinates are from the board origin, in unit.
+
+    mechanical_layer instead takes the free tracks and arcs on that layer
+    ("Mechanical 1" to "Mechanical 16", or the layer's name), chained end to
+    end (ends within 0.1 mil meet), as Altium's "Define Board Shape from
+    Selected Objects" would. One closed shape is used; with several, the
+    largest when every other lies inside it (they are listed, not made into
+    cutouts), else the call is refused. Pieces that do not close are listed.
+
+    Refused, the board unchanged: an outline that crosses itself or encloses
+    no area, an arc whose ends are not on one circle, a layer with no closed
+    shape (its open ends are given).
+
+    Args:
+        outline (list): The vertices, as above.
+        unit (str): "mil" (default) or "mm", for outline and the result.
+        mechanical_layer (str): The layer to take the shape from, instead of
+            outline.
+        board_path (str): Full path of the .PcbDoc; empty for the focused
+            board, or the one the PCB tools last used.
+
+    Returns:
+        str: JSON with board, unit, outline (the board's outline read back
+             from Altium, in the form given above), vertex_count,
+             bounding_box (x1, y1, x2, y2, width, height, from Altium),
+             board_modified, and with mechanical_layer from_layer (layer,
+             pieces used, other_closed_shapes as boxes, not_closed).
+    """
+    import project_setup
+
+    board_path = long_path(board_path)
+    factor, error = project_setup.unit_factor(unit)
+    if error:
+        return json.dumps({"success": False, "error": error})
+    unit = "mm" if factor != 1.0 else "mil"
+    if (outline is None) == (not mechanical_layer):
+        return json.dumps({"success": False, "error": "give outline or mechanical_layer, one of the two"})
+
+    from_layer = None
+    if outline is not None:
+        verts, error = project_setup.parse_outline(outline, unit)
+        if error:
+            return json.dumps({"success": False, "error": error})
+    else:
+        response = await altium_bridge.execute_command("board_layer_shapes", {
+            "layer": mechanical_layer, "board_path": board_path})
+        if not response.get("success", False):
+            return json.dumps({"success": False, "error": response.get("error", "unknown error")})
+        recs = _shape_lines(response.get("result", ""))
+        layer = recs.get("L", ["L|" + mechanical_layer])[0].split("|", 1)[1]
+
+        def mils(f):
+            return [int(v) / project_setup.COORD_PER_MIL for v in f]
+
+        tracks = [mils(r.split("|")[1:5]) for r in recs.get("T", [])]
+        arcs = [mils(r.split("|")[1:4]) + [int(v) / 1000 for v in r.split("|")[4:6]] for r in recs.get("A", [])]
+        loops, problems = project_setup.chain_loops(tracks, arcs)
+
+        def in_unit(p):
+            return [round(v / factor, 4 if unit == "mil" else 5) for v in p]
+
+        not_closed = [{k: ([in_unit(e) for e in v] if k == "open_ends" else in_unit(v)) for k, v in p.items()}
+                      for p in problems]
+        chosen, others, error = project_setup.pick_outline(loops)
+        if error:
+            return json.dumps({"success": False, "error": f"{error} on {layer} ({len(tracks)} tracks, "
+                                                          f"{len(arcs)} arcs)",
+                               "not_closed": not_closed}, indent=2)
+        from_layer = {"layer": layer, "pieces": len(chosen),
+                      "other_closed_shapes": [in_unit(b) for b in others], "not_closed": not_closed}
+        # The same checks as a given outline
+        verts, error = project_setup.parse_outline(
+            [{"x": v["x"], "y": v["y"], "arc_center": list(v["arc"]["center"]),
+              "clockwise": v["arc"]["clockwise"]} if v["arc"] else [v["x"], v["y"]] for v in chosen], "mil")
+        if error:
+            return json.dumps({"success": False, "error": f"the closed shape on {layer}: {error}",
+                               "from_layer": from_layer}, indent=2)
+
+    response = await altium_bridge.execute_command("set_board_outline", {
+        "outline": project_setup.encode(verts), "board_path": board_path})
+    if not response.get("success", False):
+        return json.dumps({"success": False, "error": response.get("error", "unknown error")})
+    recs = _shape_lines(response.get("result", ""))
+    vertex_recs = [r for r in str(response.get("result", "")).splitlines() if r[:2] in ("L|", "A|")]
+    shape, read_mils = project_setup.decode(vertex_recs, unit)
+    box = [int(v) / project_setup.COORD_PER_MIL for v in recs["B"][0].split("|")[1:5]]
+    digits = 4 if unit == "mil" else 5
+    result = {
+        "success": True,
+        "board": recs.get("F", ["F|"])[0].split("|", 1)[1],
+        "unit": unit,
+        "outline": shape,
+        "vertex_count": len(shape),
+        "bounding_box": {k: round(v / factor, digits) for k, v in zip(
+            ("x1", "y1", "x2", "y2", "width", "height"),
+            (box[0], box[1], box[2], box[3], box[2] - box[0], box[3] - box[1]))},
+        "board_modified": recs.get("M", ["M|0"])[0] == "M|1",
+    }
+    if from_layer:
+        result["from_layer"] = from_layer
+    # What Altium holds must be what was asked
+    asked = project_setup.decode(project_setup.encode(verts).split(";"), unit)[0]
+    if shape != asked:
+        result["success"] = False
+        result["error"] = "Altium's board outline differs from the one asked for"
+        result["asked"] = asked
+    return json.dumps(result, indent=2)
+
+
+MUTATING_COMMANDS.add("set_board_outline")
 
 
 @_tool(read_only=True)

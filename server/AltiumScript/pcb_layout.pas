@@ -912,3 +912,181 @@ begin
         Lines.Free;
     end;
 end;
+
+// The focused board's outline as set_board_shape reads it back: one line per
+// vertex, 'L|x|y' or 'A|x|y|cx|cy|r|a1|a2' (internal units from the board
+// origin, angles in thousandths of a degree, as LayoutPolySegment gives them),
+// then 'B|x1|y1|x2|y2', its bounding box, and 'M|1' or 'M|0', whether the
+// board document has unsaved changes
+function BoardOutlineLines(Board: IPCB_Board): String;
+var
+    Outline : IPCB_BoardOutline;
+    Lines   : TStringList;
+    I       : Integer;
+begin
+    Lines := TStringList.Create;
+    try
+        Outline := Board.BoardOutline;
+        for I := 0 to Outline.PointCount - 1 do
+            Lines.Add(Copy(LayoutPolySegment(Board, Outline.Segments[I]), 3, 1000));
+        Lines.Add('B|' + IntToStr(Outline.BoundingRectangle.Left - Board.XOrigin) + '|' +
+                  IntToStr(Outline.BoundingRectangle.Bottom - Board.YOrigin) + '|' +
+                  IntToStr(Outline.BoundingRectangle.Right - Board.XOrigin) + '|' +
+                  IntToStr(Outline.BoundingRectangle.Top - Board.YOrigin));
+        if DocumentModified(Client.GetDocumentByPath(Board.FileName)) then
+            Lines.Add('M|1')
+        else
+            Lines.Add('M|0');
+        Lines.Add('F|' + Board.FileName);
+        Result := Lines.Text;
+    finally
+        Lines.Free;
+    end;
+end;
+
+// set_board_outline: the focused board's shape from Spec, 'L|x|y' and
+// 'A|x|y|cx|cy|r|a1|a2' records (as BoardOutlineLines gives them) joined by
+// ';', then read back. Altium keeps the outline's area and box as they were
+// until UpdateBoardOutline; the board is marked changed.
+function SetBoardOutline(Spec: String): String;
+var
+    Board   : IPCB_Board;
+    Outline : IPCB_BoardOutline;
+    Recs    : TStringList;
+    I, N    : Integer;
+begin
+    Board := GetBoardSafe(0);
+    if Board = nil then
+    begin
+        Result := 'ERROR: No PCB document is focused';
+        Exit;
+    end;
+    Recs := TStringList.Create;
+    try
+        Recs.Text := StringReplace(Spec, ';', #13#10, REPLACEALL);
+        N := 0;
+        for I := 0 to Recs.Count - 1 do
+            if Trim(Recs[I]) <> '' then N := N + 1;
+        if N < 2 then
+        begin
+            Result := 'ERROR: set_board_outline needs at least two vertices';
+            Exit;
+        end;
+        Outline := Board.BoardOutline;
+        PCBServer.PreProcess;
+        try
+            PCBServer.SendMessageToRobots(Outline.I_ObjectAddress, c_Broadcast, PCBM_BeginModify, c_NoEventData);
+            Outline.PointCount := N;
+            N := 0;
+            for I := 0 to Recs.Count - 1 do
+                if Trim(Recs[I]) <> '' then
+                begin
+                    Outline.Segments[N] := LayoutSegment(Board, 'S|' + Trim(Recs[I]));
+                    N := N + 1;
+                end;
+            PCBServer.SendMessageToRobots(Outline.I_ObjectAddress, c_Broadcast, PCBM_EndModify, c_NoEventData);
+        finally
+            PCBServer.PostProcess;
+        end;
+        Board.UpdateBoardOutline;
+        Board.ViewManager_FullUpdate;
+        MarkDocumentModified(Board.FileName);
+        Result := BoardOutlineLines(Board);
+    finally
+        Recs.Free;
+    end;
+end;
+
+// A mechanical layer of Board by its name or as 'Mechanical N', N 1 to 16;
+// eNoLayer when there is none, -1 for Mechanical 16 on a board that also
+// uses a mechanical layer above it: a primitive's layer reads Mechanical 16
+// for every layer above it (#32), so they cannot be told apart
+function BoardShapeLayer(Board: IPCB_Board; Name: String): Integer;
+var
+    I     : Integer;
+    Stack : IPCB_LayerStack_V7;
+    Mech  : IPCB_MechanicalLayer;
+    Want  : String;
+begin
+    Result := eNoLayer;
+    Want := UpperCase(Trim(Name));
+    Stack := Board.LayerStack_V7;
+    for I := 1 to 16 do
+        if Result = eNoLayer then
+        begin
+            Mech := Stack.LayerObject_V7[ILayer.MechanicalLayer(I)];
+            if (Want = 'MECHANICAL ' + IntToStr(I)) or (Want = 'MECHANICAL LAYER ' + IntToStr(I)) then
+                Result := ILayer.MechanicalLayer(I)
+            else if Mech <> nil then
+                if UpperCase(Mech.Name) = Want then
+                    Result := ILayer.MechanicalLayer(I);
+        end;
+    if Result = ILayer.MechanicalLayer(16) then
+        for I := 17 to MAX_MECH_LAYERS do
+        begin
+            Mech := Stack.LayerObject_V7[ILayer.MechanicalLayer(I)];
+            if Mech <> nil then
+                if Mech.MechanicalLayerEnabled then
+                    Result := -1;
+        end;
+end;
+
+// board_layer_shapes: the free tracks and arcs on one mechanical layer of the
+// focused board, the pieces of a board shape drawn there: 'T|x1|y1|x2|y2' and
+// 'A|cx|cy|r|a1|a2' (internal units from the board origin, angles in
+// thousandths of a degree, counter-clockwise from a1 to a2), after
+// 'L|<layer name>'. Primitives of components are left out.
+function GetBoardLayerShapes(LayerName: String): String;
+var
+    Board    : IPCB_Board;
+    Iterator : IPCB_BoardIterator;
+    Prim     : IPCB_Primitive;
+    Layer    : Integer;
+    Lines    : TStringList;
+begin
+    Board := GetBoardSafe(0);
+    if Board = nil then
+    begin
+        Result := 'ERROR: No PCB document is focused';
+        Exit;
+    end;
+    Layer := BoardShapeLayer(Board, LayerName);
+    if Layer = eNoLayer then
+    begin
+        Result := 'ERROR: ' + LayerName + ' is not a mechanical layer of this board: give Mechanical 1 to 16, by ' +
+                  'number ("Mechanical 1") or by its name';
+        Exit;
+    end;
+    if Layer = -1 then
+    begin
+        Result := 'ERROR: Mechanical 16 cannot be read apart from the mechanical layers above it, which this ' +
+                  'board uses: draw the shape on Mechanical 1 to 15';
+        Exit;
+    end;
+    Lines := TStringList.Create;
+    try
+        Lines.Add('L|' + Board.LayerStack_V7.LayerObject_V7[Layer].Name);
+        Iterator := Board.BoardIterator_Create;
+        Iterator.AddFilter_ObjectSet(MkSet(eTrackObject, eArcObject));
+        Iterator.AddFilter_LayerSet(MkSet(Layer));
+        Iterator.AddFilter_Method(eProcessAll);
+        Prim := Iterator.FirstPCBObject;
+        while Prim <> nil do
+        begin
+            if (Prim.Layer = Layer) and (not Prim.InComponent) then
+            begin
+                if Prim.ObjectId = eTrackObject then
+                    Lines.Add('T|' + IntToStr(Prim.x1 - Board.XOrigin) + '|' + IntToStr(Prim.y1 - Board.YOrigin) + '|' +
+                              IntToStr(Prim.x2 - Board.XOrigin) + '|' + IntToStr(Prim.y2 - Board.YOrigin))
+                else
+                    Lines.Add('A|' + IntToStr(Prim.XCenter - Board.XOrigin) + '|' + IntToStr(Prim.YCenter - Board.YOrigin) + '|' +
+                              IntToStr(Prim.Radius) + '|' + LayoutAngle(Prim.StartAngle) + '|' + LayoutAngle(Prim.EndAngle));
+            end;
+            Prim := Iterator.NextPCBObject;
+        end;
+        Board.BoardIterator_Destroy(Iterator);
+        Result := Lines.Text;
+    finally
+        Lines.Free;
+    end;
+end;

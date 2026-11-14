@@ -10,7 +10,7 @@ Three sections: **Open**, not yet fixed; **Waiting**, fixed and not yet settled 
 merged, a fix not yet run in a session); **Closed**, merged upstream, run and held, or
 decided against, with the record.
 
-**Open: A8, A10 to A16, A22, A23.**
+**Open: A8, A11 to A16, A22, A23.**
 
 A2, A7, A4 and A6 went out together in `build-20261112-120520` (owner, 2026-11-12), so one
 scenario test covers them; A3 and A8 were not waited for. That test ran and held for
@@ -226,7 +226,7 @@ unasked, and ending and restarting `X2.EXE` when Altium hangs.
   not stopped (about 1.3 GB free before it). The record commits after the release (the
   entry, the sort, this line) go out with group 3's push. Altium was started by the run
   and left running.
-- [ ] A10: committed (or left Open, why written into it)
+- [x] A10: committed
 - [ ] A11: committed (or left Open, why written into it)
 - [ ] A16: committed (or left Open, why written into it)
 - [ ] group 3: offline and live tests, pushed, released (build: …)
@@ -251,13 +251,6 @@ unasked, and ending and restarting `X2.EXE` when Altium hangs.
 did nothing (no document, no dialog); it was done by hand through the menu. Local: find a
 way that works from a script (the process with its parameters, or building the library from
 the board's footprints through the PcbLib API), then a tool. (2026-11-12, 7.)
-
-**A10. No tool to set up a project and its board.** `build_schematic` makes its sheet
-outside any project, as a free document, and no tool creates a `.PrjPcb`, adds a sheet to
-one, creates a `.PcbDoc` in it, or sets the board shape. The step from schematic to board
-is done by hand. Local: tools to create a project and add documents to it, and to set the
-board shape from an outline (mils or mm, arcs allowed) or from a closed shape on a
-mechanical layer.
 
 **A11. No tool to update the board from the schematic.** No Update PCB Document (ECO):
 parts and nets reach a board only through Altium's menu, and so does a schematic change
@@ -376,6 +369,84 @@ Scenario test of that build held (2026-11-12, third entry, 2): 38 rules, the sco
 `filter2` only on binary rules. The reply went from 9.3k to 8.5k characters only (about
 9 %): what is left is mostly the key names and indentation repeated on every rule.
 Waits for the upstream PR.
+
+**A10. No tool to set up a project and its board.** `build_schematic` makes its sheet
+outside any project, as a free document, and no tool creates a `.PrjPcb`, adds a sheet to
+one, creates a `.PcbDoc` in it, or sets the board shape. The step from schematic to board
+is done by hand. Local: tools to create a project and add documents to it, and to set the
+board shape from an outline (mils or mm, arcs allowed) or from a closed shape on a
+mechanical layer.
+Found 2026-11-14 by the run's probes in AD25: `GetWorkspace.DM_CreateNewDocument('PcbProject')`
+makes an unsaved project and `DoSafeChangeFileNameAndSave(<path>, 'PrjPcb')` writes its file
+(29 kB of Altium's defaults). For a new `.SchDoc` or `.PcbDoc` the same call returns True and
+renames the document but writes no file; a second save (`SetModified(True)`, then
+`DoFileSave('')`) writes it (`DoFileSave('PCB')` did not). A new schematic is taken into the
+project that has focus (a copy of the WiFi project of Altium's Mini PC example, its board in
+front), a new board is not. A board outline's segments set by script read back at once, but
+its area, box and `PointInPolygon` keep the old shape until `Board.UpdateBoardOutline`. An
+outline arc is drawn counter-clockwise from `Angle1` to `Angle2` whichever way the outline
+runs. A primitive's layer above Mechanical 16 could not be set or read by script
+(`Layer_V7`, `V7_Layer` undeclared). After an add Altium may list an `ActiveBOM.VirtualBom`
+document of its own, with no file and not in the project file.
+Fix: four tools. `create_project(project_path)`: Altium makes the project, saved there
+(the folder made when missing); refused when a file is there. `add_project_document(
+project_path, document_path, create=False)`: an existing document, or with `create` a new
+`.SchDoc` or `.PcbDoc` saved there and left open; the project opened when it is not, its
+file saved after the add; a document already in it left as it is (`already_in_project`);
+a new document a focused project took is taken out of it again (`detached_from`), its file
+flag put back. The result is the project's documents read back from Altium and
+`in_project_file`, the saved `.PrjPcb` read from disk. `set_board_shape(outline, unit,
+mechanical_layer, board_path)`: vertices `[x, y]` or `{x, y, arc_center, clockwise}` in
+mils or mm, checked in `project_setup.py` (an arc's ends on one circle within 0.1 mil, no
+crossing, an area, within Altium's design space), or the free tracks and arcs of Mechanical
+1 to 16 (by number or name) chained end to end (ends within 0.1 mil meet) into closed
+loops, one picked; the board's outline read back (vertices in the form given, box,
+`board_modified`) and compared with what was asked, a difference a failure; the board
+changed, not saved. `build_schematic(project_path, sheet_path)`: the sheet saved at
+`sheet_path` and added to the project, as `add_project_document`. Bridge commands
+`create_project`, `add_project_document` (`other_utils.pas`), `set_board_outline` and
+`board_layer_shapes` (`pcb_layout.pas`, reusing `LayoutSegment`).
+Live test `tests/test_live_project_setup.py` (`ALTIUM_LIVE=1`, a temporary folder, everything
+under it closed unsaved; copies of the WiFi board and project and of a library of the
+SpiritLevel-SL1 example): a project made and refused a second time, its file unchanged;
+a new sheet, a new board and a copied sheet added, the saved project file and Altium's
+project listing all three, a repeat add and a refused add changing nothing; a new sheet and
+board added while the WiFi project copy has focus, that project not given them and left
+unmodified (the sheet was taken and given back, `detached_from`); `build_schematic` with
+two parts into a project, the sheet saved holding both; a copy of the WiFi board given a
+rounded corner in mils (clockwise) and a 50 mm round shape, read back equal, through
+`get_board_summary`, `PointInPolygon` (the corner outside, the arc's inside in) and the
+saved file's Board6 record; refused outlines leaving the board unchanged and unmodified; a
+new board's rounded rectangle drawn on Mechanical 1 out of order, with a hole's circle
+inside and a stray line, made its shape (8 vertices, the other two listed), and with one
+track missing refused, its open ends given. Before the tools all 9 errored:
+"AttributeError: module 'main' has no attribute 'create_project'" (`set_board_shape` for
+the board tests). After: 9/9 pass in AD25; `test_live_layout` and `test_live_pcb_rules`
+(3, `pcb_layout.pas` and the focus list) pass. Offline: 28 new in
+`tests/test_project_setup.py`; 323 tests pass in the offline list of
+`.github/workflows/tests.yml`.
+Decided 2026-11-14 by the run, not the owner: `build_schematic` takes `sheet_path` only with
+`project_path`, because the item is the sheet in a project, and without both the sheet stays
+the unsaved free document it was.
+Decided 2026-11-14 by the run, not the owner: the project file is saved after every add,
+because an add held only in memory is lost when the project is closed unsaved, and the
+result is read back from the saved file.
+Decided 2026-11-14 by the run, not the owner: a new document another project took is taken
+out of it again and that project's file flag put back when it had no unsaved change,
+because a call must not change a project it was not given (`build_schematic` already
+detached its sheet so).
+Decided 2026-11-14 by the run, not the owner: the shape is taken from Mechanical 1 to 16
+only, and Mechanical 16 refused on a board that uses a mechanical layer above it, because
+a primitive on a layer above 16 reads as Mechanical 16 and no script call gave its own
+layer, so another layer's pieces could be taken into the shape.
+Decided 2026-11-14 by the run, not the owner: of several closed shapes on the layer the
+largest is used when it holds every other (listed, not made into cutouts), else the call is
+refused, because a cutout or hole drawn on the outline's layer is common, and a guess
+between shapes side by side would give a wrong board.
+Decided 2026-11-14 by the run, not the owner: `set_board_shape` changes the board without
+saving it, as the other PCB edit tools do; the result's `board_modified` says so.
+Fixed in the commit that moves it here. Local: on `ad25`, not yet in a build. Upstream: not
+yet decided.
 
 
 

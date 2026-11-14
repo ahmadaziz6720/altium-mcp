@@ -1545,6 +1545,16 @@ begin
             Result := ExecuteGetUnroutedConnections(RequestData);
         'net_rules':
             Result := ExecuteNetRules(RequestData);
+        'create_project':
+            Result := CreateProject(RequestText(RequestData, 'project_path', ''));
+        'add_project_document':
+            Result := AddProjectDocument(RequestText(RequestData, 'project_path', ''),
+                RequestText(RequestData, 'document_path', ''), RequestText(RequestData, 'new_kind', ''),
+                RequestText(RequestData, 'source_document', ''));
+        'set_board_outline':
+            Result := SetBoardOutline(RequestText(RequestData, 'outline', ''));
+        'board_layer_shapes':
+            Result := GetBoardLayerShapes(RequestText(RequestData, 'layer', ''));
     else
         LogScriptError('Error: Unknown command: ' + CommandName);
     end;

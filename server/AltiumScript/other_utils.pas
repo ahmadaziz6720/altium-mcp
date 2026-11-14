@@ -455,7 +455,9 @@ begin
        (CommandName = 'create_pcb_footprint') or
        (CommandName = 'get_project_info') or
        (CommandName = 'get_project_components') or
-       (CommandName = 'get_erc_violations') then
+       (CommandName = 'get_erc_violations') or
+       (CommandName = 'create_project') or
+       (CommandName = 'add_project_document') then
     begin
         Result := True;
         Exit;
@@ -490,6 +492,8 @@ begin
        (CommandName = 'get_board_summary')                   or
        (CommandName = 'create_polygon_pour')                 or
        (CommandName = 'create_cutout')                       or
+       (CommandName = 'set_board_outline')                   or
+       (CommandName = 'board_layer_shapes')                  or
        (CommandName = 'get_component_primitives')            then
     begin
         DocumentKind := 'PCB';
@@ -1565,6 +1569,291 @@ begin
         ParamsArray.Free;
         DocsArray.Free;
         VariantsArray.Free;
+    end;
+end;
+
+// The open project whose file is Path, or nil
+function OpenProjectByPath(Path: String): IProject;
+var
+    I : Integer;
+    P : IProject;
+begin
+    Result := nil;
+    for I := 0 to GetWorkspace.DM_ProjectCount - 1 do
+    begin
+        P := GetWorkspace.DM_Projects(I);
+        if P <> nil then
+            if UpperCase(P.DM_ProjectFullPath) = UpperCase(Path) then
+                Result := P;
+    end;
+end;
+
+// Whether an open project lists the document at Path
+function ProjectListsDocument(Project: IProject; Path: String): Boolean;
+var
+    I : Integer;
+begin
+    Result := False;
+    for I := 0 to Project.DM_LogicalDocumentCount - 1 do
+        if UpperCase(Project.DM_LogicalDocuments(I).DM_FullPath) = UpperCase(Path) then
+            Result := True;
+end;
+
+// A project as Altium has it after a setup command: its path, its documents
+// [{path, kind}], whether its file has unsaved changes, and the lines in Extra
+function ProjectSetupJSON(Project: IProject; Extra: TStringList): String;
+var
+    I         : Integer;
+    Doc       : IDocument;
+    Props     : TStringList;
+    Items     : TStringList;
+    ItemProps : TStringList;
+begin
+    Props := TStringList.Create;
+    Items := TStringList.Create;
+    try
+        AddJSONBoolean(Props, 'success', True);
+        AddJSONProperty(Props, 'project_path', Project.DM_ProjectFullPath);
+        for I := 0 to Project.DM_LogicalDocumentCount - 1 do
+        begin
+            Doc := Project.DM_LogicalDocuments(I);
+            ItemProps := TStringList.Create;
+            try
+                AddJSONProperty(ItemProps, 'path', Doc.DM_FullPath);
+                AddJSONProperty(ItemProps, 'kind', Doc.DM_DocumentKind);
+                Items.Add(BuildJSONObject(ItemProps, 1));
+            finally
+                ItemProps.Free;
+            end;
+        end;
+        Props.Add(BuildJSONArray(Items, 'documents'));
+        AddJSONBoolean(Props, 'project_modified',
+            DocumentModified(Client.GetDocumentByPath(Project.DM_ProjectFullPath)));
+        for I := 0 to Extra.Count - 1 do
+            Props.Add(Extra[I]);
+        Result := BuildJSONObject(Props);
+    finally
+        Props.Free;
+        Items.Free;
+    end;
+end;
+
+// create_project: a new, empty PCB project saved at Path. Altium makes it
+// (DM_CreateNewDocument), so its file holds Altium's own defaults. A new
+// document's first save by script can rename it without writing the file, so
+// it is saved again when the file is not there; a project whose file still
+// is not written is closed again and the call fails.
+function CreateProject(Path: String): String;
+var
+    Name    : String;
+    Doc     : IServerDocument;
+    Project : IProject;
+    Extra   : TStringList;
+begin
+    if FileExists(Path) then
+    begin
+        Result := 'ERROR: A file already exists at ' + Path;
+        Exit;
+    end;
+    if OpenProjectByPath(Path) <> nil then
+    begin
+        Result := 'ERROR: A project of that path is already open in Altium (not saved yet): ' + Path;
+        Exit;
+    end;
+    Name := GetWorkspace.DM_CreateNewDocument('PcbProject');
+    Doc := Client.GetDocumentByPath(Name);
+    if Doc = nil then
+    begin
+        Result := 'ERROR: Altium made no project document (' + Name + ')';
+        Exit;
+    end;
+    Doc.DoSafeChangeFileNameAndSave(Path, 'PrjPcb');
+    if not FileExists(Path) then
+    begin
+        Doc.SetModified(True);
+        Doc.DoFileSave('');
+    end;
+    Project := OpenProjectByPath(Path);
+    if (Project = nil) or (not FileExists(Path)) then
+    begin
+        Doc.SetModified(False);
+        Client.CloseDocument(Doc);
+        Result := 'ERROR: Altium did not write the project file ' + Path + '; the new project was closed';
+        Exit;
+    end;
+    Extra := TStringList.Create;
+    try
+        AddJSONBoolean(Extra, 'created', True);
+        Result := ProjectSetupJSON(Project, Extra);
+    finally
+        Extra.Free;
+    end;
+end;
+
+// add_project_document: add the document at DocPath to the project at
+// ProjectPath (opened when it is not), then save the project file.
+// NewKind 'SCH' or 'PCB' first makes a new document of that kind and saves it
+// at DocPath; SourceName instead saves the open, unsaved document of that name
+// there (build_schematic's sheet). Altium may take a new document into the
+// focused project: it is taken out of every project but this one again, and
+// such a project's file flag put back when it had no unsaved change before.
+function AddProjectDocument(ProjectPath: String; DocPath: String; NewKind: String; SourceName: String): String;
+var
+    Project, Other : IProject;
+    Doc, OtherDoc  : IServerDocument;
+    I              : Integer;
+    Clean          : TStringList;
+    Extra          : TStringList;
+    Detached       : String;
+    Making         : Boolean;
+begin
+    Project := OpenProjectByPath(ProjectPath);
+    if Project = nil then
+    begin
+        if not FileExists(ProjectPath) then
+        begin
+            Result := 'ERROR: Project not found: ' + ProjectPath;
+            Exit;
+        end;
+        GetWorkspace.DM_OpenProject(ProjectPath, True);
+        Project := OpenProjectByPath(ProjectPath);
+        if Project = nil then
+        begin
+            Result := 'ERROR: Could not open the project ' + ProjectPath;
+            Exit;
+        end;
+    end;
+
+    Making := (NewKind <> '') or (SourceName <> '');
+    if ProjectListsDocument(Project, DocPath) then
+    begin
+        if Making then
+        begin
+            Result := 'ERROR: The project already lists ' + DocPath;
+            Exit;
+        end;
+        Extra := TStringList.Create;
+        try
+            AddJSONBoolean(Extra, 'already_in_project', True);
+            AddJSONProperty(Extra, 'document', DocPath);
+            AddJSONBoolean(Extra, 'project_saved', False);
+            Result := ProjectSetupJSON(Project, Extra);
+        finally
+            Extra.Free;
+        end;
+        Exit;
+    end;
+
+    Detached := '';
+    if Making then
+    begin
+        if FileExists(DocPath) then
+        begin
+            Result := 'ERROR: A file already exists at ' + DocPath;
+            Exit;
+        end;
+        if Client.GetDocumentByPath(DocPath) <> nil then
+        begin
+            Result := 'ERROR: A document of that path is already open in Altium: ' + DocPath;
+            Exit;
+        end;
+        if SourceName <> '' then
+        begin
+            // Only a document never saved goes by its bare name: a saved one
+            // found by that name is another document
+            Doc := Client.GetDocumentByPath(SourceName);
+            if Doc = nil then
+            begin
+                Result := 'ERROR: No open document named ' + SourceName;
+                Exit;
+            end;
+            if UpperCase(Doc.FileName) <> UpperCase(SourceName) then
+            begin
+                Result := 'ERROR: ' + SourceName + ' is not an unsaved document (Altium found ' + Doc.FileName + ')';
+                Exit;
+            end;
+        end;
+
+        // The projects whose file has no unsaved change now
+        Clean := TStringList.Create;
+        try
+            for I := 0 to GetWorkspace.DM_ProjectCount - 1 do
+            begin
+                Other := GetWorkspace.DM_Projects(I);
+                if not DocumentModified(Client.GetDocumentByPath(Other.DM_ProjectFullPath)) then
+                    Clean.Add(UpperCase(Other.DM_ProjectFullPath));
+            end;
+
+            if SourceName = '' then
+                Doc := CreateNewDocumentFromDocumentKind(NewKind);
+            if Doc = nil then
+            begin
+                Result := 'ERROR: Altium made no new ' + NewKind + ' document';
+                Exit;
+            end;
+            Doc.DoSafeChangeFileNameAndSave(DocPath, Doc.Kind);
+            // The first save of a new document renames it and may write nothing
+            Doc.SetModified(True);
+            Doc.DoFileSave('');
+            if not FileExists(DocPath) then
+            begin
+                Result := 'ERROR: Altium did not write ' + DocPath + ' (the document is open as ' +
+                    Doc.FileName + ', not added to the project)';
+                Exit;
+            end;
+
+            for I := 0 to GetWorkspace.DM_ProjectCount - 1 do
+            begin
+                Other := GetWorkspace.DM_Projects(I);
+                // Free Documents gives a document up by itself when a project
+                // adds it
+                if (UpperCase(Other.DM_ProjectFullPath) <> UpperCase(Project.DM_ProjectFullPath)) and
+                   (Pos('Free Documents', Other.DM_ProjectFileName) = 0) and
+                   ProjectListsDocument(Other, DocPath) then
+                begin
+                    Other.DM_RemoveSourceDocument(DocPath);
+                    Detached := Other.DM_ProjectFullPath;
+                    OtherDoc := Client.GetDocumentByPath(Other.DM_ProjectFullPath);
+                    if (OtherDoc <> nil) and (Clean.IndexOf(UpperCase(Other.DM_ProjectFullPath)) >= 0) then
+                        OtherDoc.SetModified(False);
+                end;
+            end;
+        finally
+            Clean.Free;
+        end;
+    end
+    else if not FileExists(DocPath) then
+    begin
+        Result := 'ERROR: Document not found: ' + DocPath;
+        Exit;
+    end;
+
+    Project.DM_AddSourceDocument(DocPath);
+    if not ProjectListsDocument(Project, DocPath) then
+    begin
+        Result := 'ERROR: Altium did not add ' + DocPath + ' to ' + Project.DM_ProjectFullPath;
+        Exit;
+    end;
+    // The project file is saved: an add held only in memory is lost when the
+    // project is closed unsaved
+    Doc := Client.GetDocumentByPath(Project.DM_ProjectFullPath);
+    if Doc <> nil then
+    begin
+        Doc.SetModified(True);
+        Doc.DoFileSave('');
+    end;
+
+    Extra := TStringList.Create;
+    try
+        AddJSONBoolean(Extra, 'already_in_project', False);
+        AddJSONProperty(Extra, 'document', DocPath);
+        AddJSONBoolean(Extra, 'created', Making);
+        AddJSONBoolean(Extra, 'project_saved', (Doc <> nil) and (not DocumentModified(Doc)));
+        if Detached <> '' then
+            AddJSONProperty(Extra, 'detached_from', Detached);
+        Result := ProjectSetupJSON(Project, Extra);
+    finally
+        Extra.Free;
     end;
 end;
 

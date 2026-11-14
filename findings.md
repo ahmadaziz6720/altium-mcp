@@ -241,3 +241,5 @@ Release `bin\0.7.0-20261114-163431` (build line `0.7.0-ad25-20261114-163431 d7e5
    each check (the output folder is made and removed inside it), so a listing that
    includes `.` differs while every file in it is the same. Worth one line in the tool's
    description or the item, so a caller comparing folders by time is not misled.
+
+Sorted into A19 (1); A20 (2); A5 (3, 4), all three Closed.

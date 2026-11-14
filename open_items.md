@@ -196,11 +196,9 @@ unasked, and ending and restarting `X2.EXE` when Altium hangs.
 - [x] A5: committed
 - [x] group 1: offline and live tests, pushed, released (build: `build-20261114-163431`;
   Altium not restarted before the live tests, see the report)
-- [ ] group 1: scenario test (session id: `abd53408-395b-493b-9258-37a2b678aa3b`), entry committed and sorted, release page
-  Stood here 2026-11-14: the headless session was started and stopped by Claude Code
-  for low memory (about 600 MB free of 7.5 GB, Altium holding 1.7 GB) before it wrote
-  anything (no entry, no output). Not restarted by the run, as that notice asks. Next:
-  start it again with the same id (`--session-id`, or `--resume` if it was saved).
+- [x] group 1: scenario test (session id: `abd53408-395b-493b-9258-37a2b678aa3b`, stopped
+  once for low memory and resumed), entry committed and sorted, release page; A19, A20 and
+  A5 held and Closed
 - [ ] A3: committed (or left Open, why written into it)
 - [ ] A9: committed (or left Open, why written into it)
 - [ ] group 2: offline and live tests, pushed, released (build: …)
@@ -361,143 +359,6 @@ Scenario test of that build held (2026-11-12, third entry, 2): 38 rules, the sco
 9 %): what is left is mostly the key names and indentation repeated on every rule.
 Waits for the upstream PR.
 
-**A19. `run_drc` leaves the project file modified, and `get_project_info` does not say
-so.** The first `run_drc` after a project is opened marks the `.PrjPcb` modified while the
-board stays unmodified (A17 held). Saved, the project file gains a `[GeneratedDocument1]`
-section naming the DRC report's `.html` in the project's output folder, and two existing
-sections move. Later checks do not mark it again (the entry is there), also after the
-output folder is deleted; a fresh open of the project does, on its first `run_drc`.
-`get_project_info` gives `modified_document_count` 0 and no entry for the project file, so
-the "nothing unsaved" check reads clean while closing the project asks to save it. Near
-A5 (files a read leaves behind). Local: leave the project as the tool found it, as A17
-does the board (its flag read before the check and cleared after when it had no unsaved
-change), and give the project file's own state in `get_project_info`. Usage until then:
-close the project with its flag cleared (`SetModified(False)` on the `.PrjPcb`
-document). (2026-11-14, second entry, 3.)
-Cause: the first `PCB:DesignRuleCheck` after a project is opened adds its report to the
-project's generated documents, which marks the `.PrjPcb` document modified, whether the
-check finds violations or not (reproduced 2026-11-14 on a copy of the WiFi board's
-project of Altium's Mini PC example: 0 violations, project file marked). `get_project_info`
-walked the project's logical documents only, so the project file itself was never read.
-Fixed in `7a8ff22`: `run_drc`'s script finds the project the board is
-a document of (none for a board under Free Documents), reads its document's flag before
-the check and clears it after when the project had no unsaved change, as A17 does the
-board; the result gives `project` and `project_modified` for a board in a project. The
-generated-documents entry stays in memory and is saved with the project's next save.
-`get_project_info` gives `project_modified` (the `.PrjPcb` document's own flag) and counts
-it in `modified_document_count`. Live test `tests/test_live_drc.py`, class
-`LiveDrcProjectTest` (`ALTIUM_LIVE=1`, a copy of the WiFi project folder, its board given
-a via-to-via clearance rule it fails and saved, then the project opened with
-`DM_OpenProject` before its board, fresh for each test, everything under the copy closed
-unsaved after): before the fix both tests failed ("True is not false : the check left the
-project file modified"; with the project marked by script, `get_project_info` had no
-`project_modified` and `modified_document_count` 0). After: 5/5 of `test_live_drc` pass
-in AD25 (the two new, A17's two, A18's one); the old class now also closes the DRC
-reports its checks opened (helper `close_all_under` in `tests/live_altium.py`, with
-`open_project`). Offline: 271 tests pass.
-Decided 2026-11-14 by the run, not the owner: a board under Free Documents gives no
-`project` or `project_modified`, and the project file is not added to `documents` in
-`get_project_info`, because Free Documents has no file to save, and `documents` lists the
-project's own documents, which a caller walks by kind.
-Local: on `ad25`, in `7a8ff22`. Released in `build-20261114-163431`; scenario test not run
-yet. Upstream: not yet decided.
-
-**A20. `run_drc`'s report ignores the rule filter.** `run_drc(rules=[one kind])` whose
-filter matched no violation still returned the per-rule report of all 14 rules, about
-2.1k characters a call; nine calls were 26k of a session's 47k characters.
-(2026-11-14, second entry, 4.)
-Cause: `run_drc` filtered the violations with `drc.matches` and then attached the parsed
-`.drc` report whole. A report entry names a rule by its kind and settings (`Clearance
-Constraint (Gap=0.2mm) (All),(All)`), never by the rule's own name.
-Fixed in `aeb2a9f`: with `rules` given, `drc.narrow_report` keeps the
-report entries whose kind is one of `rules` (compared as `matches` compares, `rule_key`:
-any case, spacing, a trailing "Constraint"), so "Clearance" keeps the Clearance entries
-and not Hole To Hole Clearance. A rule's own name in `rules` keeps the kinds of the
-violations that name picked (a name with no violation keeps nothing). `report` then also
-gives `rules_omitted`, the number of entries left out; its `violations`, `waived` and
-`stopped` stay the whole check's. Without `rules` the report is whole, as before, and
-`nets` and `area` do not narrow it. Offline: two tests in `tests/test_drc.py`. Live test
-`tests/test_live_drc.py`, `LiveDrcTest.test_report_lists_only_the_rules_asked_for` (a copy
-of the WiFi board with its via-to-via clearance rule): `rules=["Width"]` gives a report of
-the Width entries only, with `rules_omitted` and the check's totals; `rules=["Clearance"]`
-the Clearance entries, the via rule's 8 violations among them; no `rules`, the whole
-report. Before the fix (narrowing switched off) it failed: "Items in the first set but not
-the second: 'powerplaneconnectrule' 'unroutednet' 'clearance' 'shortcircuit'" (all 7
-entries listed for `rules=["Width"]`). After: 6/6 of `test_live_drc` pass in AD25;
-offline: 273 tests pass.
-Decided 2026-11-14 by the run, not the owner: the report is narrowed to the rules asked
-for only, not also to "the rules with violations" (the other half of the item's first
-wording), because the plan's decision is the filter alone, and a rule that was checked
-and passed is a fact the caller may be asking for.
-Local: on `ad25`, in `aeb2a9f`. Released in `build-20261114-163431`; scenario test not run
-yet. Upstream: not yet decided.
-
-**A5. Read calls leave files in the project folder.** `run_drc` writes `Design Rule Check -
-<board>.drc` and `.html` beside the board or in `Project Outputs for <project>`, and
-compiling (`get_erc_violations`, `get_project_components`) leaves `<project>.PrjPcbStructure`.
-On a project that must stay untouched they were deleted by hand. Local: an option on
-`run_drc` to delete its report once read (or write it elsewhere, if Altium allows), and the
-compile calls to remove a `.PrjPcbStructure` they created where none was before.
-(2026-11-12, 5.)
-Cause: `run_drc` is Altium's own check, which writes its report (`Design Rule Check -
-<board>.drc` and `.html`) beside the board or in the project's output folder, making that
-folder when there is none; the tool read the report and left it. The compile calls write
-nothing. On a copy of the WiFi project of Altium's Mini PC example with its
-`.PrjPcbStructure` removed, `get_erc_violations` and `get_project_components` (the only
-tools that compile, `DM_Compile`), the project opened by the call or before it, left the
-folder as it was, also 5 to 15 s later; the file appeared when the project was closed, and
-as well after a project was only opened and closed with no call at all. An existing one
-was written back with the same content. So it is Altium's close of the project, not the
-call.
-Fixed in `d7e5c32`: once the Design Rule Checker dialog is up, before
-the check runs, `run_drc` notes the folders where the report may go and any report already
-there (`drc.snapshot_reports`), for the board the bridge script names in the exchange
-folder's `last_board.txt` as it brings the board to the front (so also with no
-`board_path`). Once the report is read it deletes the report and its `.html`, puts an
-earlier report back as it was (bytes and times), and removes the folders the check made,
-when empty (`drc.remove_report`); a report left by a check that did not run goes too. The
-result's `report` gives `deleted` true and no `path`, `restored` true when an earlier
-report was put back, `folder_left` when a folder the check made holds something else;
-`keep_report=true` keeps it, with `deleted` false and `path` naming the `.drc`. A report
-not deleted (a file error, the board's folder not known) keeps its `path`, with
-`delete_error`. Deleting the `.html` the project lists among its generated documents (A19)
-brought up no dialog and marked neither the project file nor the board; the entry stays in
-the project's memory and is saved with its next save, as before. An output folder the
-project sets outside the board's folder is not looked in, as before (no `report`, nothing
-deleted). `get_erc_violations` now says when Altium writes the structure file.
-Live tests in `tests/test_live_drc.py` (`ALTIUM_LIVE=1`; folder listings with each file's
-size and time, helper `listing` in `tests/live_altium.py`): on the copy of the WiFi
-project folder, `LiveDrcProjectTest.test_check_leaves_the_project_folder_as_found`
-(listing equal, `deleted` true, no `path`, project and board unmodified),
-`test_keep_report_keeps_it` and `test_an_existing_outputs_folder_and_report_stay` (an
-outputs folder holding another file and an earlier report: all as they were); on the copy
-of the board under Free Documents, `LiveDrcTest.test_check_of_the_focused_board_leaves_its_folder_as_found`
-(no `board_path`, the report beside the board); and `LiveCompileFolderTest`, two tests (no
-structure file where none was; an existing one unchanged). Before the fix the four
-`run_drc` tests failed: "Lists differ: ... ('Project Outputs for WiFi_miniPCIe',) ... : the
-check left files in the project folder", the earlier report overwritten (2428 bytes for
-17), `keep_report` an unexpected keyword argument, the focused board's report left beside
-it; the two compile tests passed. After: 12/12 of `test_live_drc` pass in AD25. Offline:
-281 tests pass (8 new in `tests/test_drc.py`, for `remove_report` and the dialog driver's
-`before_press`).
-Usage: a project that must stay untouched gets a `.PrjPcbStructure` when Altium closes it;
-delete it after the close.
-Decided 2026-11-14 by the run, not the owner: the compile calls are left unchanged, their
-part of the item settled by the test passing, because no call writes the
-`.PrjPcbStructure`: Altium writes it when the project closes, compiled or not, after the
-call has returned, so a call has nothing to remove and could reach the file only by
-closing a project the caller may have open.
-Decided 2026-11-14 by the run, not the owner: an earlier report in the same place is put
-back as it was (bytes and times), not left overwritten by this check's, because the call
-is to leave the folder as it found it, and the earlier report is someone's own.
-Decided 2026-11-14 by the run, not the owner: the folder is noted when the dialog is up,
-for the board named in `last_board.txt`, not by a call made before the check, because with
-no `board_path` only the bridge script knows the board, and that moment comes before the
-check writes anything at no extra call; when the reply names another board nothing is
-deleted (`delete_error`).
-Local: on `ad25`, in `d7e5c32`. Released in `build-20261114-163431`; scenario test not run
-yet. Upstream: not yet decided.
-
 ## Closed
 
 **A4. `get_unrouted_connections` leaves the board modified.** On a freshly opened board
@@ -574,3 +435,151 @@ Closed: the scenario test of that build held as far as met (2026-11-14, second e
 three closes unsaved and reopens by script, and the first `run_drc` after each gave `ran`
 true with the report that call wrote. The `ran` false path was not met live; the offline
 tests cover it.
+
+**A19. `run_drc` leaves the project file modified, and `get_project_info` does not say
+so.** The first `run_drc` after a project is opened marks the `.PrjPcb` modified while the
+board stays unmodified (A17 held). Saved, the project file gains a `[GeneratedDocument1]`
+section naming the DRC report's `.html` in the project's output folder, and two existing
+sections move. Later checks do not mark it again (the entry is there), also after the
+output folder is deleted; a fresh open of the project does, on its first `run_drc`.
+`get_project_info` gives `modified_document_count` 0 and no entry for the project file, so
+the "nothing unsaved" check reads clean while closing the project asks to save it. Near
+A5 (files a read leaves behind). Local: leave the project as the tool found it, as A17
+does the board (its flag read before the check and cleared after when it had no unsaved
+change), and give the project file's own state in `get_project_info`. Usage until then:
+close the project with its flag cleared (`SetModified(False)` on the `.PrjPcb`
+document). (2026-11-14, second entry, 3.)
+Cause: the first `PCB:DesignRuleCheck` after a project is opened adds its report to the
+project's generated documents, which marks the `.PrjPcb` document modified, whether the
+check finds violations or not (reproduced 2026-11-14 on a copy of the WiFi board's
+project of Altium's Mini PC example: 0 violations, project file marked). `get_project_info`
+walked the project's logical documents only, so the project file itself was never read.
+Fixed in `7a8ff22`: `run_drc`'s script finds the project the board is
+a document of (none for a board under Free Documents), reads its document's flag before
+the check and clears it after when the project had no unsaved change, as A17 does the
+board; the result gives `project` and `project_modified` for a board in a project. The
+generated-documents entry stays in memory and is saved with the project's next save.
+`get_project_info` gives `project_modified` (the `.PrjPcb` document's own flag) and counts
+it in `modified_document_count`. Live test `tests/test_live_drc.py`, class
+`LiveDrcProjectTest` (`ALTIUM_LIVE=1`, a copy of the WiFi project folder, its board given
+a via-to-via clearance rule it fails and saved, then the project opened with
+`DM_OpenProject` before its board, fresh for each test, everything under the copy closed
+unsaved after): before the fix both tests failed ("True is not false : the check left the
+project file modified"; with the project marked by script, `get_project_info` had no
+`project_modified` and `modified_document_count` 0). After: 5/5 of `test_live_drc` pass
+in AD25 (the two new, A17's two, A18's one); the old class now also closes the DRC
+reports its checks opened (helper `close_all_under` in `tests/live_altium.py`, with
+`open_project`). Offline: 271 tests pass.
+Decided 2026-11-14 by the run, not the owner: a board under Free Documents gives no
+`project` or `project_modified`, and the project file is not added to `documents` in
+`get_project_info`, because Free Documents has no file to save, and `documents` lists the
+project's own documents, which a caller walks by kind.
+Local: on `ad25`, in `7a8ff22`. Released in `build-20261114-163431`. Upstream: not yet decided.
+Closed: the scenario test of that build held (2026-11-14, third entry, 1): the first full
+`run_drc` on a freshly opened project gave `project_modified` false and the `.PrjPcb`
+document's flag read 0 by script; a project marked beforehand read `project_modified` true
+and `modified_document_count` 1 in `get_project_info`, and stayed marked.
+
+**A20. `run_drc`'s report ignores the rule filter.** `run_drc(rules=[one kind])` whose
+filter matched no violation still returned the per-rule report of all 14 rules, about
+2.1k characters a call; nine calls were 26k of a session's 47k characters.
+(2026-11-14, second entry, 4.)
+Cause: `run_drc` filtered the violations with `drc.matches` and then attached the parsed
+`.drc` report whole. A report entry names a rule by its kind and settings (`Clearance
+Constraint (Gap=0.2mm) (All),(All)`), never by the rule's own name.
+Fixed in `aeb2a9f`: with `rules` given, `drc.narrow_report` keeps the
+report entries whose kind is one of `rules` (compared as `matches` compares, `rule_key`:
+any case, spacing, a trailing "Constraint"), so "Clearance" keeps the Clearance entries
+and not Hole To Hole Clearance. A rule's own name in `rules` keeps the kinds of the
+violations that name picked (a name with no violation keeps nothing). `report` then also
+gives `rules_omitted`, the number of entries left out; its `violations`, `waived` and
+`stopped` stay the whole check's. Without `rules` the report is whole, as before, and
+`nets` and `area` do not narrow it. Offline: two tests in `tests/test_drc.py`. Live test
+`tests/test_live_drc.py`, `LiveDrcTest.test_report_lists_only_the_rules_asked_for` (a copy
+of the WiFi board with its via-to-via clearance rule): `rules=["Width"]` gives a report of
+the Width entries only, with `rules_omitted` and the check's totals; `rules=["Clearance"]`
+the Clearance entries, the via rule's 8 violations among them; no `rules`, the whole
+report. Before the fix (narrowing switched off) it failed: "Items in the first set but not
+the second: 'powerplaneconnectrule' 'unroutednet' 'clearance' 'shortcircuit'" (all 7
+entries listed for `rules=["Width"]`). After: 6/6 of `test_live_drc` pass in AD25;
+offline: 273 tests pass.
+Decided 2026-11-14 by the run, not the owner: the report is narrowed to the rules asked
+for only, not also to "the rules with violations" (the other half of the item's first
+wording), because the plan's decision is the filter alone, and a rule that was checked
+and passed is a fact the caller may be asking for.
+Local: on `ad25`, in `aeb2a9f`. Released in `build-20261114-163431`. Upstream: not yet decided.
+Closed: the scenario test of that build held (2026-11-14, third entry, 2): one report
+entry and `rules_omitted` 13 for one kind, the electrical clearance entry only for
+"Clearance", a rule's own name keeping its kind; a filtered call 0.66 to 0.89k characters,
+was 2.1k.
+
+**A5. Read calls leave files in the project folder.** `run_drc` writes `Design Rule Check -
+<board>.drc` and `.html` beside the board or in `Project Outputs for <project>`, and
+compiling (`get_erc_violations`, `get_project_components`) leaves `<project>.PrjPcbStructure`.
+On a project that must stay untouched they were deleted by hand. Local: an option on
+`run_drc` to delete its report once read (or write it elsewhere, if Altium allows), and the
+compile calls to remove a `.PrjPcbStructure` they created where none was before.
+(2026-11-12, 5.)
+Cause: `run_drc` is Altium's own check, which writes its report (`Design Rule Check -
+<board>.drc` and `.html`) beside the board or in the project's output folder, making that
+folder when there is none; the tool read the report and left it. The compile calls write
+nothing. On a copy of the WiFi project of Altium's Mini PC example with its
+`.PrjPcbStructure` removed, `get_erc_violations` and `get_project_components` (the only
+tools that compile, `DM_Compile`), the project opened by the call or before it, left the
+folder as it was, also 5 to 15 s later; the file appeared when the project was closed, and
+as well after a project was only opened and closed with no call at all. An existing one
+was written back with the same content. So it is Altium's close of the project, not the
+call.
+Fixed in `d7e5c32`: once the Design Rule Checker dialog is up, before
+the check runs, `run_drc` notes the folders where the report may go and any report already
+there (`drc.snapshot_reports`), for the board the bridge script names in the exchange
+folder's `last_board.txt` as it brings the board to the front (so also with no
+`board_path`). Once the report is read it deletes the report and its `.html`, puts an
+earlier report back as it was (bytes and times), and removes the folders the check made,
+when empty (`drc.remove_report`); a report left by a check that did not run goes too. The
+result's `report` gives `deleted` true and no `path`, `restored` true when an earlier
+report was put back, `folder_left` when a folder the check made holds something else;
+`keep_report=true` keeps it, with `deleted` false and `path` naming the `.drc`. A report
+not deleted (a file error, the board's folder not known) keeps its `path`, with
+`delete_error`. Deleting the `.html` the project lists among its generated documents (A19)
+brought up no dialog and marked neither the project file nor the board; the entry stays in
+the project's memory and is saved with its next save, as before. An output folder the
+project sets outside the board's folder is not looked in, as before (no `report`, nothing
+deleted). `get_erc_violations` now says when Altium writes the structure file.
+Live tests in `tests/test_live_drc.py` (`ALTIUM_LIVE=1`; folder listings with each file's
+size and time, helper `listing` in `tests/live_altium.py`): on the copy of the WiFi
+project folder, `LiveDrcProjectTest.test_check_leaves_the_project_folder_as_found`
+(listing equal, `deleted` true, no `path`, project and board unmodified),
+`test_keep_report_keeps_it` and `test_an_existing_outputs_folder_and_report_stay` (an
+outputs folder holding another file and an earlier report: all as they were); on the copy
+of the board under Free Documents, `LiveDrcTest.test_check_of_the_focused_board_leaves_its_folder_as_found`
+(no `board_path`, the report beside the board); and `LiveCompileFolderTest`, two tests (no
+structure file where none was; an existing one unchanged). Before the fix the four
+`run_drc` tests failed: "Lists differ: ... ('Project Outputs for WiFi_miniPCIe',) ... : the
+check left files in the project folder", the earlier report overwritten (2428 bytes for
+17), `keep_report` an unexpected keyword argument, the focused board's report left beside
+it; the two compile tests passed. After: 12/12 of `test_live_drc` pass in AD25. Offline:
+281 tests pass (8 new in `tests/test_drc.py`, for `remove_report` and the dialog driver's
+`before_press`).
+Usage: a project that must stay untouched gets a `.PrjPcbStructure` when Altium closes it;
+delete it after the close.
+Decided 2026-11-14 by the run, not the owner: the compile calls are left unchanged, their
+part of the item settled by the test passing, because no call writes the
+`.PrjPcbStructure`: Altium writes it when the project closes, compiled or not, after the
+call has returned, so a call has nothing to remove and could reach the file only by
+closing a project the caller may have open.
+Decided 2026-11-14 by the run, not the owner: an earlier report in the same place is put
+back as it was (bytes and times), not left overwritten by this check's, because the call
+is to leave the folder as it found it, and the earlier report is someone's own.
+Decided 2026-11-14 by the run, not the owner: the folder is noted when the dialog is up,
+for the board named in `last_board.txt`, not by a call made before the check, because with
+no `board_path` only the bridge script knows the board, and that moment comes before the
+check writes anything at no extra call; when the reply names another board nothing is
+deleted (`delete_error`).
+Local: on `ad25`, in `d7e5c32`. Released in `build-20261114-163431`. Upstream: not yet decided.
+Closed: the scenario test of that build held (2026-11-14, third entry, 3): the project
+folder's listing (names, sizes, times) equal before and after a full and three filtered
+checks, `keep_report` kept the report and the next check put it back (`restored`, bytes
+and times unchanged). The folder's own modification time does change each check, as the
+output folder is made and removed in it (third entry, 4): a caller compares the files,
+not the folder's time. `.PrjPcbStructure` is written when the project closes, as found.

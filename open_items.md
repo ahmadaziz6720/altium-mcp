@@ -10,7 +10,7 @@ Three sections: **Open**, not yet fixed; **Waiting**, fixed and not yet settled 
 merged, a fix not yet run in a session); **Closed**, merged upstream, run and held, or
 decided against, with the record.
 
-**Open: A8, A11 to A15, A22 to A24.**
+**Open: A8, A11 to A15, A22 to A28.**
 
 A2, A7, A4 and A6 went out together in `build-20261112-120520` (owner, 2026-11-12), so one
 scenario test covers them; A3 and A8 were not waited for. That test ran and held for
@@ -231,8 +231,20 @@ unasked, and ending and restarting `X2.EXE` when Altium hangs.
 - [x] A16: committed
 - [x] group 3: offline and live tests, pushed, released (build: `build-20261114-210622`;
   341 offline, 41 live; Altium restarted before the live tests, by the session)
-- [ ] group 3: scenario test (session id: `42669980-da08-4c52-856a-ddec5bf03954`), entry committed
-  and sorted, release page
+- [x] group 3: scenario test (session id: `42669980-da08-4c52-856a-ddec5bf03954`), entry
+  committed and sorted, release page; A10 and A16 held and Closed, A25 to A28 new (Open)
+  Stood here 2026-11-14: the run stopped after group 3 on the owner's word, to take A22
+  and A24 (a call meeting Altium's windows: the keyboard, and messages nobody answers) in
+  a new session first; groups 4 and 5 wait for a later run, from A13. Group 3 taught: A11's
+  ECO works by driving its dialog, but Altium fell into a loop of "COM object that has been
+  separated from its underlying RCW" after it twice, so A11 stayed Open with its code in a
+  named stash; Altium's own modal messages blocked calls twice ("File Not Open", the RCW
+  error), which the owner saw on screen before the run did, hence A24. The owner allowed
+  ending `X2.EXE` in this clone's `.claude/settings.local.json` (local, not committed), so
+  a session here restarts a hung Altium itself (`Stop-Process -Name X2 -Force`, or
+  `taskkill //IM X2.EXE //F` in Bash). The scenario test ran once, not stopped. The record
+  commits after the release (the entry, the sort, this line) are not pushed: they go out
+  with the next push of `ad25`. Altium was restarted by the run and left running.
 - [ ] A13: committed (or left Open, why written into it)
 - [ ] A14: committed (or left Open, why written into it)
 - [ ] A12: committed (or left Open, why written into it)
@@ -399,6 +411,47 @@ with choices may not be). Usage until then: a call that does not return in a min
 is looked at on Altium's screen. Not in the run of 2026-11-14's groups: for the next run,
 with A22 (both are how a call meets Altium's windows).
 
+**A25. `set_board_shape` on a board just made: Altium's region of the outline is wrong.**
+On a board made by `add_project_document(create=True)` (origin at absolute 0, 0) the call
+returned the outline and box asked, `get_board_summary` agreed and the board was drawn
+right, but `AreaSize` read 1486.6 mm² for a 50 × 40 mm shape with one 5 mm rounded corner
+(expected 1994.6), and `PointInPolygon` was false at two points inside and true at one
+outside; a plain rectangle next gave 2200 mm² for 2000. `Board.UpdateBoardOutline` again
+from a script changed nothing; after save, close and reopen the region was right, and
+later calls on that board too. A10's live test checked `PointInPolygon` on a copied board,
+not a new one. Reported success with a wrong result: anything reading the board's region
+in that session (a pour, a DRC check against the outline, a placement test) may see a wrong
+shape. Local: reproduce in a live test on a new board, then a fix (the region rebuilt, or
+the board saved and reopened by the tool), or the call refused or flagged on a board never
+saved. Usage until then: save, close and reopen a new board before setting its shape is
+relied on. (2026-11-14, fifth entry, 2.) For the next run.
+
+**A26. `build_schematic` with `project_path` leaves the focused project modified.** With
+another project in focus, `build_schematic(project_path, sheet_path)` took its sheet back
+from that project (`project.detached_from` names it) but left that project's file flag set:
+unmodified before, modified after, twice in a row (its file not written);
+`add_project_document(create=True)` in the same state puts the flag back. In the same
+result the top-level `detached_from` is `""` while the nested one names the project, and
+`sheet` gives the unsaved name (`Sheet1.SchDoc`) where `sheet_path` gives the file saved.
+Local: the flag put back as `add_project_document` does, one `detached_from`, and `sheet`
+the saved name. (2026-11-14, fifth entry, 3 and 6.) For the next run.
+
+**A27. `build_schematic` with `footprint` on a symbol that has a current one gives two.**
+A part whose library symbol already has a current footprint, placed with `footprint`, gets
+the named model added (by name, no library) as current while the library's current one
+keeps its mark: two current PCB footprints (`IsCurrent` 1 on both through the API,
+`ISCURRENT=T` twice in the saved sheet). Rare before A16, now the common case. Reported
+success. Local: the footprint given becomes the only current one, its mark moved when the
+symbol already has a model of that name. (2026-11-14, fifth entry, 5.) For the next run.
+
+**A28. No tool makes an empty library.** `create_symbols_batch`'s `LIBRARY` needs an
+existing `.SchLib` and `add_project_document`'s `create` makes sheets and boards only, so
+a new `.SchLib` or `.PcbLib` is made by script (`CreateNewDocumentFromDocumentKind`,
+`DoSafeChangeFileNameAndSave`, then `SetModified(True)` and `DoFileSave('')`), and it went
+into the project in focus, as A10's probe found for a sheet. Local: `create` for `.SchLib`
+and `.PcbLib` in `add_project_document`, or a library made by the symbol and footprint
+tools when missing. (2026-11-14, fifth entry, 7.) For the next run.
+
 ## Waiting
 
 **A1. `get_server_status` reports no version or commit.** It returns the Altium exe and the
@@ -445,158 +498,6 @@ Scenario test of that build held (2026-11-12, third entry, 2): 38 rules, the sco
 `filter2` only on binary rules. The reply went from 9.3k to 8.5k characters only (about
 9 %): what is left is mostly the key names and indentation repeated on every rule.
 Waits for the upstream PR.
-
-**A10. No tool to set up a project and its board.** `build_schematic` makes its sheet
-outside any project, as a free document, and no tool creates a `.PrjPcb`, adds a sheet to
-one, creates a `.PcbDoc` in it, or sets the board shape. The step from schematic to board
-is done by hand. Local: tools to create a project and add documents to it, and to set the
-board shape from an outline (mils or mm, arcs allowed) or from a closed shape on a
-mechanical layer.
-Found 2026-11-14 by the run's probes in AD25: `GetWorkspace.DM_CreateNewDocument('PcbProject')`
-makes an unsaved project and `DoSafeChangeFileNameAndSave(<path>, 'PrjPcb')` writes its file
-(29 kB of Altium's defaults). For a new `.SchDoc` or `.PcbDoc` the same call returns True and
-renames the document but writes no file; a second save (`SetModified(True)`, then
-`DoFileSave('')`) writes it (`DoFileSave('PCB')` did not). A new schematic is taken into the
-project that has focus (a copy of the WiFi project of Altium's Mini PC example, its board in
-front), a new board is not. A board outline's segments set by script read back at once, but
-its area, box and `PointInPolygon` keep the old shape until `Board.UpdateBoardOutline`. An
-outline arc is drawn counter-clockwise from `Angle1` to `Angle2` whichever way the outline
-runs. A primitive's layer above Mechanical 16 could not be set or read by script
-(`Layer_V7`, `V7_Layer` undeclared). After an add Altium may list an `ActiveBOM.VirtualBom`
-document of its own, with no file and not in the project file.
-Fix: four tools. `create_project(project_path)`: Altium makes the project, saved there
-(the folder made when missing); refused when a file is there. `add_project_document(
-project_path, document_path, create=False)`: an existing document, or with `create` a new
-`.SchDoc` or `.PcbDoc` saved there and left open; the project opened when it is not, its
-file saved after the add; a document already in it left as it is (`already_in_project`);
-a new document a focused project took is taken out of it again (`detached_from`), its file
-flag put back. The result is the project's documents read back from Altium and
-`in_project_file`, the saved `.PrjPcb` read from disk. `set_board_shape(outline, unit,
-mechanical_layer, board_path)`: vertices `[x, y]` or `{x, y, arc_center, clockwise}` in
-mils or mm, checked in `project_setup.py` (an arc's ends on one circle within 0.1 mil, no
-crossing, an area, within Altium's design space), or the free tracks and arcs of Mechanical
-1 to 16 (by number or name) chained end to end (ends within 0.1 mil meet) into closed
-loops, one picked; the board's outline read back (vertices in the form given, box,
-`board_modified`) and compared with what was asked, a difference a failure; the board
-changed, not saved. `build_schematic(project_path, sheet_path)`: the sheet saved at
-`sheet_path` and added to the project, as `add_project_document`. Bridge commands
-`create_project`, `add_project_document` (`other_utils.pas`), `set_board_outline` and
-`board_layer_shapes` (`pcb_layout.pas`, reusing `LayoutSegment`).
-Live test `tests/test_live_project_setup.py` (`ALTIUM_LIVE=1`, a temporary folder, everything
-under it closed unsaved; copies of the WiFi board and project and of a library of the
-SpiritLevel-SL1 example): a project made and refused a second time, its file unchanged;
-a new sheet, a new board and a copied sheet added, the saved project file and Altium's
-project listing all three, a repeat add and a refused add changing nothing; a new sheet and
-board added while the WiFi project copy has focus, that project not given them and left
-unmodified (the sheet was taken and given back, `detached_from`); `build_schematic` with
-two parts into a project, the sheet saved holding both; a copy of the WiFi board given a
-rounded corner in mils (clockwise) and a 50 mm round shape, read back equal, through
-`get_board_summary`, `PointInPolygon` (the corner outside, the arc's inside in) and the
-saved file's Board6 record; refused outlines leaving the board unchanged and unmodified; a
-new board's rounded rectangle drawn on Mechanical 1 out of order, with a hole's circle
-inside and a stray line, made its shape (8 vertices, the other two listed), and with one
-track missing refused, its open ends given. Before the tools all 9 errored:
-"AttributeError: module 'main' has no attribute 'create_project'" (`set_board_shape` for
-the board tests). After: 9/9 pass in AD25; `test_live_layout` and `test_live_pcb_rules`
-(3, `pcb_layout.pas` and the focus list) pass. Offline: 28 new in
-`tests/test_project_setup.py`; 323 tests pass in the offline list of
-`.github/workflows/tests.yml`.
-Decided 2026-11-14 by the run, not the owner: `build_schematic` takes `sheet_path` only with
-`project_path`, because the item is the sheet in a project, and without both the sheet stays
-the unsaved free document it was.
-Decided 2026-11-14 by the run, not the owner: the project file is saved after every add,
-because an add held only in memory is lost when the project is closed unsaved, and the
-result is read back from the saved file.
-Decided 2026-11-14 by the run, not the owner: a new document another project took is taken
-out of it again and that project's file flag put back when it had no unsaved change,
-because a call must not change a project it was not given (`build_schematic` already
-detached its sheet so).
-Decided 2026-11-14 by the run, not the owner: the shape is taken from Mechanical 1 to 16
-only, and Mechanical 16 refused on a board that uses a mechanical layer above it, because
-a primitive on a layer above 16 reads as Mechanical 16 and no script call gave its own
-layer, so another layer's pieces could be taken into the shape.
-Decided 2026-11-14 by the run, not the owner: of several closed shapes on the layer the
-largest is used when it holds every other (listed, not made into cutouts), else the call is
-refused, because a cutout or hole drawn on the outline's layer is common, and a guess
-between shapes side by side would give a wrong board.
-Decided 2026-11-14 by the run, not the owner: `set_board_shape` changes the board without
-saving it, as the other PCB edit tools do; the result's `board_modified` says so.
-Fixed in `97299f4`. Local: on `ad25`, released in `build-20261114-210622`. Upstream: not
-yet decided.
-
-**A16. A library symbol cannot be given its footprint.** `create_schematic_symbol` and
-`create_symbols_batch` (`SYMBOL`, `EDITSYMBOL`) have no record for a footprint model; a
-footprint is set only on a part `build_schematic` places (`footprint`). A symbol made from
-a datasheet leaves its library without the link, and each placement must give it again.
-Local: a `FOOTPRINT` record (model name, library, current or not) in the symbol batch, and
-the same in `create_schematic_symbol`.
-Found 2026-11-14 by the run's probes in AD25: a symbol's footprint is an `ISch_Implementation`
-of type `PCBLIB` (`Comp.AddSchImplementation`, `ModelName`, `ModelType := 'PCBLIB'`,
-`IsCurrent`) and its library a datafile link (`AddDataFileLink(<entity>, <path>, 'PCBLib')`,
-`ClearAllDatafileLinks`; `DatafileCount` and the link's getters are not in the script API).
-`Impl.ExportToParameters` gives the stored record: `MODELDATAFILE0=<library>`,
-`MODELDATAFILEENTITY0`, `MODELDATAFILEKIND0=PCBLib`, `ISCURRENT=T` (absent on a model that is
-not current). A link with no location stores the entity and kind only, which is what a model
-linked "by name" holds; `UseComponentLibrary` gives another record (`USECOMPONENTLIBRARY=T`)
-that belongs to integrated libraries. A symbol also carries 3D (`PCB3DLIB`) and simulation
-(`SI`) models in the same list, each type with a current of its own; `Comp.Replicate`, which
-`build_schematic` places parts with, copies all of them.
-Fix: `FOOTPRINT|<model>[|<library>[|<current 1/0>]]` after `SYMBOL` or `EDITSYMBOL` in the
-batch spec, and `footprints` (entries `model[|library[|current]]`) in `create_schematic_symbol`.
-A symbol can carry several; a record for a name the symbol already has changes that footprint
-(library, current) instead of adding one, and nothing else of the symbol's models is touched
-(`ApplyFootprint` in `schematic_utils.pas`, applied in `ApplySymbolEdits`' one undo step).
-`server/symbol_footprint.py` checks the records before Altium is called: a library must be a
-full path to an existing `.PcbLib` (long path form), `current` 1 or 0 or empty, no name twice
-for a symbol, at most one asking for `1`; a bad spec is refused whole (`nothing was made`),
-and a batch's records are rewritten in full for the script. The results are read back from
-the symbol in the library: the batch result gets `footprints` (per symbol with such records:
-`symbol` and `models` with `model`, `library`, `current`; the key is absent when no record was
-given), `create_schematic_symbol`'s a `footprints` list and `problems`; what a record stored
-(current mark, library) is checked after and a difference is a `problems` entry.
-Live test `tests/test_live_symbol_footprint.py` (`ALTIUM_LIVE=1`, a temporary folder, closed
-unsaved; copies of a library and a footprint library of the SpiritLevel-SL1 example): a batch
-symbol with two footprints (one `1`) read back in the result, in the open library and, after
-the library is saved, closed and opened anew, from the saved file; first footprint current when
-none says so; a footprint with no library (link by name); `EDITSYMBOL` of an example symbol that
-has a footprint, a 3D and a simulation model: an added footprint not current, the same name
-again with `1` taking the mark, the 3D and simulation models unchanged; refused records
-(two `1`, a missing library, a `.SchLib` as library) leaving the library without the symbol;
-`create_schematic_symbol` with footprints and without; a batch with `SYMPARAM`, `DESCRIPTION`
-around a `FOOTPRINT` and a symbol with none (no `footprints` in its result); a part placed by
-`build_schematic` with no `footprint` from such a symbol, its footprint model current on the
-placed part. Before the code 7 of the 8 tests then written failed (`KeyError: 'footprints'` in
-the batch results, `TypeError: create_schematic_symbol() got an unexpected keyword argument
-'footprints'`, and `AssertionError: {} != {'HDR1X2': True}` : "the placed part did not take
-the library's footprint"); the 8th, a symbol made without footprints, passed and is kept as a
-guard. After: 9/9 pass in AD25 (the ninth, the batch with the other records, added after);
-`test_live_project_setup`'s `build_schematic` test (the file the code shares) passes. Offline:
-18 new in `tests/test_symbol_footprint.py`; 341 tests pass in the offline list of
-`.github/workflows/tests.yml`.
-Decided 2026-11-14 by the run, not the owner: the result is read from the symbol in the
-library as it is in Altium, not from a saved file, because neither tool saves the library (the
-user does); the live test saves, closes and reopens it and reads the file's models through
-Altium as well.
-Decided 2026-11-14 by the run, not the owner: `current` left out gives a new footprint the
-mark only when no other footprint of the symbol has it, and an existing one keeps its own,
-because adding a footprint to a symbol must not change the one a design already uses; only a
-record saying `1` moves the mark.
-Decided 2026-11-14 by the run, not the owner: a record for a name the symbol already has
-replaces that footprint's library and mark instead of adding a second model of the same name,
-because two models of one name in one symbol cannot both be placed and a repeated batch
-should leave the same library.
-Decided 2026-11-14 by the run, not the owner: a library is a full path to an existing
-`.PcbLib` file, and a record without one links the model by name only (the stored form of
-"Any"), because a path that is not a file is a broken link and a relative name resolves
-against whatever Altium has open; whether the footprint name is in the library is not
-checked, as nothing reads a `.PcbLib`'s footprint names without Altium here and Altium does
-not check it when the link is made.
-Decided 2026-11-14 by the run, not the owner: a bad `FOOTPRINT` record refuses the whole batch
-spec before the first symbol is made, because the symbols made before a bad record would stay
-in the library of a call that reports failure.
-Fixed in `b4da4cc`. Local: on `ad25`, released in `build-20261114-210622`. Upstream: not
-yet decided.
-
 
 ## Closed
 
@@ -1024,3 +925,171 @@ Closed: the scenario test of that build held (2026-11-14, fourth entry, 3): with
 of a net under a ground pour deleted, `run_drc` returned within seconds, `ran` true,
 `repour_prompt` true, the pour unchanged and no message left up; on the unchanged board a
 full check gave no `repour_prompt`.
+
+**A10. No tool to set up a project and its board.** `build_schematic` makes its sheet
+outside any project, as a free document, and no tool creates a `.PrjPcb`, adds a sheet to
+one, creates a `.PcbDoc` in it, or sets the board shape. The step from schematic to board
+is done by hand. Local: tools to create a project and add documents to it, and to set the
+board shape from an outline (mils or mm, arcs allowed) or from a closed shape on a
+mechanical layer.
+Found 2026-11-14 by the run's probes in AD25: `GetWorkspace.DM_CreateNewDocument('PcbProject')`
+makes an unsaved project and `DoSafeChangeFileNameAndSave(<path>, 'PrjPcb')` writes its file
+(29 kB of Altium's defaults). For a new `.SchDoc` or `.PcbDoc` the same call returns True and
+renames the document but writes no file; a second save (`SetModified(True)`, then
+`DoFileSave('')`) writes it (`DoFileSave('PCB')` did not). A new schematic is taken into the
+project that has focus (a copy of the WiFi project of Altium's Mini PC example, its board in
+front), a new board is not. A board outline's segments set by script read back at once, but
+its area, box and `PointInPolygon` keep the old shape until `Board.UpdateBoardOutline`. An
+outline arc is drawn counter-clockwise from `Angle1` to `Angle2` whichever way the outline
+runs. A primitive's layer above Mechanical 16 could not be set or read by script
+(`Layer_V7`, `V7_Layer` undeclared). After an add Altium may list an `ActiveBOM.VirtualBom`
+document of its own, with no file and not in the project file.
+Fix: four tools. `create_project(project_path)`: Altium makes the project, saved there
+(the folder made when missing); refused when a file is there. `add_project_document(
+project_path, document_path, create=False)`: an existing document, or with `create` a new
+`.SchDoc` or `.PcbDoc` saved there and left open; the project opened when it is not, its
+file saved after the add; a document already in it left as it is (`already_in_project`);
+a new document a focused project took is taken out of it again (`detached_from`), its file
+flag put back. The result is the project's documents read back from Altium and
+`in_project_file`, the saved `.PrjPcb` read from disk. `set_board_shape(outline, unit,
+mechanical_layer, board_path)`: vertices `[x, y]` or `{x, y, arc_center, clockwise}` in
+mils or mm, checked in `project_setup.py` (an arc's ends on one circle within 0.1 mil, no
+crossing, an area, within Altium's design space), or the free tracks and arcs of Mechanical
+1 to 16 (by number or name) chained end to end (ends within 0.1 mil meet) into closed
+loops, one picked; the board's outline read back (vertices in the form given, box,
+`board_modified`) and compared with what was asked, a difference a failure; the board
+changed, not saved. `build_schematic(project_path, sheet_path)`: the sheet saved at
+`sheet_path` and added to the project, as `add_project_document`. Bridge commands
+`create_project`, `add_project_document` (`other_utils.pas`), `set_board_outline` and
+`board_layer_shapes` (`pcb_layout.pas`, reusing `LayoutSegment`).
+Live test `tests/test_live_project_setup.py` (`ALTIUM_LIVE=1`, a temporary folder, everything
+under it closed unsaved; copies of the WiFi board and project and of a library of the
+SpiritLevel-SL1 example): a project made and refused a second time, its file unchanged;
+a new sheet, a new board and a copied sheet added, the saved project file and Altium's
+project listing all three, a repeat add and a refused add changing nothing; a new sheet and
+board added while the WiFi project copy has focus, that project not given them and left
+unmodified (the sheet was taken and given back, `detached_from`); `build_schematic` with
+two parts into a project, the sheet saved holding both; a copy of the WiFi board given a
+rounded corner in mils (clockwise) and a 50 mm round shape, read back equal, through
+`get_board_summary`, `PointInPolygon` (the corner outside, the arc's inside in) and the
+saved file's Board6 record; refused outlines leaving the board unchanged and unmodified; a
+new board's rounded rectangle drawn on Mechanical 1 out of order, with a hole's circle
+inside and a stray line, made its shape (8 vertices, the other two listed), and with one
+track missing refused, its open ends given. Before the tools all 9 errored:
+"AttributeError: module 'main' has no attribute 'create_project'" (`set_board_shape` for
+the board tests). After: 9/9 pass in AD25; `test_live_layout` and `test_live_pcb_rules`
+(3, `pcb_layout.pas` and the focus list) pass. Offline: 28 new in
+`tests/test_project_setup.py`; 323 tests pass in the offline list of
+`.github/workflows/tests.yml`.
+Decided 2026-11-14 by the run, not the owner: `build_schematic` takes `sheet_path` only with
+`project_path`, because the item is the sheet in a project, and without both the sheet stays
+the unsaved free document it was.
+Decided 2026-11-14 by the run, not the owner: the project file is saved after every add,
+because an add held only in memory is lost when the project is closed unsaved, and the
+result is read back from the saved file.
+Decided 2026-11-14 by the run, not the owner: a new document another project took is taken
+out of it again and that project's file flag put back when it had no unsaved change,
+because a call must not change a project it was not given (`build_schematic` already
+detached its sheet so).
+Decided 2026-11-14 by the run, not the owner: the shape is taken from Mechanical 1 to 16
+only, and Mechanical 16 refused on a board that uses a mechanical layer above it, because
+a primitive on a layer above 16 reads as Mechanical 16 and no script call gave its own
+layer, so another layer's pieces could be taken into the shape.
+Decided 2026-11-14 by the run, not the owner: of several closed shapes on the layer the
+largest is used when it holds every other (listed, not made into cutouts), else the call is
+refused, because a cutout or hole drawn on the outline's layer is common, and a guess
+between shapes side by side would give a wrong board.
+Decided 2026-11-14 by the run, not the owner: `set_board_shape` changes the board without
+saving it, as the other PCB edit tools do; the result's `board_modified` says so.
+Fixed in `97299f4`. Local: on `ad25`, released in `build-20261114-210622`. Upstream: not
+yet decided.
+Closed: the scenario test of that build held for what A10 asked (2026-11-14, fifth entry, 1):
+`create_project`, `add_project_document` (new sheet and board, a library from another
+folder saved relative, a repeat add, refused adds, a focused project given back its
+sheet and left unmodified) and `set_board_shape` (an outline in mm with an arc, four
+refused outlines, a shape from Mechanical 1 with a stray line listed and a gap refused),
+read back right through Altium on a reopened board. Two faults it found in these tools
+are items of their own: A25 (the shape's region wrong on a board just made, until it is
+reopened) and A26 (`build_schematic` with `project_path` leaves the focused project
+modified).
+Decided 2026-11-14 by the run, not the owner: A10 is closed and its two faults go to A25
+and A26, because what A10 asked for exists and held, and each fault needs its own test
+and fix that the next run can take apart.
+
+**A16. A library symbol cannot be given its footprint.** `create_schematic_symbol` and
+`create_symbols_batch` (`SYMBOL`, `EDITSYMBOL`) have no record for a footprint model; a
+footprint is set only on a part `build_schematic` places (`footprint`). A symbol made from
+a datasheet leaves its library without the link, and each placement must give it again.
+Local: a `FOOTPRINT` record (model name, library, current or not) in the symbol batch, and
+the same in `create_schematic_symbol`.
+Found 2026-11-14 by the run's probes in AD25: a symbol's footprint is an `ISch_Implementation`
+of type `PCBLIB` (`Comp.AddSchImplementation`, `ModelName`, `ModelType := 'PCBLIB'`,
+`IsCurrent`) and its library a datafile link (`AddDataFileLink(<entity>, <path>, 'PCBLib')`,
+`ClearAllDatafileLinks`; `DatafileCount` and the link's getters are not in the script API).
+`Impl.ExportToParameters` gives the stored record: `MODELDATAFILE0=<library>`,
+`MODELDATAFILEENTITY0`, `MODELDATAFILEKIND0=PCBLib`, `ISCURRENT=T` (absent on a model that is
+not current). A link with no location stores the entity and kind only, which is what a model
+linked "by name" holds; `UseComponentLibrary` gives another record (`USECOMPONENTLIBRARY=T`)
+that belongs to integrated libraries. A symbol also carries 3D (`PCB3DLIB`) and simulation
+(`SI`) models in the same list, each type with a current of its own; `Comp.Replicate`, which
+`build_schematic` places parts with, copies all of them.
+Fix: `FOOTPRINT|<model>[|<library>[|<current 1/0>]]` after `SYMBOL` or `EDITSYMBOL` in the
+batch spec, and `footprints` (entries `model[|library[|current]]`) in `create_schematic_symbol`.
+A symbol can carry several; a record for a name the symbol already has changes that footprint
+(library, current) instead of adding one, and nothing else of the symbol's models is touched
+(`ApplyFootprint` in `schematic_utils.pas`, applied in `ApplySymbolEdits`' one undo step).
+`server/symbol_footprint.py` checks the records before Altium is called: a library must be a
+full path to an existing `.PcbLib` (long path form), `current` 1 or 0 or empty, no name twice
+for a symbol, at most one asking for `1`; a bad spec is refused whole (`nothing was made`),
+and a batch's records are rewritten in full for the script. The results are read back from
+the symbol in the library: the batch result gets `footprints` (per symbol with such records:
+`symbol` and `models` with `model`, `library`, `current`; the key is absent when no record was
+given), `create_schematic_symbol`'s a `footprints` list and `problems`; what a record stored
+(current mark, library) is checked after and a difference is a `problems` entry.
+Live test `tests/test_live_symbol_footprint.py` (`ALTIUM_LIVE=1`, a temporary folder, closed
+unsaved; copies of a library and a footprint library of the SpiritLevel-SL1 example): a batch
+symbol with two footprints (one `1`) read back in the result, in the open library and, after
+the library is saved, closed and opened anew, from the saved file; first footprint current when
+none says so; a footprint with no library (link by name); `EDITSYMBOL` of an example symbol that
+has a footprint, a 3D and a simulation model: an added footprint not current, the same name
+again with `1` taking the mark, the 3D and simulation models unchanged; refused records
+(two `1`, a missing library, a `.SchLib` as library) leaving the library without the symbol;
+`create_schematic_symbol` with footprints and without; a batch with `SYMPARAM`, `DESCRIPTION`
+around a `FOOTPRINT` and a symbol with none (no `footprints` in its result); a part placed by
+`build_schematic` with no `footprint` from such a symbol, its footprint model current on the
+placed part. Before the code 7 of the 8 tests then written failed (`KeyError: 'footprints'` in
+the batch results, `TypeError: create_schematic_symbol() got an unexpected keyword argument
+'footprints'`, and `AssertionError: {} != {'HDR1X2': True}` : "the placed part did not take
+the library's footprint"); the 8th, a symbol made without footprints, passed and is kept as a
+guard. After: 9/9 pass in AD25 (the ninth, the batch with the other records, added after);
+`test_live_project_setup`'s `build_schematic` test (the file the code shares) passes. Offline:
+18 new in `tests/test_symbol_footprint.py`; 341 tests pass in the offline list of
+`.github/workflows/tests.yml`.
+Decided 2026-11-14 by the run, not the owner: the result is read from the symbol in the
+library as it is in Altium, not from a saved file, because neither tool saves the library (the
+user does); the live test saves, closes and reopens it and reads the file's models through
+Altium as well.
+Decided 2026-11-14 by the run, not the owner: `current` left out gives a new footprint the
+mark only when no other footprint of the symbol has it, and an existing one keeps its own,
+because adding a footprint to a symbol must not change the one a design already uses; only a
+record saying `1` moves the mark.
+Decided 2026-11-14 by the run, not the owner: a record for a name the symbol already has
+replaces that footprint's library and mark instead of adding a second model of the same name,
+because two models of one name in one symbol cannot both be placed and a repeated batch
+should leave the same library.
+Decided 2026-11-14 by the run, not the owner: a library is a full path to an existing
+`.PcbLib` file, and a record without one links the model by name only (the stored form of
+"Any"), because a path that is not a file is a broken link and a relative name resolves
+against whatever Altium has open; whether the footprint name is in the library is not
+checked, as nothing reads a `.PcbLib`'s footprint names without Altium here and Altium does
+not check it when the link is made.
+Decided 2026-11-14 by the run, not the owner: a bad `FOOTPRINT` record refuses the whole batch
+spec before the first symbol is made, because the symbols made before a bad record would stay
+in the library of a call that reports failure.
+Fixed in `b4da4cc`. Local: on `ad25`, released in `build-20261114-210622`. Upstream: not
+yet decided.
+Closed: the scenario test of that build held (2026-11-14, fifth entry, 4): `FOOTPRINT`
+records in the batch, `EDITSYMBOL` moving the current mark, three refused specs ("nothing
+was made") and `create_schematic_symbol`, each equal to the saved library read apart from
+the server; a part placed by `build_schematic` without `footprint` carried the library's
+models and marks. The interplay it found with a part placed with `footprint` is A27.

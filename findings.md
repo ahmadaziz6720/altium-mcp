@@ -354,3 +354,6 @@ small board; `get_layout` of an area on a copy gave the 5 tracks expected (the s
 `LayoutSegment`). The copies were closed with their flags cleared; the reference project's
 `.PrjPcbStructure` appeared on closing and was deleted. 58 calls, 0 errors, 33k characters
 (25 `run_altium_script` for opening, closing, a library made and checks through the API).
+
+Sorted into A10 (1), Closed; A25, new (2); A26, new (3, 6); A16 (4), Closed; A27, new
+(5); A28, new (7).

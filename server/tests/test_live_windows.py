@@ -1,4 +1,5 @@
-"""Live tests: how a call meets Altium's windows (A22: the foreground).
+"""Live tests: how a call meets Altium's windows (A22: the foreground; A24:
+Altium's messages).
 
 With Altium Designer open, from server/:
 
@@ -11,10 +12,14 @@ keep the foreground for the test to mean anything.
 import asyncio
 import ctypes
 import json
+import shutil
 import subprocess
 import sys
+import tempfile
 import time
 import unittest
+from pathlib import Path
+from unittest import mock
 
 from tests.live_altium import LIVE, SKIP_REASON, check_scripts_are_this_checkouts
 
@@ -119,6 +124,102 @@ class ForegroundTest(unittest.TestCase):
             out = json.loads(asyncio.run(main.run_altium_script(None, "ResultText := 'ok';", 60)))
         self.assertTrue(out.get("success"), out)
         self.check(watch)
+
+
+# A script in place of the bridge's: it takes the request as the bridge
+# does, puts up an Altium message, and answers once the message is closed
+MESSAGE_SCRIPT = """procedure Run;
+var
+    Reply : TStringList;
+    Answer : Integer;
+begin
+    DeleteFile('{request}');
+    Answer := MessageDlg('altium-mcp A24 live test: {what}', {kind}, {buttons}, 0);
+    Reply := TStringList.Create;
+    Reply.Text := '{{"success": true, "result": "answered ' + IntToStr(Answer) + '"}}';
+    Reply.SaveToFile('{response}');
+    Reply.Free;
+end;
+"""
+
+
+@unittest.skipUnless(LIVE, SKIP_REASON)
+class MessageTest(unittest.TestCase):
+    """A24: a message Altium puts up during a call that no driver of the
+    tool knows ends the call, named, instead of holding it until the
+    bridge's limit."""
+
+    LIMIT = 40      # the call's timeout without progress, as a tool's
+    QUICK = 20      # the call must end well before it
+
+    def setUp(self):
+        check_scripts_are_this_checkouts()
+        if sandbox.altium_dialogs():
+            self.skipTest("Altium shows a dialog already: "
+                          + ", ".join(repr(d.title) for d in sandbox.altium_dialogs()))
+        self.folder = Path(tempfile.mkdtemp(prefix="a24_"))
+
+    def tearDown(self):
+        # Whatever the outcome, leave Altium as the test found it: no message
+        # of the test's open (nor the "busy" box a launch behind it raises),
+        # no script of ours waiting, no stuck mark for the next call
+        for _ in range(20):
+            left = sandbox.altium_dialogs()
+            if not left:
+                break
+            for d in left:
+                sandbox.answer_dialog(d)
+            time.sleep(0.5)
+        main._sandbox().recover()
+        main._clear_script_stuck()
+        shutil.rmtree(self.folder, ignore_errors=True)
+
+    def run_with_message(self, what, kind, buttons):
+        script = self.folder / "message.pas"
+        script.write_text(MESSAGE_SCRIPT.format(
+            request=main.REQUEST_FILE, response=main.RESPONSE_FILE,
+            what=what, kind=kind, buttons=buttons))
+        start = time.monotonic()
+        with mock.patch.object(main.script_bundle, "ensure_bundle", return_value=str(script)):
+            response = asyncio.run(main.altium_bridge.execute_command(
+                "a24_message_test", {}, timeout=self.LIMIT))
+        return response, time.monotonic() - start
+
+    def test_an_ok_only_message_is_closed_and_named(self):
+        response, took = self.run_with_message("an OK-only message", "mtInformation", "MkSet(mbOK)")
+        self.assertLess(took, self.QUICK, f"the call waited {took:.0f} s: {response}")
+        self.assertFalse(response.get("success"), response)
+        error = response.get("error", "")
+        self.assertIn("Information", error)
+        self.assertIn("OK", error)
+        # Closed, so the script went on and answered
+        self.assertIn("closed", error)
+        self.assertEqual(response.get("reply_after_message", {}).get("result"), "answered 1",
+                         response)
+        self.assertTrue(response.get("altium_messages", [{}])[0].get("picture"), response)
+
+    def test_a_message_with_choices_is_left_open_and_named(self):
+        response, took = self.run_with_message("a message with choices", "mtConfirmation",
+                                               "MkSet(mbYes, mbNo)")
+        self.assertLess(took, self.QUICK, f"the call waited {took:.0f} s: {response}")
+        self.assertFalse(response.get("success"), response)
+        error = response.get("error", "")
+        self.assertIn("Confirm", error)
+        self.assertIn("Yes", error)
+        self.assertIn("No", error)
+        self.assertIn("left open", error)
+        still = [d for d in sandbox.altium_dialogs() if d.title == "Confirm"]
+        self.assertTrue(still, "the message with choices was closed by the call")
+
+    def test_a_call_after_a_message_left_open_is_refused_at_once(self):
+        self.run_with_message("a message with choices", "mtConfirmation", "MkSet(mbYes, mbNo)")
+        start = time.monotonic()
+        response = asyncio.run(main.altium_bridge.execute_command("get_pcb_layers", {}))
+        took = time.monotonic() - start
+        self.assertLess(took, 5, f"the next call waited {took:.0f} s: {response}")
+        self.assertFalse(response.get("success"), response)
+        self.assertIn("Confirm", response.get("error", ""))
+        self.assertIn("not run", response.get("error", "").lower())
 
 
 if __name__ == "__main__":

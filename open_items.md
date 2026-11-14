@@ -10,7 +10,7 @@ Three sections: **Open**, not yet fixed; **Waiting**, fixed and not yet settled 
 merged, a fix not yet run in a session); **Closed**, merged upstream, run and held, or
 decided against, with the record.
 
-**Open: A8, A11 to A15, A23 to A28.**
+**Open: A8, A11 to A15, A23, A25 to A28.**
 
 A2, A7, A4 and A6 went out together in `build-20261112-120520` (owner, 2026-11-12), so one
 scenario test covers them; A3 and A8 were not waited for. That test ran and held for
@@ -246,7 +246,7 @@ unasked, and ending and restarting `X2.EXE` when Altium hangs.
   commits after the release (the entry, the sort, this line) are not pushed: they go out
   with the next push of `ad25`. Altium was restarted by the run and left running.
 - [x] A22: committed (a session of its own, 2026-11-14, before groups 4 and 5)
-- [ ] A24: committed (or left Open, why written into it)
+- [x] A24: committed (the same session)
 - [ ] A13: committed (or left Open, why written into it)
 - [ ] A14: committed (or left Open, why written into it)
 - [ ] A12: committed (or left Open, why written into it)
@@ -377,26 +377,6 @@ by; or, the smaller change, a line in the description. Usage until then: read wi
 net's `designators` to get the pads. (2026-11-14, fourth entry, 4.) Not in the run of
 2026-11-14's later groups (not in their files): for the next run.
 
-**A24. A modal message no driver knows blocks the call until the bridge's limit.** When
-Altium puts up a message the server does not expect, the script that raised it waits on it,
-the bridge keeps waiting (up to its 30 minute limit, as A21's did), and every later call
-waits behind it; nothing says a message is up, and the result, when it comes, does not name
-it. Each one met so far was fixed for its own tool only: A21's repour message in `run_drc`.
-Met again in the run of 2026-11-14: an "Information" message, "File Not Open", one OK
-button, while A11's probe drove the ECO dialog and exported its report; and a
-`TShowException` "COM object that has been separated from its underlying RCW cannot be
-used" that came back after each close (A11). The owner, 2026-11-14: it has happened before
-with other messages. Local, to reproduce first: a live test that has a script put up a
-message Altium's way (e.g. `ShowMessage` from `run_altium_script`) and fails when the call
-does not return within a short limit naming the message. Then a watch in the bridge, for
-every command: while it waits, a top-level modal window of X2.EXE that the tool's own
-driver does not handle (`TMessageForm`, `#32770`, `TShowException`) ends the call as a
-failure that gives its title, text and buttons; which messages it may then close, and
-with which button, to be decided with the test (an OK-only message is safe to close, one
-with choices may not be). Usage until then: a call that does not return in a minute or two
-is looked at on Altium's screen. Not in the run of 2026-11-14's groups: for the next run,
-with A22 (both are how a call meets Altium's windows).
-
 **A25. `set_board_shape` on a board just made: Altium's region of the outline is wrong.**
 On a board made by `add_project_document(create=True)` (origin at absolute 0, 0) the call
 returned the outline and box asked, `get_board_summary` agreed and the board was drawn
@@ -520,6 +500,55 @@ pass: `test_add_documents` was refused once by the "Altium is not responding" ch
 its call was launched (Altium busy just after a 7 s `add_project_document`), and its module
 passed 9/9 twice alone after. Local: on `ad25`, in the commit that moves it here; not yet in
 a build. Upstream: not yet decided.
+
+**A24. A modal message no driver knows blocks the call until the bridge's limit.** When
+Altium puts up a message the server does not expect, the script that raised it waits on it,
+the bridge keeps waiting (up to its 30 minute limit, as A21's did), and every later call
+waits behind it; nothing says a message is up, and the result, when it comes, does not name
+it. Each one met so far was fixed for its own tool only: A21's repour message in `run_drc`.
+Met again in the run of 2026-11-14: an "Information" message, "File Not Open", one OK
+button, while A11's probe drove the ECO dialog and exported its report; and a
+`TShowException` "COM object that has been separated from its underlying RCW cannot be
+used" that came back after each close (A11). The owner, 2026-11-14: it has happened before
+with other messages. Local, to reproduce first: a live test that has a script put up a
+message Altium's way (e.g. `ShowMessage` from `run_altium_script`) and fails when the call
+does not return within a short limit naming the message. Then a watch in the bridge, for
+every command: while it waits, a top-level modal window of X2.EXE that the tool's own
+driver does not handle (`TMessageForm`, `#32770`, `TShowException`) ends the call as a
+failure that gives its title, text and buttons; which messages it may then close, and
+with which button, to be decided with the test (an OK-only message is safe to close, one
+with choices may not be). Usage until then: a call that does not return in a minute or two
+is looked at on Altium's screen. Not in the run of 2026-11-14's groups: for the next run,
+with A22 (both are how a call meets Altium's windows).
+Reproduced 2026-11-14: a script launched through the bridge itself (the live test swaps
+the bundle for a small `.pas` that takes the request and calls `MessageDlg`) put up its
+message and the call waited out its whole limit, then blamed "a runtime error" in the
+debugger; the next call waited 44 s and reported "Altium did not start the command". A
+script's `MessageDlg` is a task dialog (`#32770`) whose buttons are child windows (`OK`,
+`&Yes`, `&No`) and whose text, in a `DirectUIHWND`, cannot be read from outside; Altium's
+`TMessageForm` text cannot be read either; so each message is kept as a picture
+(`dialogs\` beside the exchange files) and the result points to it. Fix:
+`altium_messages.py` and the bridge's wait loop. Every 0.25 s the bridge reads X2.EXE's
+top-level `TMessageForm`, `#32770` and `TShowException` windows; one up for 1 s that the
+tool does not answer itself (`execute_command(handled=…)`: `run_drc` names its repour
+message) is acted on: a single OK or Close button is pressed (a posted click), the command
+goes on, and the call fails naming the message, with the command's own answer after it in
+`reply_after_message` and, for a command that changes the design, a word to check it; one
+with choices (or another single button, `TShowException`'s "Send and Close") is left open
+and the call fails at once naming it, as no answer is safe to give for it; a message that
+comes back after 3 presses is left open the same way (the RCW loop, A11). A call made while
+a message with choices is open is not run, and says so at once. Decided 2026-11-14 by the
+session, not the owner: these answers (press only a lone OK or Close; leave choices to the
+user; fail the call in both cases even when the command then succeeded), because a result
+met by an unexpected message may be wrong and the caller must know; the 1 s grace, for a
+tool's own driver to answer first. Not changed: the "busy" box a refused launch raises is a
+`#32770` "Information" on AD25, which the not-started path (`_dismiss_altium_dialogs`,
+`TMessageForm` only) leaves open. Live test `tests/test_live_windows.py` (`MessageTest`):
+before, 3/3 fail ("the call waited 42 s", twice; "the next call waited 44 s"); after, 3/3
+pass, the five tests of the file in 25 s. Offline tests in `test_altium_messages.py` (16).
+Offline 368 OK; the live set 46/46 pass (Altium not restarted before it).
+Local: on `ad25`, in the commit that moves it here; not yet in a build. Upstream: not yet
+decided.
 
 ## Closed
 

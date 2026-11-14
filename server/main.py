@@ -41,6 +41,7 @@ import sandbox
 import win_processes
 import foreground
 import functools
+import altium_messages
 from outjob_parser import parse_outjob
 
 # Set MCP_DIR to the directory of the current Python file
@@ -508,8 +509,14 @@ class AltiumBridge:
                     f"Altium_API.PrjScr, then retry.")
         return None
 
-    async def execute_command(self, command: str, params: Dict[str, Any], timeout: float = RESPONSE_TIMEOUT) -> Dict[str, Any]:
-        """Execute a command in Altium via the bridge script"""
+    async def execute_command(self, command: str, params: Dict[str, Any], timeout: float = RESPONSE_TIMEOUT,
+                              handled=None) -> Dict[str, Any]:
+        """Execute a command in Altium via the bridge script.
+
+        handled(message) is True for an Altium message the calling tool
+        answers itself (altium_messages.Message); any other message met while
+        the command runs ends the call (altium_messages).
+        """
         async with self._command_lock:
             problem = await self.ensure_paths()
             if problem:
@@ -527,10 +534,18 @@ class AltiumBridge:
                 # is no reason to give up.
                 if await asyncio.to_thread(sandbox.altium_hung):
                     return {"success": False, "error": ALTIUM_HUNG_ERROR}
+                # A message that waits for an answer holds Altium: a launch
+                # now would only queue behind it until the start timeout
+                waiting = [m for m in await asyncio.to_thread(altium_messages.find, handled)
+                           if not m.safe_to_press]
+                if waiting:
+                    for m in waiting:
+                        m.picture = await asyncio.to_thread(_message_picture, m)
+                    return altium_messages.refusal(command, waiting)
                 # Altium activates itself on every script launch: keep the
                 # foreground, and with it the keyboard, where the user has it
                 with foreground.ForegroundGuard(_bring_to_front):
-                    response = await self._execute_command_locked(command, params, timeout)
+                    response = await self._execute_command_locked(command, params, timeout, handled)
             finally:
                 self._exchange_lock.release()
         return _lift_failed_result(response)
@@ -585,7 +600,8 @@ class AltiumBridge:
                 await asyncio.sleep(0.25)
         return text
 
-    async def _execute_command_locked(self, command: str, params: Dict[str, Any], timeout: float = RESPONSE_TIMEOUT) -> Dict[str, Any]:
+    async def _execute_command_locked(self, command: str, params: Dict[str, Any], timeout: float = RESPONSE_TIMEOUT,
+                                      handled=None) -> Dict[str, Any]:
         try:
             problem = altium_limit_problem()
             if problem:
@@ -665,6 +681,10 @@ class AltiumBridge:
             progress_mark = None
             response_text = None
             ignored_reply = None
+            # Altium's messages that no step of the tool expects (A24)
+            watch = altium_messages.Watch()
+            pressed, left = [], None
+            mutating = command in MUTATING_COMMANDS
             while response_text is None:
                 try:
                     reply_mark = RESPONSE_FILE.stat().st_mtime
@@ -690,9 +710,28 @@ class AltiumBridge:
                     mark = None
                 if mark != progress_mark:
                     progress_mark, last_progress = mark, now
+                for m in watch.due(await asyncio.to_thread(altium_messages.find, handled), now):
+                    m.picture = await asyncio.to_thread(_message_picture, m)
+                    if m.safe_to_press and len(pressed) < altium_messages.MAX_PRESSES:
+                        logger.warning(f"Pressing the only button of an Altium message: {m.describe()}")
+                        pressed.append(m)
+                        await asyncio.to_thread(altium_messages.press, m)
+                        last_progress = time.monotonic()  # the script goes on now
+                    else:
+                        logger.warning(f"Leaving an Altium message open: {m.describe()}")
+                        left = m
+                        break
+                if left is not None:
+                    break
                 if now - last_progress > timeout or now - start_time > max(RESPONSE_TIMEOUT_MAX, timeout):
                     break
                 await asyncio.sleep(0.25)
+
+            if left is not None:
+                # The script waits on the message, not in the debugger: it
+                # goes on once the user answers, and its late reply is told
+                # apart by its request_id
+                return altium_messages.failure(command, pressed, left, None, mutating)
 
             if response_text is None:
                 logger.error("Timeout waiting for response from Altium")
@@ -705,14 +744,19 @@ class AltiumBridge:
                 outcome = (f" '{command}' changes the design and may have done some or all of "
                            f"its work, so its outcome is unknown: check the design before "
                            f"running it again." if command in MUTATING_COMMANDS else "")
-                return {"success": False,
-                        "error": f"No response from Altium after "
-                                 f"{int(time.monotonic() - start_time)} s, the last "
-                                 f"{timeout:g} s without progress: command '{command}' "
-                                 f"started but did not finish. It probably hit a runtime error "
-                                 f"and paused in Altium's debugger (now stopped, so the next "
-                                 f"command can run), or it is still working on a very large "
-                                 f"design.{outcome}"}
+                out = {"success": False,
+                       "error": f"No response from Altium after "
+                                f"{int(time.monotonic() - start_time)} s, the last "
+                                f"{timeout:g} s without progress: command '{command}' "
+                                f"started but did not finish. It probably hit a runtime error "
+                                f"and paused in Altium's debugger (now stopped, so the next "
+                                f"command can run), or it is still working on a very large "
+                                f"design.{outcome}"}
+                if pressed:
+                    msg = altium_messages.failure(command, pressed, None, None, False)
+                    out["error"] += " Before that: " + msg["error"]
+                    out["altium_messages"] = msg["altium_messages"]
+                return out
 
             if recovered:
                 logger.info("Command succeeded after automatic executor recovery")
@@ -726,6 +770,8 @@ class AltiumBridge:
             try:
                 response = json.loads(response_text, strict=False)
                 logger.info(f"Successfully parsed JSON response")
+                if pressed:
+                    return altium_messages.failure(command, pressed, None, response, mutating)
                 return response
             except json.JSONDecodeError as e:
                 logger.error(f"Error parsing JSON response: {e}")
@@ -1545,6 +1591,16 @@ def _window_process_name(hwnd) -> str:
         return ""
     finally:
         kernel32.CloseHandle(handle)
+
+
+def _message_picture(m) -> Optional[str]:
+    """A picture of an Altium message, kept with the dialogs the sandbox
+    answered: the text of most cannot be read from outside Altium."""
+    try:
+        return sandbox.snapshot_dialog(m, SANDBOX_DIALOGS)
+    except Exception as e:
+        logger.warning(f"message picture failed: {e}")
+        return None
 
 
 def _dismiss_altium_dialogs(message_boxes_only: bool = False):
@@ -5828,8 +5884,10 @@ async def run_drc(ctx: Context, board_path: str = "", max_violations: int = 200,
 
     driver = asyncio.create_task(drc.drive_dialog(outcome, PROGRESS_FILE, before_press=take_snapshot))
     try:
+        # Its repour message is the driver's to answer
         response = await altium_bridge.execute_command(
-            "run_drc", {"board_path": board_path,
+            "run_drc", handled=lambda m: drc.is_repour_prompt(m.cls, m.title, m.buttons),
+            params={"board_path": board_path,
                         # filtered: the violations Altium kept (500 unless its
                         # limit was raised), up to a cap, then filter
                         "max_violations": drc.FILTER_FETCH if filtered else int(max_violations)})

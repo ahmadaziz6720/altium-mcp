@@ -197,6 +197,10 @@ unasked, and ending and restarting `X2.EXE` when Altium hangs.
 - [x] group 1: offline and live tests, pushed, released (build: `build-20261114-163431`;
   Altium not restarted before the live tests, see the report)
 - [ ] group 1: scenario test (session id: `abd53408-395b-493b-9258-37a2b678aa3b`), entry committed and sorted, release page
+  Stood here 2026-11-14: the headless session was started and stopped by Claude Code
+  for low memory (about 600 MB free of 7.5 GB, Altium holding 1.7 GB) before it wrote
+  anything (no entry, no output). Not restarted by the run, as that notice asks. Next:
+  start it again with the same id (`--session-id`, or `--resume` if it was saved).
 - [ ] A3: committed (or left Open, why written into it)
 - [ ] A9: committed (or left Open, why written into it)
 - [ ] group 2: offline and live tests, pushed, released (build: …)

@@ -1938,6 +1938,8 @@ var
     Items, Props, ResultProps : TStringList;
     Count     : Integer;
     RuleName  : String;
+    Doc       : IServerDocument;
+    WasModified : Boolean;
 begin
     Board := GetBoardSafe(0);
     if Board = nil then
@@ -1946,8 +1948,18 @@ begin
         Exit;
     end;
 
+    // The check replaces the board's violation markers, which marks the
+    // board modified whenever it finds any. A board with no unsaved change
+    // is left unmodified: the markers are the check's result, not an edit,
+    // and a later check makes them again.
+    Doc := Client.GetDocumentByPath(Board.FileName);
+    WasModified := (Doc = nil) or DocumentModified(Doc);
+
     ResetParameters;
     RunProcess('PCB:DesignRuleCheck');
+
+    if not WasModified then
+        Doc.SetModified(False);
 
     Items := TStringList.Create;
     ResultProps := TStringList.Create;
@@ -1998,6 +2010,7 @@ begin
 
         AddJSONBoolean(ResultProps, 'success', True);
         AddJSONProperty(ResultProps, 'board', Board.FileName);
+        AddJSONBoolean(ResultProps, 'board_modified', (Doc = nil) or DocumentModified(Doc));
         AddJSONInteger(ResultProps, 'violation_count', Count);
         ResultProps.Add(BuildJSONArray(Items, 'violations'));
         Result := BuildJSONObject(ResultProps);

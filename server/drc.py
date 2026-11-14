@@ -70,7 +70,17 @@ class DialogOutcome:
     pressed: bool = False      # the Run button was pressed and the dialog closed
     cancelled: bool = False    # the dialog would not run and was closed (no check)
     seen: bool = False
+    posted: bool = False       # a press of the Run button was sent
     notes: List[str] = field(default_factory=list)
+
+    def ran_after_reply(self) -> bool:
+        """Whether the check ran, once Altium has replied. The dialog is
+        modal, so a reply means it closed. A small board is checked and
+        answered within the quarter second the driver waits after a press
+        before looking: the driver is then stopped with the press sent and
+        the close unseen. A press sent and no close of ours means the press
+        closed it."""
+        return self.pressed or (self.posted and not self.cancelled)
 
 
 async def drive_dialog(outcome: DialogOutcome, progress_file: Path, keep_alive: float = 5.0,
@@ -93,6 +103,7 @@ async def drive_dialog(outcome: DialogOutcome, progress_file: Path, keep_alive: 
                 break
             user32.PostMessageW(button, WM_LBUTTONDOWN, MK_LBUTTON, 0)
             user32.PostMessageW(button, WM_LBUTTONUP, 0, 0)
+            outcome.posted = True
             for _ in range(max(1, int(press_wait / 0.25))):
                 await asyncio.sleep(0.25)
                 if not _is_open(dialog):

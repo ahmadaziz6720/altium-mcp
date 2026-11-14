@@ -119,6 +119,31 @@ class DriveDialogTest(unittest.TestCase):
         self.assertTrue(outcome.cancelled)
         self.assertEqual(posted[-1], drc.WM_CLOSE)
         self.assertEqual(posted.count(drc.WM_LBUTTONDOWN), 3)
+        self.assertFalse(outcome.ran_after_reply())
+
+    def test_ran_when_the_reply_beats_the_close_check(self):
+        # A small board is checked and answered before the driver looks
+        # again: it is stopped with the press sent and the close unseen
+        outcome = drc.DialogOutcome()
+        with tempfile.TemporaryDirectory() as d, \
+                mock.patch.object(drc, "find_dialog", return_value=42), \
+                mock.patch.object(drc, "_run_button", return_value=1), \
+                mock.patch.object(drc, "_is_open", return_value=True), \
+                mock.patch.object(drc.ctypes, "windll"):
+            async def go():
+                task = asyncio.create_task(drc.drive_dialog(outcome, Path(d) / "progress.txt", settle=0,
+                                                            press_wait=5.0))
+                while not outcome.posted:
+                    await asyncio.sleep(0.001)
+                task.cancel()
+            asyncio.run(go())
+        self.assertFalse(outcome.pressed)
+        self.assertFalse(outcome.cancelled)
+        self.assertTrue(outcome.ran_after_reply())
+
+    def test_not_ran_when_no_dialog_was_seen(self):
+        self.assertFalse(drc.DialogOutcome().ran_after_reply())
+        self.assertFalse(drc.DialogOutcome(seen=True).ran_after_reply())
 
 
 class ViolationTest(unittest.TestCase):

@@ -5632,12 +5632,15 @@ async def run_drc(ctx: Context, board_path: str = "", max_violations: int = 200,
     set in its Design Rule Checker dialog. The dialog is answered from
     outside Altium: it may flash on screen. Altium writes its usual report
     beside the board (or in the project's output folder) and may open it.
-    The violations stay on the board, marked as Altium marks them.
+    The violations stay on the board, marked as Altium marks them. A board
+    with no unsaved change is left unmodified ("board_modified": false), so
+    its markers are not saved unless the board is saved for another change.
 
     A cancelled check leaves no violations, exactly like a clean board, so
     "ran" says whether the check really ran: the Run button was pressed and
-    the dialog closed. "report" (when Altium wrote one) gives the per-rule
-    counts and confirms it independently.
+    the dialog closed. "report" (when Altium wrote one in this call) gives
+    the per-rule counts and confirms it independently; it is left out when
+    the check did not run.
 
     Args:
         board_path (str): Full path of the .PcbDoc to check. It is opened if
@@ -5702,6 +5705,8 @@ async def run_drc(ctx: Context, board_path: str = "", max_violations: int = 200,
             pass
 
     if not response.get("success", False):
+        # A command that failed may have left the dialog open: only a close
+        # seen counts
         return json.dumps({"success": False, "ran": outcome.pressed,
                            "error": f"DRC failed: {response.get('error', 'unknown error')}"})
     result = response.get("result", {})
@@ -5711,8 +5716,9 @@ async def run_drc(ctx: Context, board_path: str = "", max_violations: int = 200,
         except ValueError:
             return json.dumps({"success": False, "error": f"unexpected reply: {result[:200]}"})
 
-    out = {"success": True, "ran": outcome.pressed}
-    if not outcome.pressed:
+    ran = outcome.ran_after_reply()
+    out = {"success": True, "ran": ran}
+    if not ran:
         out["success"] = False
         out["error"] = ("The check did not run: " +
                         ("the Design Rule Checker dialog could not be started and was closed. "
@@ -5736,7 +5742,9 @@ async def run_drc(ctx: Context, board_path: str = "", max_violations: int = 200,
     for v in out.get("violations", []):
         by_rule[v.get("rule", "")] = by_rule.get(v.get("rule", ""), 0) + 1
     out["listed_by_rule"] = by_rule
-    report = drc.find_report(result.get("board", board_path), started)
+    # A check that did not run wrote no report: one found is another run's,
+    # and its counts would read as a result
+    report = drc.find_report(result.get("board", board_path), started) if ran else None
     if report is not None:
         try:
             out["report"] = {"path": str(report),

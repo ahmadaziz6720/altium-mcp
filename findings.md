@@ -282,3 +282,5 @@ The deleted copper and the test copy were closed unsaved (the copy saved once, w
 routed again). `.PrjPcbStructure` appeared on closing each project, as the A5 usage line
 says, and was deleted. 30 calls, 0 errors, 24k characters (9 `run_altium_script` for
 opening, closing and checks; 4 `run_drc` 8.4k).
+
+Sorted into A3 (1); A9 (2); A21 (3), all three Closed; A23, new (4).

@@ -10,7 +10,7 @@ Three sections: **Open**, not yet fixed; **Waiting**, fixed and not yet settled 
 merged, a fix not yet run in a session); **Closed**, merged upstream, run and held, or
 decided against, with the record.
 
-**Open: A8, A10 to A16, A22.**
+**Open: A8, A10 to A16, A22, A23.**
 
 A2, A7, A4 and A6 went out together in `build-20261112-120520` (owner, 2026-11-12), so one
 scenario test covers them; A3 and A8 were not waited for. That test ran and held for
@@ -215,8 +215,8 @@ unasked, and ending and restarting `X2.EXE` when Altium hangs.
 - [x] A21: committed
 - [x] group 2: offline and live tests, pushed, released (build: `build-20261114-180059`;
   295 offline, 23 live; Altium not restarted before the live tests)
-- [ ] group 2: scenario test (session id: `f712df7c-6b4f-4f46-ad91-dacbeb6807ba`), entry
-  committed and sorted, release page
+- [x] group 2: scenario test (session id: `f712df7c-6b4f-4f46-ad91-dacbeb6807ba`), entry
+  committed and sorted, release page; A3, A9 and A21 held and Closed, A23 new (Open)
 - [ ] A10: committed (or left Open, why written into it)
 - [ ] A11: committed (or left Open, why written into it)
 - [ ] A16: committed (or left Open, why written into it)
@@ -312,6 +312,15 @@ or the window shown without activation), whichever holds. Usage until then: noth
 typed on the machine while a test or a scenario test runs. Not in the run of 2026-11-14's
 groups (the owner: "catat dulu aja"): for the next run.
 
+**A23. `get_unrouted_connections` read by net names no pad.** With `nets` only, the
+connections come with `from_pad` and `to_pad` null even where an end is a pad's centre;
+the same connection read with `designators` names both ends. As the description says
+(pads are named with `designators`), but a caller reading by net needs a second call to
+know the pads. Local: name a pad whenever an end lies on one, whatever the group was given
+by; or, the smaller change, a line in the description. Usage until then: read with the
+net's `designators` to get the pads. (2026-11-14, fourth entry, 4.) Not in the run of
+2026-11-14's later groups (not in their files): for the next run.
+
 ## Waiting
 
 **A1. `get_server_status` reports no version or commit.** It returns the Altium exe and the
@@ -359,199 +368,8 @@ Scenario test of that build held (2026-11-12, third entry, 2): 38 rules, the sco
 9 %): what is left is mostly the key names and indentation repeated on every rule.
 Waits for the upstream PR.
 
-**A3. `get_unrouted_connections` reports 0 for a net that is open.** After the only track
-between two pads of a 3-pad net was deleted (`delete_pcb_objects`), `run_drc` gave one
-Un-Routed Net violation for that net while `get_unrouted_connections(nets=[that net])`
-returned `connection_count` 0, four times, also after save, close and reopen. Its pass
-(`Board.AnalyzeNet` per net, then a board iterator on `eConnectionObject`) found no
-connection object on the board at all; every net had `ConnectsVisible` true. The board was
-in 3D view throughout, untested whether that matters; not yet seen on a board open from the
-start. Local, to reproduce first: a live test that deletes a track and expects the
-connection, in 2D and 3D view; if the connection objects cannot be had reliably, take the
-open connections from a DRC Un-Routed Net run instead. Usage until then:
-`run_drc(nets=[...])` gives the open connection with its ends. (2026-11-12, 3.)
-Reproduced 2026-11-12 in a session fixing A4, on a copy of the WiFi board of Altium's Mini PC
-example, freshly opened: every free track, arc and via of a 2-pad signal net removed by a
-script, then `get_unrouted_connections(nets=[it])` (nets analyzed, the board being
-modified) gave 0 while `run_drc(nets=[it])` gave the one Un-Routed Net between its two
-pads, and a board iterator on `eConnectionObject` found none on the whole board, before
-and after analyzing. On a copy of the Mini PC motherboard the same iterator found 564 after
-one net was analyzed. So it is not the 3D view alone; whether a board has connection
-objects at all varies.
-Met again 2026-11-12 (third entry, 7) without `AnalyzeNet`: a board saved with one
-connection open (DRC: 1 Un-Routed Net), closed and reopened, gave `analyzed` false and
-`connection_count` 0, and no `eConnectionObject` on the whole board; before the save, on
-the modified board, `analyzed` true also gave 0. So the ratsnest built at open lacks the
-connection objects too. 3D view throughout, 2D not tried.
-Probe 2026-11-14, on copies of the WiFi board of Altium's Mini PC example, in 2D and in 3D
-view (switched with Altium's "3" key): the connection objects are there, and
-`Board.AnalyzeNet` is what removes them. The track of a 2-pad net deleted with
-`delete_pcb_objects` left one connection object on the net at once, in either view;
-`Board.AnalyzeNet` on that net then left none, in either view, and none came back (later
-scripts, `Board.ViewManager_FullUpdate`, `PCB:Zoom` redraw, `PCB:ShowConnections`,
-`Net.ConnectivelyInValidate`, `PCBServer.PreProcess`/`PostProcess` around it). A copy
-saved with the connection open and opened under a new name had it; the same board closed
-and reopened by script did not when it had been analyzed before its save: the reopened
-board is the one left in Altium's memory, not read again. So every case of this item is
-`AnalyzeNet`: the first call analyzed the modified board, and the reopened board was that
-same analyzed board. `Net.Rebuild` (and `Board.CleanNet`) brought the connection back, in
-either view. On five nets with their copper deleted (2-pad, 3-pad and with vias), the
-connection objects after `Net.Rebuild` were per net those of a DRC Un-Routed Net run, 6 in
-all, while the tool gave 0. `Net.Rebuild` on every net of a freshly opened board changed no
-track and left it unmodified (WiFi: 27 nets, 579 tracks, 0 connections; Mini PC
-motherboard: 837 nets in about 3 s, 48,299 tracks, 564 connections before and after),
-where `AnalyzeNet` had joined 11 of the motherboard's tracks (A4). `place_copper` also ran
-`AnalyzeNet` on the nets of its copper: a track laid half way between the two pads left
-no connection object (`Net.Rebuild` then gave the 1). Copper added by `route_track`
-(which does not analyze) updated the connection at once. The DRC way would have met a
-further stop: after copper under a pour is deleted, Altium answers the Run press with a
-"Design Rule Check" message (Run DRC, Cancel, Repour Polygons and Run DRC) that the
-dialog driver does not press, and `run_drc` waits (pressed by hand in the probe).
-Not explained: the 2026-11-12 reproduction saw no connection object before analyzing,
-after its own script removed the copper; `delete_pcb_objects` registers each removal with
-the board, which a bare `RemovePCBObject` may not.
-Cause: `get_unrouted_connections` and `place_copper` ran `Board.AnalyzeNet`, which removes
-every connection object of the net it analyzes, open or not, in 2D and 3D view.
-Fixed in `2f3393a`: `get_unrouted_connections` rebuilds the
-connections of the nets it reads with `Net.Rebuild` on every call, the board's modified
-flag put back when it had no unsaved change (A4); its result no longer has `analyzed`.
-`place_copper` rebuilds the nets of its copper with `Net.Rebuild` instead of analyzing
-them, so the connections its copper leaves open stay on the board.
-Live test `tests/test_live_unrouted.py` (`ALTIUM_LIVE=1`, copies of the WiFi board, closed
-unsaved): the tracks of a 2-pad and a 3-pad net deleted, then the read on the changed
-board and again after save, close and reopen, in 2D
-(`test_deleted_copper_leaves_open_connections`) and in 3D
-(`test_deleted_copper_leaves_open_connections_in_3d`), each expecting
-`{"NetC39_1": 2, "NetDS1_2": 1}` with the pads named, the board's tracks unchanged and the
-reopened board left unmodified; and
-`test_place_copper_keeps_the_connections_it_leaves_open` (a half-way track leaves the
-connection object, the rest closes it). Before the fix all three failed: "AssertionError:
-{} != {'NetC39_1': 2, 'NetDS1_2': 1}" (both views) and "0 != 1 : place_copper removed an
-open connection"; A4's test passed. After: 4/4 of `test_live_unrouted` pass in AD25, the
-3D test run in 3D; `test_live_layout` (2, `place_copper`) and `test_live_drc` (12) pass.
-Offline: 281 tests pass.
-Decided 2026-11-14 by the run, not the owner: no DRC fallback and no `source` field,
-because the probe found a way that gives the connection objects reliably (`Net.Rebuild`,
-equal per net to DRC's Un-Routed Net, in both views), and the DRC way also stops on
-Altium's repour message after copper under a pour was deleted.
-Decided 2026-11-14 by the run, not the owner: the nets read are rebuilt on every call, also
-on a board with no unsaved change (its flag put back), not only on a modified one, because
-a board closed and reopened in the same Altium keeps the connections it had in memory, and
-a rebuild changes no copper and is quick.
-Decided 2026-11-14 by the run, not the owner: `place_copper` rebuilds instead of analyzing
-too, because its analysis took the open connections of every net it touched off the board,
-for Altium's own view and any reader that does not rebuild; `Net.Rebuild` over
-`Board.CleanNet`, which brought the connection back too, because only the rebuild was
-checked to change no copper on whole boards.
-Decided 2026-11-14 by the run, not the owner: `analyzed` is dropped from the result, because
-every call now rebuilds the nets it reads, so it would always be true.
-Decided 2026-11-14 by the run, not the owner: the 3D test switches the view with Altium's
-"3" key, Altium brought to the front (no key is sent when it is not), and tells 2D from 3D
-by the share of the top layer's red in a screenshot, skipping when either cannot be done,
-because no script call switched the view (`PCB:SwitchTo2D3D` with `Mode=3D`, `Mode=Toggle`,
-`ViewMode=3D` or none, by `RunProcess` and `Client.SendMessage`) and no document or view
-property read differs between the two. A board may open in 3D (a copy under a name last
-shown in 3D did), so the test leaves Altium in 2D.
-Local: on `ad25`, in `2f3393a`. Released in `build-20261114-180059`; scenario test not run
-yet. Upstream: not yet decided.
 
-**A9. `run_altium_script`'s compile check reads one declaration per `var` line.** A
-leading `var Board : IPCB_Board; Net : IPCB_Net; i : Integer;` on one line was refused
-before it ran, "'Net' is not declared"; one declaration per line passed. Delphi allows
-several. Local: read every declaration of the line. (2026-11-12, second entry, 2.)
-Cause: `split_var_block` took a line as a declaration only when it held exactly one
-(`Name1, Name2 : Type;`), and `declared_names` read only what came before the first
-colon of a line. A `var` line with several declarations therefore gave one name
-(`Board`), the others (`Net`, `i`) were never known to `check_script`, and a later line
-of several declarations ended the block, leaving it in the script body. `lint_script`
-took every name of a line as `IDispatch` when any declaration of it was.
-Fix: `sandbox.py` reads every declaration of a line
-(`declarations`, with `declared_names` built on it): a declaration line may hold several,
-the `var` line and the lines after it, a comma list (`a, b : Integer`) included, and
-comments are ignored; `lint_script` treats as untyped only the names of the `IDispatch`
-declarations. Nothing that reaches Altium changed: the text put into the template is the
-same lines as before.
-Offline tests in `tests/test_sandbox.py` (6 new). Before the fix, 6 failed: "AssertionError:
-Lists differ: ['Board'] != ['Board', 'Net', 'i']" (`declared_names` of the line),
-"'Net' is not declared. Use a sandbox variable or declare it in a leading var block"
-(`check_script` on `var Board : IPCB_Board; Net : IPCB_Net; i : Integer;` and a
-body using all three), the block ended at a line of two declarations ("Lists differ: []
-!= ['A : Integer; B, C : String;', 'D : Double;']"), a comment's `E : Integer;` read as
-a declaration, and a lint check ("1 != 2") on an `IDispatch` line. After: 50 pass in
-`test_sandbox` and 288 in the offline list of `.github/workflows/tests.yml`.
-Not covered: a `var` section inside a nested procedure or function; the checker reads
-only the script's leading `var` block, as before.
-Decided 2026-11-14 by the run, not the owner: `a, b : Integer` and several declarations on
-a line read by one regular expression for a declaration, used for the block's split, the
-names and the lint, because one definition keeps the three from disagreeing again.
-Decided 2026-11-14 by the run, not the owner: a trailing comment on a declaration line
-stays `//` only, as before, because `{ }` and `(* *)` after a declaration were never read
-as part of the block and the item is about several declarations.
-Fixed in `7ec1ed2`. Local: on `ad25`, in `7ec1ed2`. Released in `build-20261114-180059`; scenario test not run
-yet. Upstream: not yet decided.
 
-**A21. `run_drc` waits on Altium's repour message.** After copper under a pour was deleted,
-Altium answered the dialog's Run press with a "Design Rule Check" message (Run DRC, Cancel,
-Repour Polygons and Run DRC) that `run_drc`'s dialog driver does not press, so the call
-waited until it timed out; the message was pressed by hand. Met 2026-11-14 in the run's
-probe for A3, on a copy of the WiFi board of Altium's Mini PC example. Local: the driver
-presses Run DRC (the check of the board as it is, pours not changed, so the board and the
-result stay what was asked), and the result says the message was met; a live test that
-deletes copper under a pour and runs the check, failing on a timeout before the fix.
-Decided 2026-11-14 by the run, not the owner: A21 joins group 2 after A9, because a check
-that never returns blocks every later step that runs one, its fix is in `run_drc`'s dialog
-driver alone, and group 2's scenario test runs `run_drc`.
-Cause: the message is a `TMessageForm` of X2.EXE titled "Design Rule Check", its buttons
-`TXPBitBtn` captioned "Run DRC", "Cancel" and "Repour Polygons and Run DRC", up about a
-second after the dialog's Run press (probe 2026-11-14, a copy of the WiFi board with the
-tracks of two nets under its GND pours deleted by `delete_pcb_objects`). The dialog
-driver pressed only the Design Rule Checker dialog's Run button and then just kept the
-bridge's progress file fresh, so the command, held by the message, counted as working and
-waited up to the bridge's 30 minute limit.
-Fixed in `ed18a1c`: the driver (`drc.drive_dialog`) looks for the
-message while it waits for the dialog to close and, every quarter second, for the rest of
-the call; it knows it by its class, title and the captions of its buttons
-(`drc.is_repour_prompt`: Run DRC and Repour Polygons and Run DRC, any case, `&` ignored),
-never by a button's position, and presses Run DRC, a posted click as the dialog's Run
-button gets. The board is checked as it is, its pours not changed. The result gives
-`repour_prompt` true and a `repour_note` (the pours were not repoured and may be out of
-date: `repour_polygons`, then `run_drc` again); a call that does not meet the message
-gives neither. A message that does not take Run DRC after three presses, 2 s apart, is
-cancelled (its Cancel button) and the result is `ran` false, with the presses in `notes`.
-The board's and the project's flags are handled as before (A17, A19), and other dialogs
-as before.
-Live test `tests/test_live_drc.py`, class `LiveDrcRepourTest` (`ALTIUM_LIVE=1`, a copy of
-the WiFi board, closed unsaved; its cleanup presses Cancel on a message left up and
-closes a Design Rule Checker dialog left open, so Altium is never left blocked):
-`test_check_presses_run_drc_on_the_repour_message` deletes the tracks of `NetDS1_2` and
-`NetC39_1` under the GND pours with `delete_pcb_objects`, runs `run_drc` with a 90 s
-limit, and expects `ran`, `repour_prompt`, no message left up, the 3 Un-Routed Net
-violations those tracks leave, the pours unchanged (each pour read by the holes and
-outline points of its regions: "Repour Polygons and Run DRC" changed Top_GND from 18/481
-to 18/476 and found 5 violations) and the board still modified;
-`test_no_repour_message_no_field`, the board unchanged, no `repour_prompt`. Before the
-fix the first failed: "AssertionError: run_drc did not return within 90 s (Altium's
-repour message left up)"; the cleanup answered it and the second test then passed.
-After: 14/14 of `test_live_drc` pass in AD25 (the two new, and the 12 of A17 to A20 and A5). Offline: 7 new in `tests/test_drc.py` (the message known by class,
-title and buttons; Run DRC pressed when it comes before or after the dialog closes, and
-nothing else posted; a message that stays cancelled after three presses, `ran` false;
-no message, no flag); 295 tests pass in the offline list of `.github/workflows/tests.yml`.
-Decided 2026-11-14 by the run, not the owner: the message counts as Altium taking the
-dialog's Run press, so the driver stops pressing the dialog when it is up, because it is
-Altium's answer to that press, and waiting for the dialog to close behind it would count
-presses the message holds up as failures and close the dialog.
-Decided 2026-11-14 by the run, not the owner: a message that will not take Run DRC is
-cancelled after three presses and the call reports `ran` false, not left up, because a
-message left up blocks Altium for every later call, and a check that was cancelled must
-not read as a result.
-Decided 2026-11-14 by the run, not the owner: `repour_prompt` is given only when the
-message was met, because a call that does not meet it gives the result it gave before,
-and its absence says the pours were current.
-Decided 2026-11-14 by the run, not the owner: the test reads the pours by the holes and
-outline points of their regions, because a repour of the test's board changed those and
-left the region count of every pour as it was.
-Fixed in `ed18a1c`. Local: on `ad25`, in `ed18a1c`. Released in `build-20261114-180059`; scenario test not run
-yet. Upstream: not yet decided.
 
 ## Closed
 
@@ -777,3 +595,205 @@ checks, `keep_report` kept the report and the next check put it back (`restored`
 and times unchanged). The folder's own modification time does change each check, as the
 output folder is made and removed in it (third entry, 4): a caller compares the files,
 not the folder's time. `.PrjPcbStructure` is written when the project closes, as found.
+
+**A3. `get_unrouted_connections` reports 0 for a net that is open.** After the only track
+between two pads of a 3-pad net was deleted (`delete_pcb_objects`), `run_drc` gave one
+Un-Routed Net violation for that net while `get_unrouted_connections(nets=[that net])`
+returned `connection_count` 0, four times, also after save, close and reopen. Its pass
+(`Board.AnalyzeNet` per net, then a board iterator on `eConnectionObject`) found no
+connection object on the board at all; every net had `ConnectsVisible` true. The board was
+in 3D view throughout, untested whether that matters; not yet seen on a board open from the
+start. Local, to reproduce first: a live test that deletes a track and expects the
+connection, in 2D and 3D view; if the connection objects cannot be had reliably, take the
+open connections from a DRC Un-Routed Net run instead. Usage until then:
+`run_drc(nets=[...])` gives the open connection with its ends. (2026-11-12, 3.)
+Reproduced 2026-11-12 in a session fixing A4, on a copy of the WiFi board of Altium's Mini PC
+example, freshly opened: every free track, arc and via of a 2-pad signal net removed by a
+script, then `get_unrouted_connections(nets=[it])` (nets analyzed, the board being
+modified) gave 0 while `run_drc(nets=[it])` gave the one Un-Routed Net between its two
+pads, and a board iterator on `eConnectionObject` found none on the whole board, before
+and after analyzing. On a copy of the Mini PC motherboard the same iterator found 564 after
+one net was analyzed. So it is not the 3D view alone; whether a board has connection
+objects at all varies.
+Met again 2026-11-12 (third entry, 7) without `AnalyzeNet`: a board saved with one
+connection open (DRC: 1 Un-Routed Net), closed and reopened, gave `analyzed` false and
+`connection_count` 0, and no `eConnectionObject` on the whole board; before the save, on
+the modified board, `analyzed` true also gave 0. So the ratsnest built at open lacks the
+connection objects too. 3D view throughout, 2D not tried.
+Probe 2026-11-14, on copies of the WiFi board of Altium's Mini PC example, in 2D and in 3D
+view (switched with Altium's "3" key): the connection objects are there, and
+`Board.AnalyzeNet` is what removes them. The track of a 2-pad net deleted with
+`delete_pcb_objects` left one connection object on the net at once, in either view;
+`Board.AnalyzeNet` on that net then left none, in either view, and none came back (later
+scripts, `Board.ViewManager_FullUpdate`, `PCB:Zoom` redraw, `PCB:ShowConnections`,
+`Net.ConnectivelyInValidate`, `PCBServer.PreProcess`/`PostProcess` around it). A copy
+saved with the connection open and opened under a new name had it; the same board closed
+and reopened by script did not when it had been analyzed before its save: the reopened
+board is the one left in Altium's memory, not read again. So every case of this item is
+`AnalyzeNet`: the first call analyzed the modified board, and the reopened board was that
+same analyzed board. `Net.Rebuild` (and `Board.CleanNet`) brought the connection back, in
+either view. On five nets with their copper deleted (2-pad, 3-pad and with vias), the
+connection objects after `Net.Rebuild` were per net those of a DRC Un-Routed Net run, 6 in
+all, while the tool gave 0. `Net.Rebuild` on every net of a freshly opened board changed no
+track and left it unmodified (WiFi: 27 nets, 579 tracks, 0 connections; Mini PC
+motherboard: 837 nets in about 3 s, 48,299 tracks, 564 connections before and after),
+where `AnalyzeNet` had joined 11 of the motherboard's tracks (A4). `place_copper` also ran
+`AnalyzeNet` on the nets of its copper: a track laid half way between the two pads left
+no connection object (`Net.Rebuild` then gave the 1). Copper added by `route_track`
+(which does not analyze) updated the connection at once. The DRC way would have met a
+further stop: after copper under a pour is deleted, Altium answers the Run press with a
+"Design Rule Check" message (Run DRC, Cancel, Repour Polygons and Run DRC) that the
+dialog driver does not press, and `run_drc` waits (pressed by hand in the probe).
+Not explained: the 2026-11-12 reproduction saw no connection object before analyzing,
+after its own script removed the copper; `delete_pcb_objects` registers each removal with
+the board, which a bare `RemovePCBObject` may not.
+Cause: `get_unrouted_connections` and `place_copper` ran `Board.AnalyzeNet`, which removes
+every connection object of the net it analyzes, open or not, in 2D and 3D view.
+Fixed in `2f3393a`: `get_unrouted_connections` rebuilds the
+connections of the nets it reads with `Net.Rebuild` on every call, the board's modified
+flag put back when it had no unsaved change (A4); its result no longer has `analyzed`.
+`place_copper` rebuilds the nets of its copper with `Net.Rebuild` instead of analyzing
+them, so the connections its copper leaves open stay on the board.
+Live test `tests/test_live_unrouted.py` (`ALTIUM_LIVE=1`, copies of the WiFi board, closed
+unsaved): the tracks of a 2-pad and a 3-pad net deleted, then the read on the changed
+board and again after save, close and reopen, in 2D
+(`test_deleted_copper_leaves_open_connections`) and in 3D
+(`test_deleted_copper_leaves_open_connections_in_3d`), each expecting
+`{"NetC39_1": 2, "NetDS1_2": 1}` with the pads named, the board's tracks unchanged and the
+reopened board left unmodified; and
+`test_place_copper_keeps_the_connections_it_leaves_open` (a half-way track leaves the
+connection object, the rest closes it). Before the fix all three failed: "AssertionError:
+{} != {'NetC39_1': 2, 'NetDS1_2': 1}" (both views) and "0 != 1 : place_copper removed an
+open connection"; A4's test passed. After: 4/4 of `test_live_unrouted` pass in AD25, the
+3D test run in 3D; `test_live_layout` (2, `place_copper`) and `test_live_drc` (12) pass.
+Offline: 281 tests pass.
+Decided 2026-11-14 by the run, not the owner: no DRC fallback and no `source` field,
+because the probe found a way that gives the connection objects reliably (`Net.Rebuild`,
+equal per net to DRC's Un-Routed Net, in both views), and the DRC way also stops on
+Altium's repour message after copper under a pour was deleted.
+Decided 2026-11-14 by the run, not the owner: the nets read are rebuilt on every call, also
+on a board with no unsaved change (its flag put back), not only on a modified one, because
+a board closed and reopened in the same Altium keeps the connections it had in memory, and
+a rebuild changes no copper and is quick.
+Decided 2026-11-14 by the run, not the owner: `place_copper` rebuilds instead of analyzing
+too, because its analysis took the open connections of every net it touched off the board,
+for Altium's own view and any reader that does not rebuild; `Net.Rebuild` over
+`Board.CleanNet`, which brought the connection back too, because only the rebuild was
+checked to change no copper on whole boards.
+Decided 2026-11-14 by the run, not the owner: `analyzed` is dropped from the result, because
+every call now rebuilds the nets it reads, so it would always be true.
+Decided 2026-11-14 by the run, not the owner: the 3D test switches the view with Altium's
+"3" key, Altium brought to the front (no key is sent when it is not), and tells 2D from 3D
+by the share of the top layer's red in a screenshot, skipping when either cannot be done,
+because no script call switched the view (`PCB:SwitchTo2D3D` with `Mode=3D`, `Mode=Toggle`,
+`ViewMode=3D` or none, by `RunProcess` and `Client.SendMessage`) and no document or view
+property read differs between the two. A board may open in 3D (a copy under a name last
+shown in 3D did), so the test leaves Altium in 2D.
+Local: on `ad25`, in `2f3393a`. Released in `build-20261114-180059`. Upstream: not yet decided.
+Closed: the scenario test of that build held (2026-11-14, fourth entry, 1): on a copy of a
+fully routed board the tracks of a 3-pad net deleted gave the 1 connection DRC gave, the
+same after save, close and reopen, the board left "open"; a second net's via-to-via gap
+gave its 1 too, and the whole board read 0 once routed again.
+
+**A9. `run_altium_script`'s compile check reads one declaration per `var` line.** A
+leading `var Board : IPCB_Board; Net : IPCB_Net; i : Integer;` on one line was refused
+before it ran, "'Net' is not declared"; one declaration per line passed. Delphi allows
+several. Local: read every declaration of the line. (2026-11-12, second entry, 2.)
+Cause: `split_var_block` took a line as a declaration only when it held exactly one
+(`Name1, Name2 : Type;`), and `declared_names` read only what came before the first
+colon of a line. A `var` line with several declarations therefore gave one name
+(`Board`), the others (`Net`, `i`) were never known to `check_script`, and a later line
+of several declarations ended the block, leaving it in the script body. `lint_script`
+took every name of a line as `IDispatch` when any declaration of it was.
+Fix: `sandbox.py` reads every declaration of a line
+(`declarations`, with `declared_names` built on it): a declaration line may hold several,
+the `var` line and the lines after it, a comma list (`a, b : Integer`) included, and
+comments are ignored; `lint_script` treats as untyped only the names of the `IDispatch`
+declarations. Nothing that reaches Altium changed: the text put into the template is the
+same lines as before.
+Offline tests in `tests/test_sandbox.py` (6 new). Before the fix, 6 failed: "AssertionError:
+Lists differ: ['Board'] != ['Board', 'Net', 'i']" (`declared_names` of the line),
+"'Net' is not declared. Use a sandbox variable or declare it in a leading var block"
+(`check_script` on `var Board : IPCB_Board; Net : IPCB_Net; i : Integer;` and a
+body using all three), the block ended at a line of two declarations ("Lists differ: []
+!= ['A : Integer; B, C : String;', 'D : Double;']"), a comment's `E : Integer;` read as
+a declaration, and a lint check ("1 != 2") on an `IDispatch` line. After: 50 pass in
+`test_sandbox` and 288 in the offline list of `.github/workflows/tests.yml`.
+Not covered: a `var` section inside a nested procedure or function; the checker reads
+only the script's leading `var` block, as before.
+Decided 2026-11-14 by the run, not the owner: `a, b : Integer` and several declarations on
+a line read by one regular expression for a declaration, used for the block's split, the
+names and the lint, because one definition keeps the three from disagreeing again.
+Decided 2026-11-14 by the run, not the owner: a trailing comment on a declaration line
+stays `//` only, as before, because `{ }` and `(* *)` after a declaration were never read
+as part of the block and the item is about several declarations.
+Fixed in `7ec1ed2`. Local: on `ad25`, in `7ec1ed2`. Released in `build-20261114-180059`. Upstream: not yet decided.
+Closed: the scenario test of that build held (2026-11-14, fourth entry, 2): a leading `var`
+line of five declarations, `i, n : Integer` among them, ran; a name declared only in a
+`//` comment of that line was still refused before Altium was called.
+
+**A21. `run_drc` waits on Altium's repour message.** After copper under a pour was deleted,
+Altium answered the dialog's Run press with a "Design Rule Check" message (Run DRC, Cancel,
+Repour Polygons and Run DRC) that `run_drc`'s dialog driver does not press, so the call
+waited until it timed out; the message was pressed by hand. Met 2026-11-14 in the run's
+probe for A3, on a copy of the WiFi board of Altium's Mini PC example. Local: the driver
+presses Run DRC (the check of the board as it is, pours not changed, so the board and the
+result stay what was asked), and the result says the message was met; a live test that
+deletes copper under a pour and runs the check, failing on a timeout before the fix.
+Decided 2026-11-14 by the run, not the owner: A21 joins group 2 after A9, because a check
+that never returns blocks every later step that runs one, its fix is in `run_drc`'s dialog
+driver alone, and group 2's scenario test runs `run_drc`.
+Cause: the message is a `TMessageForm` of X2.EXE titled "Design Rule Check", its buttons
+`TXPBitBtn` captioned "Run DRC", "Cancel" and "Repour Polygons and Run DRC", up about a
+second after the dialog's Run press (probe 2026-11-14, a copy of the WiFi board with the
+tracks of two nets under its GND pours deleted by `delete_pcb_objects`). The dialog
+driver pressed only the Design Rule Checker dialog's Run button and then just kept the
+bridge's progress file fresh, so the command, held by the message, counted as working and
+waited up to the bridge's 30 minute limit.
+Fixed in `ed18a1c`: the driver (`drc.drive_dialog`) looks for the
+message while it waits for the dialog to close and, every quarter second, for the rest of
+the call; it knows it by its class, title and the captions of its buttons
+(`drc.is_repour_prompt`: Run DRC and Repour Polygons and Run DRC, any case, `&` ignored),
+never by a button's position, and presses Run DRC, a posted click as the dialog's Run
+button gets. The board is checked as it is, its pours not changed. The result gives
+`repour_prompt` true and a `repour_note` (the pours were not repoured and may be out of
+date: `repour_polygons`, then `run_drc` again); a call that does not meet the message
+gives neither. A message that does not take Run DRC after three presses, 2 s apart, is
+cancelled (its Cancel button) and the result is `ran` false, with the presses in `notes`.
+The board's and the project's flags are handled as before (A17, A19), and other dialogs
+as before.
+Live test `tests/test_live_drc.py`, class `LiveDrcRepourTest` (`ALTIUM_LIVE=1`, a copy of
+the WiFi board, closed unsaved; its cleanup presses Cancel on a message left up and
+closes a Design Rule Checker dialog left open, so Altium is never left blocked):
+`test_check_presses_run_drc_on_the_repour_message` deletes the tracks of `NetDS1_2` and
+`NetC39_1` under the GND pours with `delete_pcb_objects`, runs `run_drc` with a 90 s
+limit, and expects `ran`, `repour_prompt`, no message left up, the 3 Un-Routed Net
+violations those tracks leave, the pours unchanged (each pour read by the holes and
+outline points of its regions: "Repour Polygons and Run DRC" changed Top_GND from 18/481
+to 18/476 and found 5 violations) and the board still modified;
+`test_no_repour_message_no_field`, the board unchanged, no `repour_prompt`. Before the
+fix the first failed: "AssertionError: run_drc did not return within 90 s (Altium's
+repour message left up)"; the cleanup answered it and the second test then passed.
+After: 14/14 of `test_live_drc` pass in AD25 (the two new, and the 12 of A17 to A20 and A5). Offline: 7 new in `tests/test_drc.py` (the message known by class,
+title and buttons; Run DRC pressed when it comes before or after the dialog closes, and
+nothing else posted; a message that stays cancelled after three presses, `ran` false;
+no message, no flag); 295 tests pass in the offline list of `.github/workflows/tests.yml`.
+Decided 2026-11-14 by the run, not the owner: the message counts as Altium taking the
+dialog's Run press, so the driver stops pressing the dialog when it is up, because it is
+Altium's answer to that press, and waiting for the dialog to close behind it would count
+presses the message holds up as failures and close the dialog.
+Decided 2026-11-14 by the run, not the owner: a message that will not take Run DRC is
+cancelled after three presses and the call reports `ran` false, not left up, because a
+message left up blocks Altium for every later call, and a check that was cancelled must
+not read as a result.
+Decided 2026-11-14 by the run, not the owner: `repour_prompt` is given only when the
+message was met, because a call that does not meet it gives the result it gave before,
+and its absence says the pours were current.
+Decided 2026-11-14 by the run, not the owner: the test reads the pours by the holes and
+outline points of their regions, because a repour of the test's board changed those and
+left the region count of every pour as it was.
+Fixed in `ed18a1c`. Local: on `ad25`, in `ed18a1c`. Released in `build-20261114-180059`. Upstream: not yet decided.
+Closed: the scenario test of that build held (2026-11-14, fourth entry, 3): with the track
+of a net under a ground pour deleted, `run_drc` returned within seconds, `ran` true,
+`repour_prompt` true, the pour unchanged and no message left up; on the unchanged board a
+full check gave no `repour_prompt`.

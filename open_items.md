@@ -67,10 +67,20 @@ How it runs:
 - **One Altium, so one thing at a time**: live tests and scenario tests drive the same
   Altium, so items go one after another on `ad25` in the main tree, never in parallel,
   and a scenario test never runs beside a live test.
-- **The main session stays thin**: it hands each item to **one fresh subagent** (default
-  model: a fix or a probe needs diagnosis and design), reads its report and the diff,
-  commits, and ticks the step below. It runs the release steps, the scenario test and
+- **The main session stays thin**: it hands each item to **one fresh subagent**, reads its
+  report and the diff, commits, and ticks the step below. It runs the scenario test and
   the sort itself.
+- **The model fits the task** (the owner, 2026-11-14): Sonnet (`model: "sonnet"`) for a
+  step that runs what is written and reads the result: a group's offline and live tests
+  before its release, the release steps 2 to 5, and the small items A9, A20 and A16. The
+  default model for a fix or a probe that needs diagnosis or design (A19, A5, A3, A10 to
+  A15, A8) and for the scenario test, whose job is to catch a result reported right that
+  is wrong. A Sonnet item whose test does not pass after its try goes once more to a
+  fresh subagent on the default model, and the item says so. These are defaults: the
+  main session moves a step up or down by its own reading of it (a small item that turns
+  out to need a probe goes up; a probe already settled, leaving a pattern to follow, goes
+  down), the goal being high quality at the lower cost. Each change is a line in the
+  report, with why.
 - **Per item**, as `dev/README.md`, `PLACEMENT_TOOL_REVIEW.md` and `CLAUDE.md` give it:
   first a live test that shows the fault on the current code
   (`server/tests/live_altium.py`'s helpers, `ALTIUM_LIVE=1`, a copy of an Altium example,

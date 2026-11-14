@@ -10,7 +10,7 @@ Three sections: **Open**, not yet fixed; **Waiting**, fixed and not yet settled 
 merged, a fix not yet run in a session); **Closed**, merged upstream, run and held, or
 decided against, with the record.
 
-**Open: A3, A5, A8, A9, A10 to A18.**
+**Open: A3, A5, A8, A9, A10 to A16.**
 
 A2, A7, A4 and A6 went out together in `build-20261112-120520` (owner, 2026-11-12), so one
 scenario test covers them; A3 and A8 were not waited for. That test ran and held for
@@ -127,6 +127,8 @@ a datasheet leaves its library without the link, and each placement must give it
 Local: a `FOOTPRINT` record (model name, library, current or not) in the symbol batch, and
 the same in `create_schematic_symbol`.
 
+## Waiting
+
 **A17. `run_drc` leaves the board modified.** On a freshly reopened board, after
 `get_board_summary`, `get_pcb_layer_stackup` and `get_all_nets` the state was still "open";
 after one `run_drc` it was "modified", also on a call that reported `ran` false (A18), so
@@ -135,6 +137,13 @@ Altium ask to save on close and fails the "nothing unsaved" check. Whether Altiu
 DRC from the menu marks the board too was not checked. Local: find the step that marks it
 and leave an unchanged board unmodified, as A4 did. Usage until then: close the board with
 its modified flag cleared. (2026-11-12, third entry, 5.)
+Fixed in `338bfdb`: the check itself marks the board, whenever it finds violations, as it
+replaces the board's violation markers (a board with none stays unmodified). The script
+reads the flag before `PCB:DesignRuleCheck` and clears it after when the board had no
+unsaved change; the result gives `board_modified`. A board with unsaved changes stays
+marked. Live test `tests/test_live_drc.py` (`ALTIUM_LIVE=1`, a copy of the WiFi example
+board given a via-to-via clearance rule it fails, 8 violations, saved and reopened): passes
+in AD25, fails on the old script.
 
 **A18. `run_drc` returns a stale report when the check did not run.** On the first DRC
 after a board was closed unsaved and reopened by script it returned `success` false, `ran`
@@ -144,8 +153,17 @@ left, not marked stale, and it reads as a result. The same call repeated at once
 normally. Local: no `report` or counts when `ran` is false (or the file's time checked
 against the call's), and find why the first DRC after a reopen does not start. Usage until
 then: call again. (2026-11-12, third entry, 6.)
-
-## Waiting
+Fixed in `338bfdb`. Not a stale report: the check had run, and the report and counts were
+its own. The dialog driver looks a quarter second after its press for the dialog to
+close; a small board is checked and answered within that time, the driver is stopped with
+the close unseen, and `ran` read false. Reproduced once in sixteen checks of the example
+board after a save and reopen, with the "could not be started and was closed" message. The
+driver now records the press, and a reply after a press with no close of ours counts as a
+check that ran; a check that did not run gives no `report`. Offline tests in
+`test_drc.py`; live test in `tests/test_live_drc.py` with the close hidden from the driver:
+passes in AD25, fails on the old Python. Not explained: the entry's message was "never
+appeared", which says the driver saw no dialog at all; not reproduced. A17's modified
+board on that call fits the check having run.
 
 **A1. `get_server_status` reports no version or commit.** It returns the Altium exe and the
 script path only, so a result cannot be tied to the code that ran. Until fixed, the release

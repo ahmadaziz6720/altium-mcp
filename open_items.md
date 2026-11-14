@@ -217,6 +217,15 @@ unasked, and ending and restarting `X2.EXE` when Altium hangs.
   295 offline, 23 live; Altium not restarted before the live tests)
 - [x] group 2: scenario test (session id: `f712df7c-6b4f-4f46-ad91-dacbeb6807ba`), entry
   committed and sorted, release page; A3, A9 and A21 held and Closed, A23 new (Open)
+  Stood here 2026-11-14: the run stopped after group 2 on the owner's word, to go on in a
+  new session from A10. Group 2 taught: A3's probe found `Board.AnalyzeNet` was the fault,
+  so no DRC fallback; it also met `run_drc` waiting on Altium's repour message, which the
+  run added to group 2 as A21 (decided by the run, written into it). The owner reported
+  A22 mid-run (Altium takes the keyboard and the front at every call), recorded for the
+  next run: nothing is typed on the machine while tests run. The scenario test ran once,
+  not stopped (about 1.3 GB free before it). The record commits after the release (the
+  entry, the sort, this line) go out with group 3's push. Altium was started by the run
+  and left running.
 - [ ] A10: committed (or left Open, why written into it)
 - [ ] A11: committed (or left Open, why written into it)
 - [ ] A16: committed (or left Open, why written into it)

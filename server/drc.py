@@ -10,6 +10,12 @@ BM_CLICK; posted mouse messages addressed to the button work.
 Cancelling the dialog leaves no violations, exactly like a board that passes.
 So a result only counts as a check that ran when the button was pressed and
 the dialog closed, and the report Altium writes is read to confirm it.
+
+When copper under a polygon pour has changed since it was poured, Altium
+answers the Run press with a "Design Rule Check" message (Run DRC, Cancel,
+Repour Polygons and Run DRC) and the check waits on it. drive_dialog presses
+Run DRC: the board is checked as it is, its pours not changed, and the
+outcome says the message was met.
 """
 import asyncio
 import ctypes
@@ -25,6 +31,26 @@ from sandbox import _process_name, _window_text
 DIALOG_CLASS = "TDesignRuleCheckForm"
 RUN_BUTTON = "run design rule check"
 WM_CLOSE, WM_LBUTTONDOWN, WM_LBUTTONUP, MK_LBUTTON = 0x0010, 0x0201, 0x0202, 0x0001
+# Altium's message when the pours need repouring, and its buttons
+REPOUR_CLASS = "TMessageForm"
+REPOUR_TITLE = "Design Rule Check"
+REPOUR_RUN = "run drc"
+REPOUR_REPOUR = "repour polygons and run drc"
+REPOUR_CANCEL = "cancel"
+
+
+def button_key(text: str) -> str:
+    """A button's caption as compared: no accelerator mark, any case."""
+    return text.replace("&", "").strip().lower()
+
+
+def is_repour_prompt(cls: str, title: str, buttons) -> bool:
+    """Whether a window is Altium's repour message, by its class, its title
+    and its buttons' captions (Run DRC and Repour Polygons and Run DRC),
+    never by the position of a button."""
+    keys = {button_key(b) for b in buttons}
+    return (cls == REPOUR_CLASS and title.strip() == REPOUR_TITLE
+            and REPOUR_RUN in keys and REPOUR_REPOUR in keys)
 
 
 def find_dialog() -> Optional[int]:
@@ -61,6 +87,45 @@ def _run_button(dialog: int) -> Optional[int]:
     return found[0] if found else None
 
 
+def _class_name(hwnd: int) -> str:
+    cls = ctypes.create_unicode_buffer(64)
+    ctypes.windll.user32.GetClassNameW(hwnd, cls, 64)
+    return cls.value
+
+
+def find_repour_prompt() -> Optional[Tuple[int, Dict[str, int]]]:
+    """Altium's repour message, if one is up: its window and its buttons by
+    caption (button_key)."""
+    from ctypes import wintypes
+    user32 = ctypes.windll.user32
+    found = []
+    proto = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+
+    def top(hwnd, _):
+        if (user32.IsWindowVisible(hwnd) and _class_name(hwnd) == REPOUR_CLASS
+                and _window_text(hwnd).strip() == REPOUR_TITLE
+                and _process_name(hwnd).lower() == "x2.exe"):
+            buttons = {}
+
+            def child(c, _):
+                buttons.setdefault(button_key(_window_text(c)), c)
+                return True
+            user32.EnumChildWindows(hwnd, proto(child), 0)
+            if is_repour_prompt(REPOUR_CLASS, REPOUR_TITLE, buttons):
+                found.append((hwnd, buttons))
+        return True
+
+    user32.EnumWindows(proto(top), 0)
+    return found[0] if found else None
+
+
+def _press(button: int) -> None:
+    """Altium's TXPBitBtn ignores BM_CLICK: post a mouse click to it."""
+    user32 = ctypes.windll.user32
+    user32.PostMessageW(button, WM_LBUTTONDOWN, MK_LBUTTON, 0)
+    user32.PostMessageW(button, WM_LBUTTONUP, 0, 0)
+
+
 def _is_open(hwnd: int) -> bool:
     user32 = ctypes.windll.user32
     return bool(user32.IsWindow(hwnd) and user32.IsWindowVisible(hwnd))
@@ -72,6 +137,8 @@ class DialogOutcome:
     cancelled: bool = False    # the dialog would not run and was closed (no check)
     seen: bool = False
     posted: bool = False       # a press of the Run button was sent
+    repour_prompt: bool = False     # Altium's repour message was met, Run DRC pressed
+    repour_cancelled: bool = False  # it would not take Run DRC and was cancelled (no check)
     notes: List[str] = field(default_factory=list)
 
     def ran_after_reply(self) -> bool:
@@ -80,19 +147,63 @@ class DialogOutcome:
         answered within the quarter second the driver waits after a press
         before looking: the driver is then stopped with the press sent and
         the close unseen. A press sent and no close of ours means the press
-        closed it."""
+        closed it. A repour message that was cancelled means no check."""
+        if self.repour_cancelled:
+            return False
         return self.pressed or (self.posted and not self.cancelled)
+
+
+@dataclass
+class _RepourAnswer:
+    window: Optional[int] = None
+    presses: int = 0
+    last: float = 0.0
+
+
+def _answer_repour_prompt(outcome: DialogOutcome, state: _RepourAnswer, attempts: int,
+                          press_wait: float) -> bool:
+    """Press Run DRC on Altium's repour message when it is up; True if it
+    is. A message that does not take the press is cancelled after
+    `attempts` presses, `press_wait` seconds apart, so Altium is never left
+    blocked."""
+    prompt = find_repour_prompt()
+    if prompt is None:
+        return False
+    window, buttons = prompt
+    if window != state.window:
+        state.window, state.presses, state.last = window, 0, 0.0
+    now = time.monotonic()
+    if state.presses and now - state.last < press_wait:
+        return True
+    if state.presses < attempts:
+        _press(buttons[REPOUR_RUN])
+        state.presses += 1
+        state.last = now
+        outcome.repour_prompt = True
+        if state.presses > 1:
+            outcome.notes.append(f"repour message: Run DRC press {state.presses - 1} did not close it")
+    elif not outcome.repour_cancelled:
+        if REPOUR_CANCEL in buttons:
+            _press(buttons[REPOUR_CANCEL])
+        else:
+            ctypes.windll.user32.PostMessageW(window, WM_CLOSE, 0, 0)
+        outcome.repour_cancelled = True
+        outcome.notes.append(f"the repour message did not take Run DRC after {attempts} presses "
+                             "and was cancelled")
+    return True
 
 
 async def drive_dialog(outcome: DialogOutcome, progress_file: Path, keep_alive: float = 5.0,
                        settle: float = 0.6, attempts: int = 3, press_wait: float = 5.0,
-                       before_press: Optional[Callable[[], None]] = None) -> None:
+                       before_press: Optional[Callable[[], None]] = None, poll: float = 0.25,
+                       repour_wait: float = 2.0) -> None:
     """Press Run in the Design Rule Checker dialog when it opens, then keep the
     bridge's progress file fresh while the check runs, so a long check is not
-    taken for a hung command. before_press is called once the dialog is up,
-    before the check runs and writes its report. Runs until cancelled by the
-    caller."""
+    taken for a hung command, and press Run DRC on Altium's repour message
+    when it comes. before_press is called once the dialog is up, before the
+    check runs and writes its report. Runs until cancelled by the caller."""
     user32 = ctypes.windll.user32
+    repour = _RepourAnswer()
     while not outcome.pressed and not outcome.cancelled:
         dialog = find_dialog()
         if dialog is None:
@@ -110,12 +221,13 @@ async def drive_dialog(outcome: DialogOutcome, progress_file: Path, keep_alive: 
             if button is None:
                 outcome.notes.append("the dialog has no Run Design Rule Check button")
                 break
-            user32.PostMessageW(button, WM_LBUTTONDOWN, MK_LBUTTON, 0)
-            user32.PostMessageW(button, WM_LBUTTONUP, 0, 0)
+            _press(button)
             outcome.posted = True
             for _ in range(max(1, int(press_wait / 0.25))):
                 await asyncio.sleep(0.25)
-                if not _is_open(dialog):
+                # The repour message is Altium's answer to the press: the
+                # check goes on once it is answered (below)
+                if not _is_open(dialog) or find_repour_prompt() is not None:
                     outcome.pressed = True
                     break
             if outcome.pressed:
@@ -125,12 +237,20 @@ async def drive_dialog(outcome: DialogOutcome, progress_file: Path, keep_alive: 
             # Never leave Altium blocked behind a modal dialog
             user32.PostMessageW(dialog, WM_CLOSE, 0, 0)
             outcome.cancelled = True
+    touched = None
     while True:
         try:
-            progress_file.touch()
-        except OSError:
-            pass
-        await asyncio.sleep(keep_alive)
+            _answer_repour_prompt(outcome, repour, attempts, repour_wait)
+        except Exception as e:   # never stop keeping the command alive
+            outcome.notes.append(f"repour message: {e}")
+        now = time.monotonic()
+        if touched is None or now - touched >= keep_alive:
+            try:
+                progress_file.touch()
+            except OSError:
+                pass
+            touched = now
+        await asyncio.sleep(poll)
 
 
 _RULE_RE = re.compile(r"^Processing Rule : (.*)$")

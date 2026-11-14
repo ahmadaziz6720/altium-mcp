@@ -271,6 +271,87 @@ class DriveDialogTest(unittest.TestCase):
         self.assertFalse(drc.DialogOutcome().ran_after_reply())
         self.assertFalse(drc.DialogOutcome(seen=True).ran_after_reply())
 
+    # A21: Altium's repour message, answered with Run DRC
+    PROMPT = (7, {"run drc": 71, "cancel": 72, "repour polygons and run drc": 73})
+
+    def run_with_prompt(self, prompt_states, open_states=(True, True)):
+        """The dialog stays open after the press while the message is up
+        (open_states), then the message is up for as many looks as
+        prompt_states gives True; returns the outcome and the windows posted to."""
+        prompts = iter(prompt_states)
+        states = iter(open_states)
+        outcome = drc.DialogOutcome()
+        with tempfile.TemporaryDirectory() as d, \
+                mock.patch.object(drc, "find_dialog", return_value=42), \
+                mock.patch.object(drc, "_run_button", return_value=1), \
+                mock.patch.object(drc, "_is_open", side_effect=lambda h: next(states, False)), \
+                mock.patch.object(drc, "find_repour_prompt",
+                                  side_effect=lambda: self.PROMPT if next(prompts, False) else None), \
+                mock.patch.object(drc.ctypes, "windll") as windll:
+            async def go():
+                task = asyncio.create_task(drc.drive_dialog(outcome, Path(d) / "progress.txt", keep_alive=0.01,
+                                                            settle=0, press_wait=0.5, poll=0.01,
+                                                            repour_wait=0.05))
+                await asyncio.sleep(1.0)
+                task.cancel()
+            asyncio.run(go())
+            posted = [(c.args[0], c.args[1]) for c in windll.user32.PostMessageW.call_args_list]
+        return outcome, posted
+
+    def test_repour_message_gets_run_drc(self):
+        # Seen once by the press loop, then once by the keep-alive loop,
+        # which presses Run DRC; then it is gone
+        outcome, posted = self.run_with_prompt([True, True])
+        self.assertTrue(outcome.pressed)
+        self.assertTrue(outcome.repour_prompt)
+        self.assertFalse(outcome.repour_cancelled)
+        self.assertTrue(outcome.ran_after_reply())
+        self.assertEqual([w for w, m in posted if m == drc.WM_LBUTTONDOWN], [1, 71],
+                         "Run in the dialog, then Run DRC in the message, nothing else")
+        self.assertNotIn(drc.WM_CLOSE, [m for _, m in posted])
+
+    def test_repour_message_after_the_dialog_closed(self):
+        outcome, posted = self.run_with_prompt([False, True], open_states=[False])
+        self.assertTrue(outcome.pressed)
+        self.assertTrue(outcome.repour_prompt)
+        self.assertEqual([w for w, m in posted if m == drc.WM_LBUTTONDOWN], [1, 71])
+
+    def test_repour_message_that_stays_is_cancelled(self):
+        outcome, posted = self.run_with_prompt([True] * 1000)
+        self.assertTrue(outcome.repour_prompt)
+        self.assertTrue(outcome.repour_cancelled)
+        self.assertFalse(outcome.ran_after_reply(), "a cancelled message is no check")
+        downs = [w for w, m in posted if m == drc.WM_LBUTTONDOWN]
+        self.assertEqual(downs, [1, 71, 71, 71, 72], "three Run DRC presses, then Cancel once")
+        self.assertTrue(any("cancelled" in n for n in outcome.notes), outcome.notes)
+
+    def test_no_repour_message_no_flag(self):
+        outcome, posted = self.run_with_prompt([], open_states=[False])
+        self.assertTrue(outcome.pressed)
+        self.assertFalse(outcome.repour_prompt)
+
+
+class RepourPromptTest(unittest.TestCase):
+    def test_known_by_class_title_and_buttons(self):
+        buttons = ["&Run DRC", "Cancel", "Repour Polygons and Run DRC"]
+        self.assertTrue(drc.is_repour_prompt("TMessageForm", "Design Rule Check", buttons))
+        # in any order, any case
+        self.assertTrue(drc.is_repour_prompt("TMessageForm", "Design Rule Check ",
+                                             ["repour polygons and run drc", "RUN DRC"]))
+
+    def test_other_windows_are_not_it(self):
+        buttons = ["Run DRC", "Cancel", "Repour Polygons and Run DRC"]
+        self.assertFalse(drc.is_repour_prompt("#32770", "Design Rule Check", buttons))
+        self.assertFalse(drc.is_repour_prompt("TMessageForm", "Confirm", buttons))
+        self.assertFalse(drc.is_repour_prompt("TDesignRuleCheckForm", "Design Rule Checker",
+                                              ["Run Design Rule Check...", "Cancel"]))
+        # a message of that title without the repour choice
+        self.assertFalse(drc.is_repour_prompt("TMessageForm", "Design Rule Check", ["OK"]))
+        self.assertFalse(drc.is_repour_prompt("TMessageForm", "Design Rule Check", ["Run DRC", "Cancel"]))
+
+    def test_button_key(self):
+        self.assertEqual(drc.button_key(" &Run DRC "), "run drc")
+
 
 class ViolationTest(unittest.TestCase):
     def test_measurement_from_the_descriptor(self):

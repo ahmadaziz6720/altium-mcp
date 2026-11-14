@@ -9,15 +9,21 @@ unsaved change stays marked, and get_project_info says which. A20: with
 "rules" the report lists only the rules asked for. A5: a check leaves the
 project folder as it found it (Altium's report, and the outputs folder it
 made for it, are deleted once read, unless keep_report), and a compile
-call leaves no file in it.
+call leaves no file in it. A21: after copper under a pour was deleted,
+Altium answers the Run press with a "Design Rule Check" message (Run DRC,
+Cancel, Repour Polygons and Run DRC); the check presses Run DRC, leaves the
+pours as they are and says the message was met.
 
 See tests/live_altium.py for how to run it. It works on copies of the small
 WiFi board of the "Mini PC" example Altium installs (skipped when it is not
 there), given a via-to-via clearance rule it fails, and saved once; A19's
 tests on a copy of the board's whole project folder.
 """
+import asyncio
+import json
 import shutil
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -29,6 +35,8 @@ if LIVE:
     import drc
     import main
     import win32api
+    import win32con
+    import win32gui
 
 WIFI = Path(r"C:\Users\Public\Documents\Altium\AD25\Examples\Mini PC\Mini PC - WiFi\WiFi.PcbDoc")
 
@@ -286,6 +294,136 @@ class LiveCompileFolderTest(unittest.TestCase):
         self.compile_calls()
         self.assertEqual(listing(self.folder), before)
         self.assertEqual(self.structure.read_bytes(), content)
+
+
+# Each pour by the holes and outline points of its poured regions: a
+# repour of the WiFi board with its tracks deleted changes them (Top_GND
+# 18/481 to 18/476), its region count does not
+POURS = """var
+    Board : IPCB_Board;
+    It : IPCB_BoardIterator;
+    P : IPCB_Polygon;
+    G : IPCB_GroupIterator;
+    R : IPCB_Region;
+    H, V : Integer;
+Board := PCBServer.GetPCBBoardByPath('%s');
+It := Board.BoardIterator_Create;
+It.AddFilter_ObjectSet(MkSet(ePolyObject));
+It.AddFilter_LayerSet(AllLayers);
+It.AddFilter_Method(eProcessAll);
+P := It.FirstPCBObject;
+while P <> nil do
+begin
+    H := 0;
+    V := 0;
+    G := P.GroupIterator_Create;
+    G.AddFilter_ObjectSet(MkSet(eRegionObject));
+    R := G.FirstPCBObject;
+    while R <> nil do
+    begin
+        H := H + R.HoleCount;
+        V := V + R.MainContour.Count;
+        R := G.NextPCBObject;
+    end;
+    P.GroupIterator_Destroy(G);
+    ResultText := ResultText + P.Name + '=' + IntToStr(H) + '/' + IntToStr(V) + ' ';
+    P := It.NextPCBObject;
+end;
+Board.BoardIterator_Destroy(It);"""
+
+
+def repour_prompts():
+    """Altium's "Design Rule Check" repour messages that are up, each as
+    (window, {button text: button}), found here by their title and buttons,
+    apart from the driver under test."""
+    found = []
+
+    def top(hwnd, _):
+        if (win32gui.IsWindowVisible(hwnd) and win32gui.GetClassName(hwnd) == "TMessageForm"
+                and win32gui.GetWindowText(hwnd) == "Design Rule Check"):
+            buttons = {}
+            win32gui.EnumChildWindows(hwnd, lambda c, _: buttons.__setitem__(
+                win32gui.GetWindowText(c).replace("&", "").strip().lower(), c), None)
+            if "run drc" in buttons:
+                found.append((hwnd, buttons))
+    win32gui.EnumWindows(top, None)
+    return found
+
+
+def answer_repour_prompts(button="cancel"):
+    """Never leave Altium blocked behind the message: press one of its
+    buttons, close a Design Rule Checker dialog left up, and give Altium a
+    moment to finish the bridge command."""
+    for _ in range(20):
+        prompts = repour_prompts()
+        if not prompts:
+            break
+        for _, buttons in prompts:
+            if button in buttons:
+                win32gui.PostMessage(buttons[button], win32con.WM_LBUTTONDOWN, win32con.MK_LBUTTON, 0)
+                win32gui.PostMessage(buttons[button], win32con.WM_LBUTTONUP, 0, 0)
+        time.sleep(0.5)
+    dialog = drc.find_dialog()
+    if dialog is not None:
+        win32gui.PostMessage(dialog, win32con.WM_CLOSE, 0, 0)
+    time.sleep(3)
+
+
+@unittest.skipUnless(LIVE, SKIP_REASON)
+@unittest.skipUnless(WIFI.exists(), f"Altium's example board is not at {WIFI}")
+class LiveDrcRepourTest(unittest.TestCase):
+    """A21, on a copy of the WiFi board, whose tracks under its GND pours
+    are deleted the way a session does."""
+
+    # How long the check may take: a few seconds on this board. Before the
+    # fix the call waited on the message for the bridge's 30 minutes.
+    WAIT = 90
+
+    @classmethod
+    def setUpClass(cls):
+        check_scripts_are_this_checkouts()
+
+    def setUp(self):
+        tmp = Path(win32api.GetLongPathName(tempfile.mkdtemp(prefix="drc_repour_live_")))
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        self.board = str(tmp / "repour.PcbDoc")
+        shutil.copyfile(WIFI, self.board)
+        open_board(self.board)
+        self.addCleanup(close_all_under, str(tmp))
+        # Runs first: a message left up would block every later script
+        self.addCleanup(answer_repour_prompts)
+
+    def test_check_presses_run_drc_on_the_repour_message(self):
+        for net in ("NetDS1_2", "NetC39_1"):
+            out = tool(main.delete_pcb_objects(None, kinds=["track", "arc", "via"], net=net,
+                                               board_path=self.board))
+            self.assertGreater(out.get("deleted", 0), 0, out)
+        pours = script(POURS % self.board).strip()
+        self.assertIn("Top_GND=", pours)
+        try:
+            out = json.loads(asyncio.run(asyncio.wait_for(main.run_drc(None, board_path=self.board), self.WAIT)))
+        except asyncio.TimeoutError:
+            left = "Altium's repour message left up" if repour_prompts() else "no repour message seen"
+            self.fail(f"run_drc did not return within {self.WAIT} s ({left})")
+        self.assertTrue(out["success"], out)
+        self.assertTrue(out["ran"], out)
+        self.assertIs(out.get("repour_prompt"), True, out)
+        self.assertIn("repour_note", out)
+        self.assertEqual(repour_prompts(), [], "the message was left up")
+        # The check of the board as it is: the three open connections the
+        # deleted tracks left (2-pad net 1, 3-pad net 2), pours unchanged
+        # (repoured, the check found 5)
+        self.assertEqual(out["violation_count"], 3, out)
+        self.assertEqual(out["listed_by_rule"], {"UnRoutedNet": 3}, out)
+        self.assertEqual(script(POURS % self.board).strip(), pours, "the pours were repoured")
+        self.assertTrue(modified(self.board), "the deleted tracks are an unsaved change")
+        self.assertTrue(out["board_modified"])
+
+    def test_no_repour_message_no_field(self):
+        out = tool(main.run_drc(None, board_path=self.board))
+        self.assertTrue(out["ran"], out)
+        self.assertNotIn("repour_prompt", out)
+        self.assertFalse(modified(self.board), "the check left the board modified")
 
 
 if __name__ == "__main__":

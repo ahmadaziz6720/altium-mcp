@@ -10,7 +10,7 @@ Three sections: **Open**, not yet fixed; **Waiting**, fixed and not yet settled 
 merged, a fix not yet run in a session); **Closed**, merged upstream, run and held, or
 decided against, with the record.
 
-**Open: A8, A10 to A16, A21.**
+**Open: A8, A10 to A16.**
 
 A2, A7, A4 and A6 went out together in `build-20261112-120520` (owner, 2026-11-12), so one
 scenario test covers them; A3 and A8 were not waited for. That test ran and held for
@@ -212,7 +212,7 @@ unasked, and ending and restarting `X2.EXE` when Altium hangs.
   the owner's word.
 - [x] A3: committed (fixed through the ratsnest, `Net.Rebuild`; no DRC fallback)
 - [x] A9: committed
-- [ ] A21: committed (or left Open, why written into it)
+- [x] A21: committed
 - [ ] group 2: offline and live tests, pushed, released (build: …)
 - [ ] group 2: scenario test (session id: …), entry committed and sorted, release page
 - [ ] A10: committed (or left Open, why written into it)
@@ -293,18 +293,6 @@ footprint is set only on a part `build_schematic` places (`footprint`). A symbol
 a datasheet leaves its library without the link, and each placement must give it again.
 Local: a `FOOTPRINT` record (model name, library, current or not) in the symbol batch, and
 the same in `create_schematic_symbol`.
-
-**A21. `run_drc` waits on Altium's repour message.** After copper under a pour was deleted,
-Altium answered the dialog's Run press with a "Design Rule Check" message (Run DRC, Cancel,
-Repour Polygons and Run DRC) that `run_drc`'s dialog driver does not press, so the call
-waited until it timed out; the message was pressed by hand. Met 2026-11-14 in the run's
-probe for A3, on a copy of the WiFi board of Altium's Mini PC example. Local: the driver
-presses Run DRC (the check of the board as it is, pours not changed, so the board and the
-result stay what was asked), and the result says the message was met; a live test that
-deletes copper under a pour and runs the check, failing on a timeout before the fix.
-Decided 2026-11-14 by the run, not the owner: A21 joins group 2 after A9, because a check
-that never returns blocks every later step that runs one, its fix is in `run_drc`'s dialog
-driver alone, and group 2's scenario test runs `run_drc`.
 
 ## Waiting
 
@@ -481,6 +469,69 @@ names and the lint, because one definition keeps the three from disagreeing agai
 Decided 2026-11-14 by the run, not the owner: a trailing comment on a declaration line
 stays `//` only, as before, because `{ }` and `(* *)` after a declaration were never read
 as part of the block and the item is about several declarations.
+Fixed in the commit that moves it here. Local: on `ad25`, in the commit that moves it here;
+not yet in a build. Upstream: not yet decided.
+
+**A21. `run_drc` waits on Altium's repour message.** After copper under a pour was deleted,
+Altium answered the dialog's Run press with a "Design Rule Check" message (Run DRC, Cancel,
+Repour Polygons and Run DRC) that `run_drc`'s dialog driver does not press, so the call
+waited until it timed out; the message was pressed by hand. Met 2026-11-14 in the run's
+probe for A3, on a copy of the WiFi board of Altium's Mini PC example. Local: the driver
+presses Run DRC (the check of the board as it is, pours not changed, so the board and the
+result stay what was asked), and the result says the message was met; a live test that
+deletes copper under a pour and runs the check, failing on a timeout before the fix.
+Decided 2026-11-14 by the run, not the owner: A21 joins group 2 after A9, because a check
+that never returns blocks every later step that runs one, its fix is in `run_drc`'s dialog
+driver alone, and group 2's scenario test runs `run_drc`.
+Cause: the message is a `TMessageForm` of X2.EXE titled "Design Rule Check", its buttons
+`TXPBitBtn` captioned "Run DRC", "Cancel" and "Repour Polygons and Run DRC", up about a
+second after the dialog's Run press (probe 2026-11-14, a copy of the WiFi board with the
+tracks of two nets under its GND pours deleted by `delete_pcb_objects`). The dialog
+driver pressed only the Design Rule Checker dialog's Run button and then just kept the
+bridge's progress file fresh, so the command, held by the message, counted as working and
+waited up to the bridge's 30 minute limit.
+Fixed in the commit that moves it here: the driver (`drc.drive_dialog`) looks for the
+message while it waits for the dialog to close and, every quarter second, for the rest of
+the call; it knows it by its class, title and the captions of its buttons
+(`drc.is_repour_prompt`: Run DRC and Repour Polygons and Run DRC, any case, `&` ignored),
+never by a button's position, and presses Run DRC, a posted click as the dialog's Run
+button gets. The board is checked as it is, its pours not changed. The result gives
+`repour_prompt` true and a `repour_note` (the pours were not repoured and may be out of
+date: `repour_polygons`, then `run_drc` again); a call that does not meet the message
+gives neither. A message that does not take Run DRC after three presses, 2 s apart, is
+cancelled (its Cancel button) and the result is `ran` false, with the presses in `notes`.
+The board's and the project's flags are handled as before (A17, A19), and other dialogs
+as before.
+Live test `tests/test_live_drc.py`, class `LiveDrcRepourTest` (`ALTIUM_LIVE=1`, a copy of
+the WiFi board, closed unsaved; its cleanup presses Cancel on a message left up and
+closes a Design Rule Checker dialog left open, so Altium is never left blocked):
+`test_check_presses_run_drc_on_the_repour_message` deletes the tracks of `NetDS1_2` and
+`NetC39_1` under the GND pours with `delete_pcb_objects`, runs `run_drc` with a 90 s
+limit, and expects `ran`, `repour_prompt`, no message left up, the 3 Un-Routed Net
+violations those tracks leave, the pours unchanged (each pour read by the holes and
+outline points of its regions: "Repour Polygons and Run DRC" changed Top_GND from 18/481
+to 18/476 and found 5 violations) and the board still modified;
+`test_no_repour_message_no_field`, the board unchanged, no `repour_prompt`. Before the
+fix the first failed: "AssertionError: run_drc did not return within 90 s (Altium's
+repour message left up)"; the cleanup answered it and the second test then passed.
+After: 14/14 of `test_live_drc` pass in AD25 (the two new, and the 12 of A17 to A20 and A5). Offline: 7 new in `tests/test_drc.py` (the message known by class,
+title and buttons; Run DRC pressed when it comes before or after the dialog closes, and
+nothing else posted; a message that stays cancelled after three presses, `ran` false;
+no message, no flag); 295 tests pass in the offline list of `.github/workflows/tests.yml`.
+Decided 2026-11-14 by the run, not the owner: the message counts as Altium taking the
+dialog's Run press, so the driver stops pressing the dialog when it is up, because it is
+Altium's answer to that press, and waiting for the dialog to close behind it would count
+presses the message holds up as failures and close the dialog.
+Decided 2026-11-14 by the run, not the owner: a message that will not take Run DRC is
+cancelled after three presses and the call reports `ran` false, not left up, because a
+message left up blocks Altium for every later call, and a check that was cancelled must
+not read as a result.
+Decided 2026-11-14 by the run, not the owner: `repour_prompt` is given only when the
+message was met, because a call that does not meet it gives the result it gave before,
+and its absence says the pours were current.
+Decided 2026-11-14 by the run, not the owner: the test reads the pours by the holes and
+outline points of their regions, because a repour of the test's board changed those and
+left the region count of every pour as it was.
 Fixed in the commit that moves it here. Local: on `ad25`, in the commit that moves it here;
 not yet in a build. Upstream: not yet decided.
 

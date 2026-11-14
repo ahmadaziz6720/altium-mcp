@@ -5643,6 +5643,11 @@ async def run_drc(ctx: Context, board_path: str = "", max_violations: int = 200,
     So is its project file ("project", "project_modified", given for a
     board in a project): the check adds its report to the project's
     generated documents, which is saved only with another change.
+    When copper under a polygon pour changed since it was poured, Altium
+    asks first whether to repour; the tool answers Run DRC, so the board is
+    checked as it is and its pours are not changed, and the result gives
+    "repour_prompt": true with a "repour_note" (a pour may be out of date:
+    repour_polygons, then run_drc again).
 
     A cancelled check leaves no violations, exactly like a clean board, so
     "ran" says whether the check really ran: the Run button was pressed and
@@ -5743,11 +5748,21 @@ async def run_drc(ctx: Context, board_path: str = "", max_violations: int = 200,
     if not ran:
         out["success"] = False
         out["error"] = ("The check did not run: " +
-                        ("the Design Rule Checker dialog could not be started and was closed. "
+                        ("Altium's repour message would not take Run DRC and was cancelled. "
+                         if outcome.repour_cancelled else
+                         "the Design Rule Checker dialog could not be started and was closed. "
                          if outcome.seen else "the Design Rule Checker dialog never appeared. ") +
                         "violation_count is what was already on the board, not a result.")
         if outcome.notes:
             out["notes"] = outcome.notes
+    if outcome.repour_prompt:
+        out["repour_prompt"] = True
+        if ran:
+            out["repour_note"] = (
+                "Altium said the polygon pours need repouring (copper under them changed since "
+                "they were poured) and Run DRC was pressed: the board was checked with its pours "
+                "as they are, not repoured, so a pour may be out of date. repour_polygons, then "
+                "run_drc again, checks the board as it will be made.")
     out.update({k: v for k, v in result.items() if k != "success"})
     # By how much each violation fails, as numbers; then the filters
     for v in out.get("violations", []):

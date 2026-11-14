@@ -35,6 +35,172 @@ missing library parts, ERC; a board with its rules and layer stack; placement; r
 DRC; fabrication outputs for an assembly service), not from a session's entry: what the
 flow needs that no tool does (2026-11-12). They are features, not faults.
 
+**The run of 2026-11-14** (planned with the owner; one long session in this repo,
+subagents doing the work, and each group's scenario test run by the session itself). Every
+open item is in it, in five groups; each group ends with a release, its scenario test and
+the sort of that test's entry, before the next group starts. Every item below is decided;
+after the one opening question nothing in it waits on the owner.
+
+How it runs:
+
+- **Unattended.** After reading this brief the session asks the owner **one** question, in
+  one `AskUserQuestion` call, then runs to the end without stopping or asking again. That
+  question holds everything the run would otherwise stop for: for all five releases, the
+  push of `ad25` before each, the tag, the registration in the owner's test project and
+  the release page (`CLAUDE.md`, *Release and run*, steps 1 to 5); the scenario tests run
+  headless (below); the commit of each scenario test's entry without a question
+  (`CLAUDE.md`, *Findings*); anything in this plan the session reads as unclear. The
+  plugin questions of the session start go into that call, up to four questions; every
+  later one (`clockify`'s offer, `git-workflow`'s notes, `core`'s session note) is not
+  asked, as the opening sentence rules out questions for the turn ("tanpa nanya
+  apa-apa"), and each is named in one line of the report.
+- **A decision met mid-run is the session's own**: the option that keeps the server's
+  checks honest and its results true, the smaller change when two are equal. Each is
+  written into its item as "Decided 2026-11-14 by the run, not the owner: …, because …",
+  and listed in the report.
+- **Never stop on one item.** A fix that does not hold after a reasonable try, or a probe
+  that finds no way, is left Open with what was tried written into it, its partial code
+  not committed, and the run goes on. Altium hung or gone: end `X2.EXE` and start Altium
+  Designer 25 again (the path is `get_server_status`'s `altium_exe`). A permission prompt
+  or a dialog nobody answers is the one thing the session cannot pass: it writes where it
+  stood under *Where the run stands* first.
+- **One Altium, so one thing at a time**: live tests and scenario tests drive the same
+  Altium, so items go one after another on `ad25` in the main tree, never in parallel,
+  and a scenario test never runs beside a live test.
+- **The main session stays thin**: it hands each item to **one fresh subagent** (default
+  model: a fix or a probe needs diagnosis and design), reads its report and the diff,
+  commits, and ticks the step below. It runs the release steps, the scenario test and
+  the sort itself.
+- **Per item**, as `dev/README.md`, `PLACEMENT_TOOL_REVIEW.md` and `CLAUDE.md` give it:
+  first a live test that shows the fault on the current code
+  (`server/tests/live_altium.py`'s helpers, `ALTIUM_LIVE=1`, a copy of an Altium example,
+  closed unsaved); an item whose test does not fail is closed instead, the test kept if
+  worth keeping. A feature's live
+  test shows the tool doing what it says, read back through Altium (a board iterator, the
+  saved file), and fails before the tool exists. Then the fix; that test and the live
+  tests of the tools it touched; the offline unit tests (`.github/workflows/tests.yml`'s
+  list, a new module added to it). A probe item is a live probe first, its result written
+  into the item; the build follows when the decision covers it.
+- **A subagent's brief**: its item as written below and in the item, the decision, the
+  files likely touched, and these rules: read `CLAUDE.md`, `README.md`, `dev/README.md`;
+  never switch branches, commit, push, tag or reset; a stash only by name and file;
+  `findings.md` is not the subagent's to edit. Then `open_items.md`: the item moved to the
+  end of Waiting with its cause, its fix, the test before (its message) and after (with
+  counts), and "Local: on `ad25`, in the commit that moves it here; not yet in a build.
+  Upstream: not yet decided."; a partly done item stays Open with what was tried; the
+  `**Open: …**` line updated and `python board.py --check` clean. Report, ten lines: the
+  outcome, the failing test before, the tests after with counts, every file changed, its
+  "Decided … by the run" lines, a proposed commit subject and body. Nothing that names
+  where a finding came from (`findings.md`'s top).
+- **Commits**: one per item, its fix with its note, as `git-workflow:pr` gives a commit on
+  `ad25` (no trailer). Pushed at the group's release.
+- **A group's release**, as `CLAUDE.md` gives it, steps 1 to 5, on the opening answer: the
+  offline tests and every `test_live_*` once, Altium restarted before them; push; copy;
+  venv; register and tag; the release page. Each Waiting line of the group gets its build.
+- **A group's scenario test, run by the session** (the owner, 2026-11-14: no new session
+  opened by hand). It replaces, for this run, the ending that tells the owner to open one.
+  A headless session in the owner's test project (its path and its procedure are in the
+  owner's global `CLAUDE.md`, *The altium-mcp MCP server*): a new process, so it loads
+  the release just registered, and its local registration is the one tested. Its id is
+  made first and written under *Where the run stands* before it starts:
+
+      cd "<test project>"
+      claude -p "<opening sentence>" --session-id <uuid> --permission-mode auto
+        --allowedTools mcp__altium-mcp --add-dir "<this clone>" --output-format json
+
+  run in the background, one line. The opening sentence: `Uji skenario release <v>-<stamp>
+  (<items>), menurut <procedure>. Tanpa nanya apa-apa. Cek singkat dulu (get_server_status,
+  get_project_info, get_board_summary). Skenario baru untuk fitur baru ditulis ke prosedur
+  dengan baseline-nya. Finding ke findings.md fork, baris hasil dan pemetaan di prosedur;
+  jangan commit. Akhiri dengan laporan sepuluh baris: tiap item lolos atau gagal, finding
+  baru.` Cut short (a limit, the laptop off): from the same folder, `claude -p --resume
+  <uuid> "lanjutkan uji skenario"`, same flags. Then the session commits the entry alone,
+  sorts it into the items (an item that held moves to Closed, a new point a new A-item),
+  and updates the release page (step 7). A new item from a scenario test joins a later
+  group only when its fix is small and in that group's files; otherwise it stays Open for
+  the next run.
+- **The report at the end**, in Indonesian, in the reply and in a line here: per item
+  Closed, Waiting with its commit, or Open with why; the decisions the run took; the five
+  builds; what the scenario tests found.
+
+Groups, in order (the owner's order of importance of 2026-11-14, kept within a group's
+files; `run_drc` first, as A3's way out uses it):
+
+1. **`run_drc` and the project's state**: A19, A20, A5.
+   - A19: the `.PrjPcb` document's flag read before the check and cleared after when the
+     project had no unsaved change, as A17 does the board; `get_project_info` gives the
+     project file's own state (`project_modified`) and counts it.
+   - A20: with `rules` given, the report lists only those rules; without, as now.
+   - A5: a call leaves the project folder as it found it: `run_drc` deletes the `.drc`,
+     the `.html` and the outputs folder it created once read, `keep_report=true` to keep
+     them; the compile calls remove a `.PrjPcbStructure` they created where none was.
+2. **Wrong results, scripts**: A3, A9.
+   - A3, a probe first: a live test that deletes a track on a saved copy, reopens it and
+     expects the connection, in 2D and in 3D view. If no way gives the connection objects
+     reliably, `get_unrouted_connections` takes the open connections from a DRC Un-Routed
+     Net run on those nets (board and project left as found, group 1's way), and the
+     result says which (`source`: `ratsnest` or `drc`). An honest count over a fast one.
+   - A9: every declaration of a `var` line read, `a, b : Integer` included; offline tests.
+3. **From schematic to board**: A10, A11, A16.
+   - A10: tools to create a `.PrjPcb`, to add a document to it (an existing one, or a new
+     `.SchDoc` or `.PcbDoc`), and to set the board shape from an outline (mils or mm,
+     arcs allowed) or a closed shape on a mechanical layer; `build_schematic` given a
+     project to add its sheet to.
+   - A11, a probe first: the ECO from a script, by a process with its parameters
+     (`dev/altium_process_catalog.txt`) or by the API, with no dialog left open. Found: a
+     tool that updates the board from the schematic, `dry_run` first, returning what was
+     added, changed and removed and what could not be. Not found: stays Open, as A8.
+   - A16: a `FOOTPRINT` record (model name, library, current or not) in the symbol batch
+     and in `create_schematic_symbol`.
+4. **The board's setup and its outputs**: A13, A14, A12.
+   - A13: a tool that sets the stack from a list top to bottom, in the form
+     `get_pcb_layer_stackup` gives, read back equal; presets 2-layer 1.6 mm and 4-layer
+     1.6 mm with 7628 prepreg.
+   - A14: rule kinds differential pair, length and matched length, routing layers, plane
+     connect, component clearance, silkscreen clearances, hole to hole, and `priority`.
+     The fabricator preset is a data file naming its source page and the date read, its
+     values from that page, not from memory; no page read, no preset.
+   - A12: a tool that writes an OutJob from a preset or edits the outputs of one (Gerber
+     layers and format, NC Drill, BOM, pick and place, output folder), read back by
+     `get_outjob_settings`; an offline step that turns Altium's BOM and pick and place into
+     a named service's columns (JLCPCB first) and zips the Gerbers and drills. The
+     per-footprint rotation corrections are a table the owner fills, empty to start.
+5. **Libraries**: A15, A8.
+   - A15: `.IntLib` parts in `build_schematic` and `place_component`; the DbLib search as
+     a tool. A supplier lookup and a vendor model import are not in this run (an outside
+     service and its terms are the owner's call): that part stays Open.
+   - A8, a probe first: `PCB:MakeLibrary` with its parameters; else the library built from
+     the board's footprints through the PcbLib API. Found: a tool, which the scenario
+     test's library step then uses in place of the hand step.
+
+**Where the run stands** (ticked and committed after each step; a session that starts
+reads from the first step not ticked):
+
+- [ ] A19: committed (or left Open, why written into it)
+- [ ] A20: committed (or left Open, why written into it)
+- [ ] A5: committed (or left Open, why written into it)
+- [ ] group 1: offline and live tests, pushed, released (build: …)
+- [ ] group 1: scenario test (session id: …), entry committed and sorted, release page
+- [ ] A3: committed (or left Open, why written into it)
+- [ ] A9: committed (or left Open, why written into it)
+- [ ] group 2: offline and live tests, pushed, released (build: …)
+- [ ] group 2: scenario test (session id: …), entry committed and sorted, release page
+- [ ] A10: committed (or left Open, why written into it)
+- [ ] A11: committed (or left Open, why written into it)
+- [ ] A16: committed (or left Open, why written into it)
+- [ ] group 3: offline and live tests, pushed, released (build: …)
+- [ ] group 3: scenario test (session id: …), entry committed and sorted, release page
+- [ ] A13: committed (or left Open, why written into it)
+- [ ] A14: committed (or left Open, why written into it)
+- [ ] A12: committed (or left Open, why written into it)
+- [ ] group 4: offline and live tests, pushed, released (build: …)
+- [ ] group 4: scenario test (session id: …), entry committed and sorted, release page
+- [ ] A15: committed (or left Open, why written into it)
+- [ ] A8: committed (or left Open, why written into it)
+- [ ] group 5: offline and live tests, pushed, released (build: …)
+- [ ] group 5: scenario test (session id: …), entry committed and sorted, release page
+- [ ] the report
+
 ---
 
 ## Open

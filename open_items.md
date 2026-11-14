@@ -229,8 +229,10 @@ unasked, and ending and restarting `X2.EXE` when Altium hangs.
 - [x] A10: committed
 - [x] A11: left Open (RCW error after the ECO twice; code in a named stash, see A11)
 - [x] A16: committed
-- [ ] group 3: offline and live tests, pushed, released (build: …)
-- [ ] group 3: scenario test (session id: …), entry committed and sorted, release page
+- [x] group 3: offline and live tests, pushed, released (build: `build-20261114-210622`;
+  341 offline, 41 live; Altium restarted before the live tests, by the session)
+- [ ] group 3: scenario test (session id: `42669980-da08-4c52-856a-ddec5bf03954`), entry committed
+  and sorted, release page
 - [ ] A13: committed (or left Open, why written into it)
 - [ ] A14: committed (or left Open, why written into it)
 - [ ] A12: committed (or left Open, why written into it)
@@ -519,7 +521,7 @@ refused, because a cutout or hole drawn on the outline's layer is common, and a 
 between shapes side by side would give a wrong board.
 Decided 2026-11-14 by the run, not the owner: `set_board_shape` changes the board without
 saving it, as the other PCB edit tools do; the result's `board_modified` says so.
-Fixed in the commit that moves it here. Local: on `ad25`, not yet in a build. Upstream: not
+Fixed in `97299f4`. Local: on `ad25`, released in `build-20261114-210622`. Upstream: not
 yet decided.
 
 **A16. A library symbol cannot be given its footprint.** `create_schematic_symbol` and
@@ -592,7 +594,7 @@ not check it when the link is made.
 Decided 2026-11-14 by the run, not the owner: a bad `FOOTPRINT` record refuses the whole batch
 spec before the first symbol is made, because the symbols made before a bad record would stay
 in the library of a call that reports failure.
-Fixed in the commit that moves it here. Local: on `ad25`, not yet in a build. Upstream: not
+Fixed in `b4da4cc`. Local: on `ad25`, released in `build-20261114-210622`. Upstream: not
 yet decided.
 
 

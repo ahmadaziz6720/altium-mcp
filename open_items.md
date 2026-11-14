@@ -227,7 +227,7 @@ unasked, and ending and restarting `X2.EXE` when Altium hangs.
   entry, the sort, this line) go out with group 3's push. Altium was started by the run
   and left running.
 - [x] A10: committed
-- [ ] A11: committed (or left Open, why written into it)
+- [x] A11: left Open (RCW error after the ECO twice; code in a named stash, see A11)
 - [ ] A16: committed (or left Open, why written into it)
 - [ ] group 3: offline and live tests, pushed, released (build: …)
 - [ ] group 3: scenario test (session id: …), entry committed and sorted, release page
@@ -258,6 +258,67 @@ made after layout. Local: find a way that works from a script (the process with 
 parameters, or the ECO through the API; A8 found a process call that returned success and
 did nothing), then a tool that returns what was added, changed and removed, and what could
 not be (a footprint not found).
+Probe 2026-11-14 by the run, in AD25, on a project made by the tools (copies of the
+SpiritLevel-SL1 example's libraries, three parts on a sheet, a new board): no script call
+and no process parameter runs the ECO without its dialog. `WorkspaceManager:Compare` with
+`ObjectKind=Project|Action=UpdateOther|Index=1` (the schematic in front) or
+`ObjectKind=Project|Action=UpdateMe` (the board in front, Import Changes; the menus' own
+parameters, read from `advsch.rcs` and `AdvPcb.rcs`) opens the modal Engineering Change
+Order dialog (`TChangeManagementForm`) and `RunProcess` returns once it is closed; with
+nothing to change a `TMessageForm` "Comparator Results (No Differences)" comes instead.
+`Silent`, `NoDialog`, `SilentCompareMode`, `SilentMode` and `Execute` set to True changed
+nothing. `IProject.DM_ExecuteChanges`, `DM_GetDocumentForECO` and
+`IWorkspace.DM_ExecuteChanges` (names in `WorkspaceManager.dll`) are undeclared in
+DelphiScript. The dialog's list is a `TdxTreeList`, not readable from outside. What
+works: its buttons (`TXPBitBtn`) take a posted click, as A21's: Validate Changes or Execute
+Changes, then Report Changes opens a `TReportPreviewForm` whose Export... gives a Save
+dialog (`#32770`, Excel first of eight types; choosing another type by message did not
+take), and the `.XLS` written is Altium's list (Action, Object, Change Document, Status
+with Altium's message, e.g. "Footprint Not Found NO_SUCH_FP", empty when good), the same
+after Validate as after Execute. Executing writes `Project Logs for <project>\<project>
+PCB ECO <date>.LOG` beside the project. A tool on this (`update_pcb_from_schematic`,
+`dry_run` default true, the board read before and after) was written with offline tests
+(17 in `tests/test_eco.py`) and a live test (`tests/test_live_eco.py`, failing before the
+tool: "AttributeError: module 'main' has no attribute 'update_pcb_from_schematic'"), not
+committed. Stopped: Altium then fell into a loop of `TShowException` "COM object that has
+been separated from its underlying RCW cannot be used" (closed about 280 times, back
+within 0.6 s each; Altium left so, not restarted), first met when a new project was made
+while another project the ECO dialog had worked on was still open; the same error had come
+once before at that point and gone.
+Whether the dialog driven by script causes it is not known yet: next, with Altium
+restarted, the live test alone, then whether the ECO done by hand does the same.
+Second try, 2026-11-14, Altium restarted by the owner. Two faults found and fixed in the
+tool: run from the bridge, the process answered a `TMessageForm` "Error" "No top level
+document to compare with" instead of the dialog, because the board focused by
+`DM_OpenAndFocusDocument` does not focus its project (`GetWorkspace.DM_OpenProject(<path>,
+True)` first, then the project compiled, cured it); and the Save dialog's file name box,
+set before the dialog had put its own name in it, was overwritten once (the report not
+written), so Save is now pressed only when the box reads the path back (`WM_GETTEXT`). A
+third: after a validation that met a footprint not found, Altium answers the first board
+then added to a project (`add_project_document` with `create`) with a `TMessageForm`
+"Information" "File Not Open" (one OK), which held that call until the bridge gave up
+(120 s) and stayed open. It came as well with only Validate and Close pressed (no report,
+no export), so it is Altium's own after a validation; a later board did not get it, and a
+real run with no validation before did not cause it. `add_project_document` was given a
+watcher that presses OK on such a message and lists it. With these the live test passed
+3/3 twice in a row in one Altium (dry run, real run read back, no differences, a part
+removed and a net renamed, a footprint not found and the next board's message answered,
+refused calls), and 19 offline tests in `tests/test_eco.py`. Then
+`test_live_project_setup` was started for the tools touched (`other_utils.pas`,
+`add_project_document`); it was stopped by Claude Code for low memory after a first
+failure, and the RCW error form came back on the owner's screen ("COM object that has been
+separated from its underlying RCW cannot be used", "Send and Close", over a schematic
+sheet), the second time after ECO runs, as the first time when new projects were then
+made; Altium needed a restart again.
+Decided 2026-11-14 by the run, not the owner: A11 left Open after two tries, because the
+RCW error came back after the ECO both times and Altium needed a restart each time; its
+code is kept in the stash named below, not committed.
+Stash: "A11 ECO tool, not working (RCW error after ECO)",
+`c15f30f0de547aae02d4999c19f14170b2da3340` (`server/eco.py`, `server/tests/test_eco.py`, `server/tests/test_live_eco.py`, and the
+changes to `server/main.py`, `server/AltiumScript/other_utils.pas`,
+`server/AltiumScript/Altium_API.pas`, `.github/workflows/tests.yml`). Next: whether the
+ECO done by hand (Import Changes, Validate, Execute, Close), then new projects made, brings
+the RCW error too; if it does, it is Altium's, and the tool may go in with a usage note.
 
 **A12. Output jobs can be run and read, not made.** `run_output_jobs` runs containers of
 an OutJob that exists and `get_outjob_settings` reads one from disk; nothing creates an

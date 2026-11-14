@@ -20,6 +20,8 @@ closed unsaved). A board a test saves and reopens is a copy of an existing one: 
 document saved by script writes no file, and a net a script creates is gone after a save.
 Altium's 16-layer example board is opened once per run at most: three opens filled its
 memory (findings 2026-11-12, second entry, 3 to 5).
+After `run_drc` the focused document is its report: a script takes the board by
+`PCBServer.GetPCBBoardByPath`, not `GetCurrentPCBBoard` (findings 2026-11-14, 1).
 
 A10 to A16 come from a review of the tools against a whole design flow (schematic and
 missing library parts, ERC; a board with its rules and layer stack; placement; routing,

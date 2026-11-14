@@ -153,3 +153,19 @@ Release `bin\0.7.0-20261112-120520` (build line `0.7.0-ad25-20261112-120520 31e7
    too, not only the analyzed one.
 
 Sorted into A2 (1); A7 (2); A4 (3); A6 (4); A17 (5); A18 (6); A3 (7).
+
+**2026-11-14: fixing `run_drc` (A17, A18), with live tests on copies of Altium's examples**
+
+A checkout of `ad25` driven from its live tests (`ALTIUM_LIVE=1`), not a release.
+
+1. After `run_drc`, a `run_altium_script` that takes the board from
+   `PCBServer.GetCurrentPCBBoard` fails, "Undeclared identifier: BoardIterator_Create" (a
+   call on nil): the report Altium opens is the focused document then.
+   `PCBServer.GetPCBBoardByPath(<board>)` works.
+2. A18, the variant that was reproduced: of sixteen checks of a small example board, one
+   (the first after a save, close and reopen) came back `ran` false, "could not be started
+   and was closed", with a report written by that very check. The "never appeared" message
+   of the scenario test's entry was not seen.
+
+Sorted into A18 (2). Not filed (1): a lesson for scripts after `run_drc`, in the paragraph
+on live tests at the top of `open_items.md`.

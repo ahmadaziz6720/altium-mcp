@@ -10,7 +10,7 @@ Three sections: **Open**, not yet fixed; **Waiting**, fixed and not yet settled 
 merged, a fix not yet run in a session); **Closed**, merged upstream, run and held, or
 decided against, with the record.
 
-**Open: A8, A10 to A16.**
+**Open: A8, A10 to A16, A22.**
 
 A2, A7, A4 and A6 went out together in `build-20261112-120520` (owner, 2026-11-12), so one
 scenario test covers them; A3 and A8 were not waited for. That test ran and held for
@@ -293,6 +293,22 @@ footprint is set only on a part `build_schematic` places (`footprint`). A symbol
 a datasheet leaves its library without the link, and each placement must give it again.
 Local: a `FOOTPRINT` record (model name, library, current or not) in the symbol batch, and
 the same in `create_schematic_symbol`.
+
+**A22. A call takes the keyboard and the front of the screen for Altium.** While the server
+runs, Altium's window comes to the front at every call, over a full-screen video too, and
+the keys typed in another program go to Altium, read as its commands (the owner,
+2026-11-14). A stray key there can change the open board under a call, so a result, a
+live test or a scenario test can be wrong without anyone seeing it; the window on top is a
+nuisance only. Likely cause, unchecked: every call starts `X2.EXE -RScriptingSystem:…`,
+which the running Altium takes as a new command line and answers by activating its main
+window; only the screenshot tool gives the foreground back after (`_bring_to_front`, then
+the previous window). Local, to reproduce first: a live test that notes the foreground
+window, makes one read, and fails when Altium kept the foreground. Then either give the
+foreground back to the window that had it once the response is in, as the screenshot tool
+does, or reach the running Altium without activating it (another way to start the script,
+or the window shown without activation), whichever holds. Usage until then: nothing is
+typed on the machine while a test or a scenario test runs. Not in the run of 2026-11-14's
+groups (the owner: "catat dulu aja"): for the next run.
 
 ## Waiting
 

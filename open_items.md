@@ -213,8 +213,10 @@ unasked, and ending and restarting `X2.EXE` when Altium hangs.
 - [x] A3: committed (fixed through the ratsnest, `Net.Rebuild`; no DRC fallback)
 - [x] A9: committed
 - [x] A21: committed
-- [ ] group 2: offline and live tests, pushed, released (build: …)
-- [ ] group 2: scenario test (session id: …), entry committed and sorted, release page
+- [x] group 2: offline and live tests, pushed, released (build: `build-20261114-180059`;
+  295 offline, 23 live; Altium not restarted before the live tests)
+- [ ] group 2: scenario test (session id: `f712df7c-6b4f-4f46-ad91-dacbeb6807ba`), entry
+  committed and sorted, release page
 - [ ] A10: committed (or left Open, why written into it)
 - [ ] A11: committed (or left Open, why written into it)
 - [ ] A16: committed (or left Open, why written into it)
@@ -410,7 +412,7 @@ after its own script removed the copper; `delete_pcb_objects` registers each rem
 the board, which a bare `RemovePCBObject` may not.
 Cause: `get_unrouted_connections` and `place_copper` ran `Board.AnalyzeNet`, which removes
 every connection object of the net it analyzes, open or not, in 2D and 3D view.
-Fixed in the commit that moves it here: `get_unrouted_connections` rebuilds the
+Fixed in `2f3393a`: `get_unrouted_connections` rebuilds the
 connections of the nets it reads with `Net.Rebuild` on every call, the board's modified
 flag put back when it had no unsaved change (A4); its result no longer has `analyzed`.
 `place_copper` rebuilds the nets of its copper with `Net.Rebuild` instead of analyzing
@@ -450,8 +452,8 @@ because no script call switched the view (`PCB:SwitchTo2D3D` with `Mode=3D`, `Mo
 `ViewMode=3D` or none, by `RunProcess` and `Client.SendMessage`) and no document or view
 property read differs between the two. A board may open in 3D (a copy under a name last
 shown in 3D did), so the test leaves Altium in 2D.
-Local: on `ad25`, in the commit that moves it here; not yet in a build. Upstream: not yet
-decided.
+Local: on `ad25`, in `2f3393a`. Released in `build-20261114-180059`; scenario test not run
+yet. Upstream: not yet decided.
 
 **A9. `run_altium_script`'s compile check reads one declaration per `var` line.** A
 leading `var Board : IPCB_Board; Net : IPCB_Net; i : Integer;` on one line was refused
@@ -485,8 +487,8 @@ names and the lint, because one definition keeps the three from disagreeing agai
 Decided 2026-11-14 by the run, not the owner: a trailing comment on a declaration line
 stays `//` only, as before, because `{ }` and `(* *)` after a declaration were never read
 as part of the block and the item is about several declarations.
-Fixed in the commit that moves it here. Local: on `ad25`, in the commit that moves it here;
-not yet in a build. Upstream: not yet decided.
+Fixed in `7ec1ed2`. Local: on `ad25`, in `7ec1ed2`. Released in `build-20261114-180059`; scenario test not run
+yet. Upstream: not yet decided.
 
 **A21. `run_drc` waits on Altium's repour message.** After copper under a pour was deleted,
 Altium answered the dialog's Run press with a "Design Rule Check" message (Run DRC, Cancel,
@@ -506,7 +508,7 @@ tracks of two nets under its GND pours deleted by `delete_pcb_objects`). The dia
 driver pressed only the Design Rule Checker dialog's Run button and then just kept the
 bridge's progress file fresh, so the command, held by the message, counted as working and
 waited up to the bridge's 30 minute limit.
-Fixed in the commit that moves it here: the driver (`drc.drive_dialog`) looks for the
+Fixed in `ed18a1c`: the driver (`drc.drive_dialog`) looks for the
 message while it waits for the dialog to close and, every quarter second, for the rest of
 the call; it knows it by its class, title and the captions of its buttons
 (`drc.is_repour_prompt`: Run DRC and Repour Polygons and Run DRC, any case, `&` ignored),
@@ -548,8 +550,8 @@ and its absence says the pours were current.
 Decided 2026-11-14 by the run, not the owner: the test reads the pours by the holes and
 outline points of their regions, because a repour of the test's board changed those and
 left the region count of every pour as it was.
-Fixed in the commit that moves it here. Local: on `ad25`, in the commit that moves it here;
-not yet in a build. Upstream: not yet decided.
+Fixed in `ed18a1c`. Local: on `ad25`, in `ed18a1c`. Released in `build-20261114-180059`; scenario test not run
+yet. Upstream: not yet decided.
 
 ## Closed
 

@@ -207,3 +207,6 @@ Release `bin\0.7.0-20261114-145312` (build line `0.7.0-ad25-20261114-145312 1abb
    Documents); `GetWorkspace.DM_OpenProject(<path>, True)` before opening the board
    works. After `run_drc`, `Client.GetDocumentByPath(<report .html path>)` returns nil
    (the report is open under a `file:///` name), so a script cannot close it that way.
+
+Sorted into A17 (1); A18 (2); A19 (3); A20 (4). Not filed (5): a lesson for scripts that
+open a project, in the paragraph on live tests at the top of `open_items.md`.

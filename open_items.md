@@ -10,7 +10,7 @@ Three sections: **Open**, not yet fixed; **Waiting**, fixed and not yet settled 
 merged, a fix not yet run in a session); **Closed**, merged upstream, run and held, or
 decided against, with the record.
 
-**Open: A8, A9, A10 to A16.**
+**Open: A8, A9, A10 to A16, A21.**
 
 A2, A7, A4 and A6 went out together in `build-20261112-120520` (owner, 2026-11-12), so one
 scenario test covers them; A3 and A8 were not waited for. That test ran and held for
@@ -151,6 +151,8 @@ files; `run_drc` first, as A3's way out uses it):
      Net run on those nets (board and project left as found, group 1's way), and the
      result says which (`source`: `ratsnest` or `drc`). An honest count over a fast one.
    - A9: every declaration of a `var` line read, `a, b : Integer` included; offline tests.
+   - A21 (added by the run, found by A3's probe): `run_drc` presses Run DRC on Altium's
+     repour message and says it did.
 3. **From schematic to board**: A10, A11, A16.
    - A10: tools to create a `.PrjPcb`, to add a document to it (an existing one, or a new
      `.SchDoc` or `.PcbDoc`), and to set the board shape from an outline (mils or mm,
@@ -210,6 +212,7 @@ unasked, and ending and restarting `X2.EXE` when Altium hangs.
   the owner's word.
 - [x] A3: committed (fixed through the ratsnest, `Net.Rebuild`; no DRC fallback)
 - [ ] A9: committed (or left Open, why written into it)
+- [ ] A21: committed (or left Open, why written into it)
 - [ ] group 2: offline and live tests, pushed, released (build: …)
 - [ ] group 2: scenario test (session id: …), entry committed and sorted, release page
 - [ ] A10: committed (or left Open, why written into it)
@@ -295,6 +298,18 @@ footprint is set only on a part `build_schematic` places (`footprint`). A symbol
 a datasheet leaves its library without the link, and each placement must give it again.
 Local: a `FOOTPRINT` record (model name, library, current or not) in the symbol batch, and
 the same in `create_schematic_symbol`.
+
+**A21. `run_drc` waits on Altium's repour message.** After copper under a pour was deleted,
+Altium answered the dialog's Run press with a "Design Rule Check" message (Run DRC, Cancel,
+Repour Polygons and Run DRC) that `run_drc`'s dialog driver does not press, so the call
+waited until it timed out; the message was pressed by hand. Met 2026-11-14 in the run's
+probe for A3, on a copy of the WiFi board of Altium's Mini PC example. Local: the driver
+presses Run DRC (the check of the board as it is, pours not changed, so the board and the
+result stay what was asked), and the result says the message was met; a live test that
+deletes copper under a pour and runs the check, failing on a timeout before the fix.
+Decided 2026-11-14 by the run, not the owner: A21 joins group 2 after A9, because a check
+that never returns blocks every later step that runs one, its fix is in `run_drc`'s dialog
+driver alone, and group 2's scenario test runs `run_drc`.
 
 ## Waiting
 

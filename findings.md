@@ -284,3 +284,73 @@ says, and was deleted. 30 calls, 0 errors, 24k characters (9 `run_altium_script`
 opening, closing and checks; 4 `run_drc` 8.4k).
 
 Sorted into A3 (1); A9 (2); A21 (3), all three Closed; A23, new (4).
+
+**2026-11-14: scenario test of a release adding project and board-shape tools and a symbol's footprint (A10, A16), on a new project and library made for it, with short checks on a small 2-layer board**
+
+Release `bin\0.7.0-20261114-210622` (build line `0.7.0-ad25-20261114-210622 b4da4cc`).
+
+1. A10, held for the most part: `create_project` made its folder and a 29 kB project with
+   no documents (`project_modified` false); a second call was refused ("not overwritten").
+   With another project in focus (its board in front), `add_project_document(create=True)`
+   of a new sheet gave `detached_from` that project, which kept its documents and stayed
+   unmodified (flag read by script 0, its file byte-equal); a new board was not taken by
+   it. A library in a sibling folder was added and saved relative (`..\<folder>\<lib>`); the
+   same add again gave `already_in_project` true, `project_saved` false and a byte-equal
+   project file; a missing document and an existing file with `create` were refused, the
+   files byte-equal. `set_board_shape` refused a symmetric bow-tie ("encloses no area"), an
+   asymmetric crossing outline ("crosses itself"), an arc with unequal radii (both radii
+   given) and an empty mechanical layer, each leaving the board as it was. A rounded
+   rectangle drawn out of order on Mechanical 1 (4 tracks, 4 arcs) plus a stray line became
+   an 8-vertex shape, the stray line listed in `not_closed` with its ends; with one edge
+   removed the call was refused, both gaps' ends given. Read back through Altium
+   (`AreaSize`, `PointInPolygon`) on a reopened board: right (592.27 mm², corner out, middle
+   in; a rounded 50 × 40 mm shape 1994.63 mm²).
+2. Wrong, reported success: `set_board_shape` on a board just made by
+   `add_project_document(create=True)` (origin at absolute 0, 0) returned the outline and
+   box asked, `get_board_summary` agreed and the board was drawn right, but Altium's region
+   of the outline was not: a 50 × 40 mm shape with one 5 mm rounded corner gave `AreaSize`
+   1486.6 mm² (expected 1994.6), `PointInPolygon` false at (1, 1) and (25, 20) mm and true
+   at (60, 20) mm, outside the board; a following plain 50 × 40 mm rectangle at
+   (10, 10) mm gave 2200 mm² and (5, 5) mm inside. `Board.UpdateBoardOutline` called again
+   from a script changed nothing. After save, close and reopen: 2000 mm², the points
+   right, and later calls on that board right. Anything that reads the board's region in
+   the same session (a pour, a DRC check against the outline, a placement test) may see a
+   wrong shape. Workaround: save, close and reopen a new board before use. The live test
+   checked `PointInPolygon` on a copied board, not on a new one. Bears on A10.
+3. Wrong flag: `build_schematic(project_path, sheet_path)` with another project in focus
+   took its sheet back from that project (`project.detached_from` names it) but left that
+   project's file flag set: 0 before, modified after, twice in a row (its file not
+   written). `add_project_document(create=True)` in the same state puts the flag back. The
+   top-level `detached_from` of the same result is `""` while the nested one names the
+   project. Bears on A10 ("a call must not change a project it was not given").
+4. A16, held: a batch of three symbols, two with `FOOTPRINT` records (one model linked by
+   name, its name with spaces), returned per symbol what the saved library holds when read
+   apart from the server (`MODELDATAFILE0`, `ISCURRENT`); the symbol with none had no
+   `footprints` entry. Specs with two `1`, a `.SchLib` as library and a relative library
+   were refused, "nothing was made", and no symbol of theirs is in the saved file.
+   `EDITSYMBOL` with `1` moved the mark and gave the by-name model its library; a `0` on
+   the current footprint plus a new record left the new one current. `create_schematic_symbol`
+   stored two footprints with the asked mark, and refused a name given twice. Parts placed
+   by `build_schematic` without `footprint` carried the library's models and marks.
+5. Wrong, reported success: `build_schematic` with `footprint` on a part whose library
+   symbol already has a current footprint adds the named model (by name, no library) as
+   current and leaves the library's current one as it is: the placed part holds two
+   current PCB footprints (`IsCurrent` 1 on both through the API, `ISCURRENT=T` twice in the
+   saved sheet). Rare before A16, as the server's own symbols had no footprint; now the
+   common case. Expected: the footprint given becomes the only current one (the mark moved
+   when the symbol already has a model of that name). Bears on A16.
+6. Small: `build_schematic`'s `sheet` gives the unsaved name (`Sheet1.SchDoc`) while
+   `sheet_path` gives the file it was saved as.
+7. Missing, small: an empty `.SchLib` (or `.PcbLib`) cannot be made by a tool;
+   `create_symbols_batch`'s `LIBRARY` needs an existing file and `add_project_document`'s
+   `create` makes sheets and boards only. Done by script in three statements
+   (`CreateNewDocumentFromDocumentKind('SCHLIB')`, `DoSafeChangeFileNameAndSave`, then
+   `SetModified(True)` and `DoFileSave('')`); the new library went into the project in
+   focus, as A10's probe found for a sheet, and that project had to be closed unsaved.
+
+Short checks: `get_server_status` (version and build as the release), `get_project_info`
+(4 documents, `project_modified` false) and `get_board_summary` (as the baseline) on the
+small board; `get_layout` of an area on a copy gave the 5 tracks expected (the shared
+`LayoutSegment`). The copies were closed with their flags cleared; the reference project's
+`.PrjPcbStructure` appeared on closing and was deleted. 58 calls, 0 errors, 33k characters
+(25 `run_altium_script` for opening, closing, a library made and checks through the API).

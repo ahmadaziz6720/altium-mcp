@@ -23,6 +23,9 @@ memory (findings 2026-11-12, second entry, 3 to 5).
 After `run_drc` the focused document is its report: a script takes the board by
 `PCBServer.GetPCBBoardByPath`, not `GetCurrentPCBBoard` (findings 2026-11-14, 1).
 
+A17 and A18 went out together in `build-20261114-145312` (owner, 2026-11-14): one scenario
+test covers both.
+
 A10 to A16 come from a review of the tools against a whole design flow (schematic and
 missing library parts, ERC; a board with its rules and layer stack; placement; routing,
 DRC; fabrication outputs for an assembly service), not from a session's entry: what the
@@ -145,7 +148,7 @@ reads the flag before `PCB:DesignRuleCheck` and clears it after when the board h
 unsaved change; the result gives `board_modified`. A board with unsaved changes stays
 marked. Live test `tests/test_live_drc.py` (`ALTIUM_LIVE=1`, a copy of the WiFi example
 board given a via-to-via clearance rule it fails, 8 violations, saved and reopened): passes
-in AD25, fails on the old script.
+in AD25, fails on the old script. Released in `build-20261114-145312`.
 
 **A18. `run_drc` returns a stale report when the check did not run.** On the first DRC
 after a board was closed unsaved and reopened by script it returned `success` false, `ran`
@@ -165,7 +168,7 @@ check that ran; a check that did not run gives no `report`. Offline tests in
 `test_drc.py`; live test in `tests/test_live_drc.py` with the close hidden from the driver:
 passes in AD25, fails on the old Python. Not explained: the entry's message was "never
 appeared", which says the driver saw no dialog at all; not reproduced. A17's modified
-board on that call fits the check having run.
+board on that call fits the check having run. Released in `build-20261114-145312`.
 
 **A1. `get_server_status` reports no version or commit.** It returns the Altium exe and the
 script path only, so a result cannot be tied to the code that ran. Until fixed, the release

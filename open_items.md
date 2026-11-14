@@ -199,6 +199,15 @@ unasked, and ending and restarting `X2.EXE` when Altium hangs.
 - [x] group 1: scenario test (session id: `abd53408-395b-493b-9258-37a2b678aa3b`, stopped
   once for low memory and resumed), entry committed and sorted, release page; A19, A20 and
   A5 held and Closed
+  What group 1 taught the rest of the run (2026-11-14): a subagent's `Stop-Process` on
+  `X2.EXE` was refused by the auto mode classifier, so Altium was not restarted before the
+  live tests: decided by the run to use the Altium the session started, used only by
+  tests, not to retry the kill. The headless scenario test was stopped once by Claude
+  Code for low memory (about 600 MB free, Altium 1.7 GB) and went on with `--resume`
+  and the same id. An item's subagent writes "Fixed in the commit that moves it here";
+  the main session puts in the SHA and the build after the release. Commits made after
+  group 1's release go out with group 2's push. The run moved to a new session here, on
+  the owner's word.
 - [ ] A3: committed (or left Open, why written into it)
 - [ ] A9: committed (or left Open, why written into it)
 - [ ] group 2: offline and live tests, pushed, released (build: …)

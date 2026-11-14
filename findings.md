@@ -429,3 +429,6 @@ on a copy `get_layout` of an area (5 tracks) and `check_silkscreen` (0 to fix, 3
 `get_outjob_settings` (2 containers, 1 output). The reference project's `.PrjPcbStructure`
 appeared on closing and was deleted. 22 calls, 0 errors, 15k characters (8
 `run_altium_script`: opening, closing, the messages).
+
+Sorted into A22 (1), Closed; A31, new (2, 3); A24 (4), Closed, its small point into A29;
+A32, new (5, 6); A33, new (7).

@@ -10,7 +10,7 @@ Three sections: **Open**, not yet fixed; **Waiting**, fixed and not yet settled 
 merged, a fix not yet run in a session); **Closed**, merged upstream, run and held, or
 decided against, with the record.
 
-**Open: A8, A11 to A15, A23, A25 to A30.**
+**Open: A8, A11 to A15, A23, A25 to A33.**
 
 A2, A7, A4 and A6 went out together in `build-20261112-120520` (owner, 2026-11-12), so one
 scenario test covers them; A3 and A8 were not waited for. That test ran and held for
@@ -256,8 +256,10 @@ unasked, and ending and restarting `X2.EXE` when Altium hangs.
   owner), and ending a hung `X2.EXE`.
 - [x] A22 and A24: offline and live tests, pushed, released (build:
   `build-20261114-225815`; 368 offline, 46 live; Altium restarted before the live tests)
-- [ ] A22 and A24: scenario test (session id: `6faad091-22be-4278-adbf-a02f1cf447ef`), entry
-  committed and sorted, release page
+- [x] A22 and A24: scenario test (session id: `6faad091-22be-4278-adbf-a02f1cf447ef`), entry
+  committed and sorted, release page; A22 and A24 held for what they asked and Closed, A31
+  to A33 new (Open, for the next run: decided by the run to keep this session to what the
+  owner named, A29 and A30's probe). The scenario test ran once, not stopped, 99 turns.
 - [ ] A29: committed (or left Open, why written into it)
 - [ ] A30: probe, its result written into the item
 - [ ] A13: committed (or left Open, why written into it)
@@ -446,6 +448,10 @@ naming the tool. The agent, which sees the picture and knows what it was doing, 
 and asks the owner only when unsure. A live test: a script's `MessageDlg` with Yes/No
 (`tests/test_live_windows.py`'s `MessageTest` puts one up), answered "No" by the tool, the
 script's reply read back. (The owner, 2026-11-14, after A24's commit.)
+Also, from the scenario test of `build-20261114-225815` (2026-11-14, sixth entry, 4):
+each refusal writes a new picture of the same window, and the `altium_messages` list
+reaches the tool's reply only as the error text: one picture per window, and the list
+in the reply, with the tool.
 
 **A30. A script launch per call is what brings Altium to the front.** A22's guard gives
 the foreground back within 1 to 7 ms, but every call still starts
@@ -463,6 +469,45 @@ per call (it leaks on every launch now). Also worth a look: whether the running 
 takes commands another way (COM, DDE) without activating. Found: a decision with the owner
 before the build, as it changes the bridge upstream's tools all rest on; A22's guard stays
 either way. (The owner, 2026-11-14, after A22's commit.)
+
+**A31. A22's guard misses a call that starts with no window in front.** `ForegroundGuard`
+keeps nothing when `GetForegroundWindow` is 0 at the start, so for that whole call Altium
+is never sent back: in the scenario test of `build-20261114-225815` it took the foreground
+in the middle of a `run_altium_script` (its recovery's `-REditScript:Stop`) and kept it 4
+minutes, and every call after found Altium in front and left it there, by design. The 0
+came from the server's own path: a probe launch refused by a busy Altium raised its
+"Information" box, the guard gave the foreground back, then the box was closed and the
+foreground fell to no window (15 s, 15 s, 31 s). Also, a `run_altium_script` that closes one
+project and opens another left Altium in front about 3.4 s, 2.75 s of it with no foreground
+event (only a 20 ms poll saw it); the same open without the close, 7 ms. Local: keep the
+last window that was not Altium's (from the previous call) when the start reads 0, give it
+back once more after a box the server closes, and a poll beside the events while a call
+runs; a live test for each. (2026-11-14, sixth entry, 2 and 3.) For the next run.
+
+**A32. `run_altium_script` answers Altium's messages its own way.** A24's rule (a message
+with choices is left open and named, a call made while one is open is not run) does not
+reach `run_altium_script`: (a) a script's own `MessageDlg` with Yes and No is closed after
+6 s with `WM_CLOSE`, the script gets 2 (Cancel, not one of its buttons), and the call
+reports `success` true, only `dialogs_dismissed` 1 and a picture saying so; (b) a call
+made while such a message is open is launched anyway and closes it the same way, the
+earlier script running on with that answer, while the call itself reports "Altium never
+started the script: a script of ours was stuck and has been stopped", `recovered` true.
+Also (c), with a timeout shorter than a message's wait it returned after about 55 s "The
+debugger has been stopped, so it is no longer running", `executor_wedged` true, the message
+not named, while the script still waited on it and ran to its end once it was closed. Local:
+`run_altium_script` follows A24's watch and refusal (and A29's tool), and says a script
+waits on a message when it does. (2026-11-14, sixth entry, 5 and 6.) For the next run.
+
+**A33. An OK-only message open before a bridge call is neither pressed nor named.** The
+check before the launch lets a lone OK through (leaving it to the watch), Altium refuses
+the launch as busy (a modal "Information" `TMessageForm` over the message), and the watch
+never runs, as it starts only once the command has started: `get_board_summary` ended after
+46 s with "Altium did not start the command (not executed). A script of ours was stuck in
+Altium's debugger…", two boxes left open. A click posted to the message did nothing while
+the busy box was over it; the busy box first, then the message, closed both. Local: before
+the launch, press a lone OK (the topmost box first) and say so, or refuse naming it, as for
+a message with choices; a live test with an OK message left open by a script. (2026-11-14,
+sixth entry, 7.) For the next run.
 
 ## Waiting
 
@@ -510,91 +555,6 @@ Scenario test of that build held (2026-11-12, third entry, 2): 38 rules, the sco
 `filter2` only on binary rules. The reply went from 9.3k to 8.5k characters only (about
 9 %): what is left is mostly the key names and indentation repeated on every rule.
 Waits for the upstream PR.
-
-**A22. A call takes the keyboard and the front of the screen for Altium.** While the server
-runs, Altium's window comes to the front at every call, over a full-screen video too, and
-the keys typed in another program go to Altium, read as its commands (the owner,
-2026-11-14). A stray key there can change the open board under a call, so a result, a
-live test or a scenario test can be wrong without anyone seeing it; the window on top is a
-nuisance only. Likely cause, unchecked: every call starts `X2.EXE -RScriptingSystem:…`,
-which the running Altium takes as a new command line and answers by activating its main
-window; only the screenshot tool gives the foreground back after (`_bring_to_front`, then
-the previous window). Local, to reproduce first: a live test that notes the foreground
-window, makes one read, and fails when Altium kept the foreground. Then either give the
-foreground back to the window that had it once the response is in, as the screenshot tool
-does, or reach the running Altium without activating it (another way to start the script,
-or the window shown without activation), whichever holds. Usage until then: nothing is
-typed on the machine while a test or a scenario test runs. Not in the run of 2026-11-14's
-groups (the owner: "catat dulu aja"): for the next run.
-Cause, found 2026-11-14: Altium activates itself whenever it takes a script command line
-(`RunScriptFile`, even of a script that does nothing); `X2.EXE` launched with no argument
-does not. Launching shown without activation (`SW_SHOWNOACTIVATE`, `SW_SHOWMINNOACTIVE`) and
-`LockSetForegroundWindow` from the server (refused: not the foreground process) changed
-nothing, so no way was found to reach Altium without the activation. Fix: `foreground.py`'s
-`ForegroundGuard`, around every bridge command and `run_altium_script`, listens for
-foreground changes (a WinEvent hook) and gives the foreground back to the window that had
-it the moment an Altium window takes it; it does nothing when Altium was in front at the
-start, and follows the user to another program. Altium now holds the foreground 1 to 7 ms
-per call instead of the whole call and after; a key typed in those milliseconds still goes
-to Altium. Decided 2026-11-14 by the session, not the owner: the give-back, as the way that
-holds, because the activation could not be prevented. Live test
-`tests/test_live_windows.py` (`ForegroundTest`, a window of another process in front, the
-time Altium is in front measured from the events): before, "Altium had the foreground for
-760 ms during the call" (a read) and 240 ms (`run_altium_script`), 2/2 fail; after, 2/2
-pass. Offline tests in `test_foreground.py` (11). Offline 352 OK; the live set 43 tests, 42
-pass: `test_add_documents` was refused once by the "Altium is not responding" check before
-its call was launched (Altium busy just after a 7 s `add_project_document`), and its module
-passed 9/9 twice alone after. Fixed in `842e6f8`. Local: on `ad25`, released in
-`build-20261114-225815`. Upstream: not yet decided.
-
-**A24. A modal message no driver knows blocks the call until the bridge's limit.** When
-Altium puts up a message the server does not expect, the script that raised it waits on it,
-the bridge keeps waiting (up to its 30 minute limit, as A21's did), and every later call
-waits behind it; nothing says a message is up, and the result, when it comes, does not name
-it. Each one met so far was fixed for its own tool only: A21's repour message in `run_drc`.
-Met again in the run of 2026-11-14: an "Information" message, "File Not Open", one OK
-button, while A11's probe drove the ECO dialog and exported its report; and a
-`TShowException` "COM object that has been separated from its underlying RCW cannot be
-used" that came back after each close (A11). The owner, 2026-11-14: it has happened before
-with other messages. Local, to reproduce first: a live test that has a script put up a
-message Altium's way (e.g. `ShowMessage` from `run_altium_script`) and fails when the call
-does not return within a short limit naming the message. Then a watch in the bridge, for
-every command: while it waits, a top-level modal window of X2.EXE that the tool's own
-driver does not handle (`TMessageForm`, `#32770`, `TShowException`) ends the call as a
-failure that gives its title, text and buttons; which messages it may then close, and
-with which button, to be decided with the test (an OK-only message is safe to close, one
-with choices may not be). Usage until then: a call that does not return in a minute or two
-is looked at on Altium's screen. Not in the run of 2026-11-14's groups: for the next run,
-with A22 (both are how a call meets Altium's windows).
-Reproduced 2026-11-14: a script launched through the bridge itself (the live test swaps
-the bundle for a small `.pas` that takes the request and calls `MessageDlg`) put up its
-message and the call waited out its whole limit, then blamed "a runtime error" in the
-debugger; the next call waited 44 s and reported "Altium did not start the command". A
-script's `MessageDlg` is a task dialog (`#32770`) whose buttons are child windows (`OK`,
-`&Yes`, `&No`) and whose text, in a `DirectUIHWND`, cannot be read from outside; Altium's
-`TMessageForm` text cannot be read either; so each message is kept as a picture
-(`dialogs\` beside the exchange files) and the result points to it. Fix:
-`altium_messages.py` and the bridge's wait loop. Every 0.25 s the bridge reads X2.EXE's
-top-level `TMessageForm`, `#32770` and `TShowException` windows; one up for 1 s that the
-tool does not answer itself (`execute_command(handled=…)`: `run_drc` names its repour
-message) is acted on: a single OK or Close button is pressed (a posted click), the command
-goes on, and the call fails naming the message, with the command's own answer after it in
-`reply_after_message` and, for a command that changes the design, a word to check it; one
-with choices (or another single button, `TShowException`'s "Send and Close") is left open
-and the call fails at once naming it, as no answer is safe to give for it; a message that
-comes back after 3 presses is left open the same way (the RCW loop, A11). A call made while
-a message with choices is open is not run, and says so at once. Decided 2026-11-14 by the
-session, not the owner: these answers (press only a lone OK or Close; leave choices to the
-user; fail the call in both cases even when the command then succeeded), because a result
-met by an unexpected message may be wrong and the caller must know; the 1 s grace, for a
-tool's own driver to answer first. Not changed: the "busy" box a refused launch raises is a
-`#32770` "Information" on AD25, which the not-started path (`_dismiss_altium_dialogs`,
-`TMessageForm` only) leaves open. Live test `tests/test_live_windows.py` (`MessageTest`):
-before, 3/3 fail ("the call waited 42 s", twice; "the next call waited 44 s"); after, 3/3
-pass, the five tests of the file in 25 s. Offline tests in `test_altium_messages.py` (16).
-Offline 368 OK; the live set 46/46 pass (Altium not restarted before it).
-Fixed in `83623df`. Local: on `ad25`, released in `build-20261114-225815`. Upstream: not
-yet decided.
 
 ## Closed
 
@@ -1190,3 +1150,103 @@ records in the batch, `EDITSYMBOL` moving the current mark, three refused specs 
 was made") and `create_schematic_symbol`, each equal to the saved library read apart from
 the server; a part placed by `build_schematic` without `footprint` carried the library's
 models and marks. The interplay it found with a part placed with `footprint` is A27.
+
+**A22. A call takes the keyboard and the front of the screen for Altium.** While the server
+runs, Altium's window comes to the front at every call, over a full-screen video too, and
+the keys typed in another program go to Altium, read as its commands (the owner,
+2026-11-14). A stray key there can change the open board under a call, so a result, a
+live test or a scenario test can be wrong without anyone seeing it; the window on top is a
+nuisance only. Likely cause, unchecked: every call starts `X2.EXE -RScriptingSystem:…`,
+which the running Altium takes as a new command line and answers by activating its main
+window; only the screenshot tool gives the foreground back after (`_bring_to_front`, then
+the previous window). Local, to reproduce first: a live test that notes the foreground
+window, makes one read, and fails when Altium kept the foreground. Then either give the
+foreground back to the window that had it once the response is in, as the screenshot tool
+does, or reach the running Altium without activating it (another way to start the script,
+or the window shown without activation), whichever holds. Usage until then: nothing is
+typed on the machine while a test or a scenario test runs. Not in the run of 2026-11-14's
+groups (the owner: "catat dulu aja"): for the next run.
+Cause, found 2026-11-14: Altium activates itself whenever it takes a script command line
+(`RunScriptFile`, even of a script that does nothing); `X2.EXE` launched with no argument
+does not. Launching shown without activation (`SW_SHOWNOACTIVATE`, `SW_SHOWMINNOACTIVE`) and
+`LockSetForegroundWindow` from the server (refused: not the foreground process) changed
+nothing, so no way was found to reach Altium without the activation. Fix: `foreground.py`'s
+`ForegroundGuard`, around every bridge command and `run_altium_script`, listens for
+foreground changes (a WinEvent hook) and gives the foreground back to the window that had
+it the moment an Altium window takes it; it does nothing when Altium was in front at the
+start, and follows the user to another program. Altium now holds the foreground 1 to 7 ms
+per call instead of the whole call and after; a key typed in those milliseconds still goes
+to Altium. Decided 2026-11-14 by the session, not the owner: the give-back, as the way that
+holds, because the activation could not be prevented. Live test
+`tests/test_live_windows.py` (`ForegroundTest`, a window of another process in front, the
+time Altium is in front measured from the events): before, "Altium had the foreground for
+760 ms during the call" (a read) and 240 ms (`run_altium_script`), 2/2 fail; after, 2/2
+pass. Offline tests in `test_foreground.py` (11). Offline 352 OK; the live set 43 tests, 42
+pass: `test_add_documents` was refused once by the "Altium is not responding" check before
+its call was launched (Altium busy just after a 7 s `add_project_document`), and its module
+passed 9/9 twice alone after. Fixed in `842e6f8`. Local: on `ad25`, released in
+`build-20261114-225815`. Upstream: not yet decided.
+Closed: the scenario test of that build held for ordinary calls (2026-11-14, sixth
+entry, 1): reads, `run_drc` with its dialog, `get_layout`, `check_silkscreen` and a
+`run_altium_script` opening a project left Altium in front 5 to 31 ms per call, the
+foreground back on the other window after each. Two gaps it found are A31: the guard is
+off for a call that starts with no window in front (Altium kept the foreground 4
+minutes), and a script that closes one project and opens another kept Altium in front
+about 3.4 s with no foreground event to act on.
+
+**A24. A modal message no driver knows blocks the call until the bridge's limit.** When
+Altium puts up a message the server does not expect, the script that raised it waits on it,
+the bridge keeps waiting (up to its 30 minute limit, as A21's did), and every later call
+waits behind it; nothing says a message is up, and the result, when it comes, does not name
+it. Each one met so far was fixed for its own tool only: A21's repour message in `run_drc`.
+Met again in the run of 2026-11-14: an "Information" message, "File Not Open", one OK
+button, while A11's probe drove the ECO dialog and exported its report; and a
+`TShowException` "COM object that has been separated from its underlying RCW cannot be
+used" that came back after each close (A11). The owner, 2026-11-14: it has happened before
+with other messages. Local, to reproduce first: a live test that has a script put up a
+message Altium's way (e.g. `ShowMessage` from `run_altium_script`) and fails when the call
+does not return within a short limit naming the message. Then a watch in the bridge, for
+every command: while it waits, a top-level modal window of X2.EXE that the tool's own
+driver does not handle (`TMessageForm`, `#32770`, `TShowException`) ends the call as a
+failure that gives its title, text and buttons; which messages it may then close, and
+with which button, to be decided with the test (an OK-only message is safe to close, one
+with choices may not be). Usage until then: a call that does not return in a minute or two
+is looked at on Altium's screen. Not in the run of 2026-11-14's groups: for the next run,
+with A22 (both are how a call meets Altium's windows).
+Reproduced 2026-11-14: a script launched through the bridge itself (the live test swaps
+the bundle for a small `.pas` that takes the request and calls `MessageDlg`) put up its
+message and the call waited out its whole limit, then blamed "a runtime error" in the
+debugger; the next call waited 44 s and reported "Altium did not start the command". A
+script's `MessageDlg` is a task dialog (`#32770`) whose buttons are child windows (`OK`,
+`&Yes`, `&No`) and whose text, in a `DirectUIHWND`, cannot be read from outside; Altium's
+`TMessageForm` text cannot be read either; so each message is kept as a picture
+(`dialogs\` beside the exchange files) and the result points to it. Fix:
+`altium_messages.py` and the bridge's wait loop. Every 0.25 s the bridge reads X2.EXE's
+top-level `TMessageForm`, `#32770` and `TShowException` windows; one up for 1 s that the
+tool does not answer itself (`execute_command(handled=…)`: `run_drc` names its repour
+message) is acted on: a single OK or Close button is pressed (a posted click), the command
+goes on, and the call fails naming the message, with the command's own answer after it in
+`reply_after_message` and, for a command that changes the design, a word to check it; one
+with choices (or another single button, `TShowException`'s "Send and Close") is left open
+and the call fails at once naming it, as no answer is safe to give for it; a message that
+comes back after 3 presses is left open the same way (the RCW loop, A11). A call made while
+a message with choices is open is not run, and says so at once. Decided 2026-11-14 by the
+session, not the owner: these answers (press only a lone OK or Close; leave choices to the
+user; fail the call in both cases even when the command then succeeded), because a result
+met by an unexpected message may be wrong and the caller must know; the 1 s grace, for a
+tool's own driver to answer first. Not changed: the "busy" box a refused launch raises is a
+`#32770` "Information" on AD25, which the not-started path (`_dismiss_altium_dialogs`,
+`TMessageForm` only) leaves open. Live test `tests/test_live_windows.py` (`MessageTest`):
+before, 3/3 fail ("the call waited 42 s", twice; "the next call waited 44 s"); after, 3/3
+pass, the five tests of the file in 25 s. Offline tests in `test_altium_messages.py` (16).
+Offline 368 OK; the live set 46/46 pass (Altium not restarted before it).
+Fixed in `83623df`. Local: on `ad25`, released in `build-20261114-225815`. Upstream: not
+yet decided.
+Closed: the scenario test of that build held for what A24 asked of the bridge
+(2026-11-14, sixth entry, 4): with a Yes/No message open, `get_board_summary` and
+`run_drc` were refused within a second, the message, its buttons and its picture named.
+Gaps it found are items of their own: A32 (`run_altium_script` answers a message with
+choices itself, closing it as Cancel, and is launched while one is open; its diagnosis
+of a script waiting on a message is wrong) and A33 (an OK-only message open before a
+bridge call is neither pressed nor named). Its small point on the refusal (a new picture
+per refusal, the `altium_messages` list not in the tool's reply) went into A29.

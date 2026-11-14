@@ -4653,10 +4653,10 @@ async def place_copper(ctx: Context, tracks: list = None, arcs: list = None, via
     removal, pour order). Everything is checked first (each net must exist,
     each layer must be a signal layer), so a bad entry adds nothing. Pours go
     in last, in pour_index order, and are poured around the copper added
-    with them. The nets the copper is on are analyzed afterwards, so the
-    ratsnest is current (this can join straight track segments that continue
-    each other; the copper stays the same). Run run_drc or
-    get_unrouted_connections afterwards.
+    with them. The connections of the nets the copper is on are rebuilt
+    afterwards, so the ratsnest is current: the ones the copper closes go,
+    the ones it leaves open stay. Run run_drc or get_unrouted_connections
+    afterwards.
 
     Each list takes entries in get_layout's form (mils, degrees):
         tracks: {net, layer, width, start: [x, y], end: [x, y]}
@@ -4767,18 +4767,15 @@ async def get_unrouted_connections(ctx: Context, designators: list = None, nets:
     wholly inside the area are listed: a group's own connections and the
     ones leaving it, not the rest of a board-wide net such as GND.
 
-    Altium does not update its ratsnest after copper added by a script, so
-    on a board with unsaved changes the nets are analyzed first. Analyzing
-    can join straight track segments that continue each other into one (the
-    copper stays the same), as Altium does after interactive routing. A
-    board with no unsaved change is not analyzed (its ratsnest is the one
-    built when it was opened), so the read leaves it unmodified.
+    The connections of the nets read are rebuilt from their copper first,
+    on any board (a board closed and reopened in the same Altium keeps the
+    connections it had in memory). Rebuilding changes no copper, and a board
+    with no unsaved change is left unmodified.
 
     Returns:
         JSON: connection_count, inside_count (both ends in the area),
-        by_net counts, area, analyzed (whether the nets were analyzed),
-        and connections (net, from, to, from_pad, to_pad, length in mils,
-        inside), longest first.
+        by_net counts, area, and connections (net, from, to, from_pad,
+        to_pad, length in mils, inside), longest first.
     """
     names, err = _names(designators, "designators")
     if err:
@@ -4822,7 +4819,6 @@ async def get_unrouted_connections(ctx: Context, designators: list = None, nets:
                        "inside_count": sum(1 for c in labelled if c["inside"]),
                        "by_net": dict(sorted(by_net.items(), key=lambda kv: -kv[1])),
                        "area": [round(v, 2) for v in box] if box else None,
-                       "analyzed": "Z|True" in text.splitlines(),
                        "missing_designators": missing, "connections": labelled[:max(0, limit)]}, indent=1)
 
 

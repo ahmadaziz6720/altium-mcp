@@ -10,7 +10,7 @@ Three sections: **Open**, not yet fixed; **Waiting**, fixed and not yet settled 
 merged, a fix not yet run in a session); **Closed**, merged upstream, run and held, or
 decided against, with the record.
 
-**Open: A3, A8, A9, A10 to A16.**
+**Open: A8, A9, A10 to A16.**
 
 A2, A7, A4 and A6 went out together in `build-20261112-120520` (owner, 2026-11-12), so one
 scenario test covers them; A3 and A8 were not waited for. That test ran and held for
@@ -208,7 +208,7 @@ unasked, and ending and restarting `X2.EXE` when Altium hangs.
   the main session puts in the SHA and the build after the release. Commits made after
   group 1's release go out with group 2's push. The run moved to a new session here, on
   the owner's word.
-- [ ] A3: committed (or left Open, why written into it)
+- [x] A3: committed (fixed through the ratsnest, `Net.Rebuild`; no DRC fallback)
 - [ ] A9: committed (or left Open, why written into it)
 - [ ] group 2: offline and live tests, pushed, released (build: …)
 - [ ] group 2: scenario test (session id: …), entry committed and sorted, release page
@@ -231,31 +231,6 @@ unasked, and ending and restarting `X2.EXE` when Altium hangs.
 ---
 
 ## Open
-
-**A3. `get_unrouted_connections` reports 0 for a net that is open.** After the only track
-between two pads of a 3-pad net was deleted (`delete_pcb_objects`), `run_drc` gave one
-Un-Routed Net violation for that net while `get_unrouted_connections(nets=[that net])`
-returned `connection_count` 0, four times, also after save, close and reopen. Its pass
-(`Board.AnalyzeNet` per net, then a board iterator on `eConnectionObject`) found no
-connection object on the board at all; every net had `ConnectsVisible` true. The board was
-in 3D view throughout, untested whether that matters; not yet seen on a board open from the
-start. Local, to reproduce first: a live test that deletes a track and expects the
-connection, in 2D and 3D view; if the connection objects cannot be had reliably, take the
-open connections from a DRC Un-Routed Net run instead. Usage until then:
-`run_drc(nets=[...])` gives the open connection with its ends. (2026-11-12, 3.)
-Reproduced 2026-11-12 in a session fixing A4, on a copy of the WiFi board of Altium's Mini PC
-example, freshly opened: every free track, arc and via of a 2-pad signal net removed by a
-script, then `get_unrouted_connections(nets=[it])` (nets analyzed, the board being
-modified) gave 0 while `run_drc(nets=[it])` gave the one Un-Routed Net between its two
-pads, and a board iterator on `eConnectionObject` found none on the whole board, before
-and after analyzing. On a copy of the Mini PC motherboard the same iterator found 564 after
-one net was analyzed. So it is not the 3D view alone; whether a board has connection
-objects at all varies.
-Met again 2026-11-12 (third entry, 7) without `AnalyzeNet`: a board saved with one
-connection open (DRC: 1 Un-Routed Net), closed and reopened, gave `analyzed` false and
-`connection_count` 0, and no `eConnectionObject` on the whole board; before the save, on
-the modified board, `analyzed` true also gave 0. So the ratsnest built at open lacks the
-connection objects too. 3D view throughout, 2D not tried.
 
 **A8. No tool to make a PcbLib from a board.** `RunProcess('PCB:MakeLibrary')` and
 `Client.SendMessage('PCB:MakeLibrary', ...)` from `run_altium_script` returned success and
@@ -367,6 +342,102 @@ Scenario test of that build held (2026-11-12, third entry, 2): 38 rules, the sco
 `filter2` only on binary rules. The reply went from 9.3k to 8.5k characters only (about
 9 %): what is left is mostly the key names and indentation repeated on every rule.
 Waits for the upstream PR.
+
+**A3. `get_unrouted_connections` reports 0 for a net that is open.** After the only track
+between two pads of a 3-pad net was deleted (`delete_pcb_objects`), `run_drc` gave one
+Un-Routed Net violation for that net while `get_unrouted_connections(nets=[that net])`
+returned `connection_count` 0, four times, also after save, close and reopen. Its pass
+(`Board.AnalyzeNet` per net, then a board iterator on `eConnectionObject`) found no
+connection object on the board at all; every net had `ConnectsVisible` true. The board was
+in 3D view throughout, untested whether that matters; not yet seen on a board open from the
+start. Local, to reproduce first: a live test that deletes a track and expects the
+connection, in 2D and 3D view; if the connection objects cannot be had reliably, take the
+open connections from a DRC Un-Routed Net run instead. Usage until then:
+`run_drc(nets=[...])` gives the open connection with its ends. (2026-11-12, 3.)
+Reproduced 2026-11-12 in a session fixing A4, on a copy of the WiFi board of Altium's Mini PC
+example, freshly opened: every free track, arc and via of a 2-pad signal net removed by a
+script, then `get_unrouted_connections(nets=[it])` (nets analyzed, the board being
+modified) gave 0 while `run_drc(nets=[it])` gave the one Un-Routed Net between its two
+pads, and a board iterator on `eConnectionObject` found none on the whole board, before
+and after analyzing. On a copy of the Mini PC motherboard the same iterator found 564 after
+one net was analyzed. So it is not the 3D view alone; whether a board has connection
+objects at all varies.
+Met again 2026-11-12 (third entry, 7) without `AnalyzeNet`: a board saved with one
+connection open (DRC: 1 Un-Routed Net), closed and reopened, gave `analyzed` false and
+`connection_count` 0, and no `eConnectionObject` on the whole board; before the save, on
+the modified board, `analyzed` true also gave 0. So the ratsnest built at open lacks the
+connection objects too. 3D view throughout, 2D not tried.
+Probe 2026-11-14, on copies of the WiFi board of Altium's Mini PC example, in 2D and in 3D
+view (switched with Altium's "3" key): the connection objects are there, and
+`Board.AnalyzeNet` is what removes them. The track of a 2-pad net deleted with
+`delete_pcb_objects` left one connection object on the net at once, in either view;
+`Board.AnalyzeNet` on that net then left none, in either view, and none came back (later
+scripts, `Board.ViewManager_FullUpdate`, `PCB:Zoom` redraw, `PCB:ShowConnections`,
+`Net.ConnectivelyInValidate`, `PCBServer.PreProcess`/`PostProcess` around it). A copy
+saved with the connection open and opened under a new name had it; the same board closed
+and reopened by script did not when it had been analyzed before its save: the reopened
+board is the one left in Altium's memory, not read again. So every case of this item is
+`AnalyzeNet`: the first call analyzed the modified board, and the reopened board was that
+same analyzed board. `Net.Rebuild` (and `Board.CleanNet`) brought the connection back, in
+either view. On five nets with their copper deleted (2-pad, 3-pad and with vias), the
+connection objects after `Net.Rebuild` were per net those of a DRC Un-Routed Net run, 6 in
+all, while the tool gave 0. `Net.Rebuild` on every net of a freshly opened board changed no
+track and left it unmodified (WiFi: 27 nets, 579 tracks, 0 connections; Mini PC
+motherboard: 837 nets in about 3 s, 48,299 tracks, 564 connections before and after),
+where `AnalyzeNet` had joined 11 of the motherboard's tracks (A4). `place_copper` also ran
+`AnalyzeNet` on the nets of its copper: a track laid half way between the two pads left
+no connection object (`Net.Rebuild` then gave the 1). Copper added by `route_track`
+(which does not analyze) updated the connection at once. The DRC way would have met a
+further stop: after copper under a pour is deleted, Altium answers the Run press with a
+"Design Rule Check" message (Run DRC, Cancel, Repour Polygons and Run DRC) that the
+dialog driver does not press, and `run_drc` waits (pressed by hand in the probe).
+Not explained: the 2026-11-12 reproduction saw no connection object before analyzing,
+after its own script removed the copper; `delete_pcb_objects` registers each removal with
+the board, which a bare `RemovePCBObject` may not.
+Cause: `get_unrouted_connections` and `place_copper` ran `Board.AnalyzeNet`, which removes
+every connection object of the net it analyzes, open or not, in 2D and 3D view.
+Fixed in the commit that moves it here: `get_unrouted_connections` rebuilds the
+connections of the nets it reads with `Net.Rebuild` on every call, the board's modified
+flag put back when it had no unsaved change (A4); its result no longer has `analyzed`.
+`place_copper` rebuilds the nets of its copper with `Net.Rebuild` instead of analyzing
+them, so the connections its copper leaves open stay on the board.
+Live test `tests/test_live_unrouted.py` (`ALTIUM_LIVE=1`, copies of the WiFi board, closed
+unsaved): the tracks of a 2-pad and a 3-pad net deleted, then the read on the changed
+board and again after save, close and reopen, in 2D
+(`test_deleted_copper_leaves_open_connections`) and in 3D
+(`test_deleted_copper_leaves_open_connections_in_3d`), each expecting
+`{"NetC39_1": 2, "NetDS1_2": 1}` with the pads named, the board's tracks unchanged and the
+reopened board left unmodified; and
+`test_place_copper_keeps_the_connections_it_leaves_open` (a half-way track leaves the
+connection object, the rest closes it). Before the fix all three failed: "AssertionError:
+{} != {'NetC39_1': 2, 'NetDS1_2': 1}" (both views) and "0 != 1 : place_copper removed an
+open connection"; A4's test passed. After: 4/4 of `test_live_unrouted` pass in AD25, the
+3D test run in 3D; `test_live_layout` (2, `place_copper`) and `test_live_drc` (12) pass.
+Offline: 281 tests pass.
+Decided 2026-11-14 by the run, not the owner: no DRC fallback and no `source` field,
+because the probe found a way that gives the connection objects reliably (`Net.Rebuild`,
+equal per net to DRC's Un-Routed Net, in both views), and the DRC way also stops on
+Altium's repour message after copper under a pour was deleted.
+Decided 2026-11-14 by the run, not the owner: the nets read are rebuilt on every call, also
+on a board with no unsaved change (its flag put back), not only on a modified one, because
+a board closed and reopened in the same Altium keeps the connections it had in memory, and
+a rebuild changes no copper and is quick.
+Decided 2026-11-14 by the run, not the owner: `place_copper` rebuilds instead of analyzing
+too, because its analysis took the open connections of every net it touched off the board,
+for Altium's own view and any reader that does not rebuild; `Net.Rebuild` over
+`Board.CleanNet`, which brought the connection back too, because only the rebuild was
+checked to change no copper on whole boards.
+Decided 2026-11-14 by the run, not the owner: `analyzed` is dropped from the result, because
+every call now rebuilds the nets it reads, so it would always be true.
+Decided 2026-11-14 by the run, not the owner: the 3D test switches the view with Altium's
+"3" key, Altium brought to the front (no key is sent when it is not), and tells 2D from 3D
+by the share of the top layer's red in a screenshot, skipping when either cannot be done,
+because no script call switched the view (`PCB:SwitchTo2D3D` with `Mode=3D`, `Mode=Toggle`,
+`ViewMode=3D` or none, by `RunProcess` and `Client.SendMessage`) and no document or view
+property read differs between the two. A board may open in 3D (a copy under a name last
+shown in 3D did), so the test leaves Altium in 2D.
+Local: on `ad25`, in the commit that moves it here; not yet in a build. Upstream: not yet
+decided.
 
 ## Closed
 

@@ -568,6 +568,7 @@ var
     PourList : TStringList;
     Prim     : IPCB_Primitive;
     Poly     : IPCB_Polygon;
+    Net      : IPCB_Net;
     Line, Kind, Problem : String;
     i, nT, nA, nV, nF, nR, nU : Integer;
     L1, L2   : Integer;
@@ -699,7 +700,9 @@ begin
             PCBServer.PostProcess;
         end;
         // Bring the ratsnest up to date on the nets the copper is on, or the
-        // lines it now connects stay drawn
+        // lines it now connects stay drawn. Net.Rebuild, not
+        // Board.AnalyzeNet: analyzing removes every connection of the net,
+        // the ones still open too, and joined straight track segments
         for i := 0 to Spec.Count - 1 do
         begin
             Kind := GetFieldFromPipeString(Spec[i], 0);
@@ -713,7 +716,10 @@ begin
                 Problems.Add(Problem);
         end;
         for i := 0 to Problems.Count - 1 do
-            Board.AnalyzeNet(FindBoardNet(Board, Problems[i]));
+        begin
+            Net := FindBoardNet(Board, Problems[i]);
+            if Net <> nil then Net.Rebuild;
+        end;
         Problems.Clear;
         Board.ViewManager_FullUpdate;
 
@@ -758,8 +764,9 @@ var
     Prim     : IPCB_Primitive;
     Lines    : TStringList;
     NetName  : String;
+    Net      : IPCB_Net;
     i        : Integer;
-    Analyze  : Boolean;
+    WasModified : Boolean;
     Doc      : IServerDocument;
 begin
     Board := GetBoardSafe(0);
@@ -791,32 +798,31 @@ begin
             end;
             Comp.GroupIterator_Destroy(GIt);
         end;
-        // Altium does not update the ratsnest after copper a script added, so
-        // a stale line can stay where copper now connects: analyze each net
-        // first (all 223 nets of a 6-layer board took 0.25 s).
-        // Net.ConnectivelyInValidate does not clear such a line. Analyzing can
-        // join straight track segments that continue each other; the copper
-        // stays the same, but the board is then modified. A board with no
-        // unsaved change is as it was loaded, its ratsnest built then, so it
-        // is not analyzed and a read leaves it unmodified.
-        // A board Altium has no document for (not expected) is analyzed.
+        // Rebuild each net's connections from its copper first (all 837 nets
+        // of a 16-layer board took about 3 s), whatever the board's state:
+        // the connections in memory can be wrong on a board with no unsaved
+        // change too, as one closed and reopened in the same Altium is the
+        // board left in memory. Not Board.AnalyzeNet: it removes every
+        // connection of the net, the open ones too (in 2D and 3D view), and
+        // joins straight track segments. Net.Rebuild changes no copper and
+        // marked no board modified; the flag is put back all the same, so a
+        // read leaves a board with no unsaved change unmodified.
         Doc := Client.GetDocumentByPath(Board.FileName);
-        Analyze := (Doc = nil) or DocumentModified(Doc);
-        if Analyze then
+        WasModified := (Doc = nil) or DocumentModified(Doc);
+        Iterator := Board.BoardIterator_Create;
+        Iterator.AddFilter_ObjectSet(MkSet(eNetObject));
+        Iterator.AddFilter_LayerSet(AllLayers);
+        Iterator.AddFilter_Method(eProcessAll);
+        Net := Iterator.FirstPCBObject;
+        while Net <> nil do
         begin
-            Iterator := Board.BoardIterator_Create;
-            Iterator.AddFilter_ObjectSet(MkSet(eNetObject));
-            Iterator.AddFilter_LayerSet(AllLayers);
-            Iterator.AddFilter_Method(eProcessAll);
-            Prim := Iterator.FirstPCBObject;
-            while Prim <> nil do
-            begin
-                if (NetNames.Count = 0) or (NetNames.IndexOf(UpperCase(Prim.Name)) >= 0) then
-                    Board.AnalyzeNet(Prim);
-                Prim := Iterator.NextPCBObject;
-            end;
-            Board.BoardIterator_Destroy(Iterator);
+            if (NetNames.Count = 0) or (NetNames.IndexOf(UpperCase(Net.Name)) >= 0) then
+                Net.Rebuild;
+            Net := Iterator.NextPCBObject;
         end;
+        Board.BoardIterator_Destroy(Iterator);
+        if not WasModified then
+            Doc.SetModified(False);
 
         Iterator := Board.BoardIterator_Create;
         Iterator.AddFilter_ObjectSet(MkSet(eConnectionObject));
@@ -834,7 +840,6 @@ begin
             Prim := Iterator.NextPCBObject;
         end;
         Board.BoardIterator_Destroy(Iterator);
-        Lines.Add('Z|' + BoolToStr(Analyze, True));
         Lines.Add('B|' + Board.FileName);
         Result := Lines.Text;
     finally

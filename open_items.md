@@ -10,7 +10,7 @@ Three sections: **Open**, not yet fixed; **Waiting**, fixed and not yet settled 
 merged, a fix not yet run in a session); **Closed**, merged upstream, run and held, or
 decided against, with the record.
 
-**Open: A8, A9, A10 to A16, A21.**
+**Open: A8, A10 to A16, A21.**
 
 A2, A7, A4 and A6 went out together in `build-20261112-120520` (owner, 2026-11-12), so one
 scenario test covers them; A3 and A8 were not waited for. That test ran and held for
@@ -211,7 +211,7 @@ unasked, and ending and restarting `X2.EXE` when Altium hangs.
   group 1's release go out with group 2's push. The run moved to a new session here, on
   the owner's word.
 - [x] A3: committed (fixed through the ratsnest, `Net.Rebuild`; no DRC fallback)
-- [ ] A9: committed (or left Open, why written into it)
+- [x] A9: committed
 - [ ] A21: committed (or left Open, why written into it)
 - [ ] group 2: offline and live tests, pushed, released (build: …)
 - [ ] group 2: scenario test (session id: …), entry committed and sorted, release page
@@ -240,11 +240,6 @@ unasked, and ending and restarting `X2.EXE` when Altium hangs.
 did nothing (no document, no dialog); it was done by hand through the menu. Local: find a
 way that works from a script (the process with its parameters, or building the library from
 the board's footprints through the PcbLib API), then a tool. (2026-11-12, 7.)
-
-**A9. `run_altium_script`'s compile check reads one declaration per `var` line.** A
-leading `var Board : IPCB_Board; Net : IPCB_Net; i : Integer;` on one line was refused
-before it ran, "'Net' is not declared"; one declaration per line passed. Delphi allows
-several. Local: read every declaration of the line. (2026-11-12, second entry, 2.)
 
 **A10. No tool to set up a project and its board.** `build_schematic` makes its sheet
 outside any project, as a free document, and no tool creates a `.PrjPcb`, adds a sheet to
@@ -453,6 +448,41 @@ property read differs between the two. A board may open in 3D (a copy under a na
 shown in 3D did), so the test leaves Altium in 2D.
 Local: on `ad25`, in the commit that moves it here; not yet in a build. Upstream: not yet
 decided.
+
+**A9. `run_altium_script`'s compile check reads one declaration per `var` line.** A
+leading `var Board : IPCB_Board; Net : IPCB_Net; i : Integer;` on one line was refused
+before it ran, "'Net' is not declared"; one declaration per line passed. Delphi allows
+several. Local: read every declaration of the line. (2026-11-12, second entry, 2.)
+Cause: `split_var_block` took a line as a declaration only when it held exactly one
+(`Name1, Name2 : Type;`), and `declared_names` read only what came before the first
+colon of a line. A `var` line with several declarations therefore gave one name
+(`Board`), the others (`Net`, `i`) were never known to `check_script`, and a later line
+of several declarations ended the block, leaving it in the script body. `lint_script`
+took every name of a line as `IDispatch` when any declaration of it was.
+Fix: `sandbox.py` reads every declaration of a line
+(`declarations`, with `declared_names` built on it): a declaration line may hold several,
+the `var` line and the lines after it, a comma list (`a, b : Integer`) included, and
+comments are ignored; `lint_script` treats as untyped only the names of the `IDispatch`
+declarations. Nothing that reaches Altium changed: the text put into the template is the
+same lines as before.
+Offline tests in `tests/test_sandbox.py` (6 new). Before the fix, 6 failed: "AssertionError:
+Lists differ: ['Board'] != ['Board', 'Net', 'i']" (`declared_names` of the line),
+"'Net' is not declared. Use a sandbox variable or declare it in a leading var block"
+(`check_script` on `var Board : IPCB_Board; Net : IPCB_Net; i : Integer;` and a
+body using all three), the block ended at a line of two declarations ("Lists differ: []
+!= ['A : Integer; B, C : String;', 'D : Double;']"), a comment's `E : Integer;` read as
+a declaration, and a lint check ("1 != 2") on an `IDispatch` line. After: 50 pass in
+`test_sandbox` and 288 in the offline list of `.github/workflows/tests.yml`.
+Not covered: a `var` section inside a nested procedure or function; the checker reads
+only the script's leading `var` block, as before.
+Decided 2026-11-14 by the run, not the owner: `a, b : Integer` and several declarations on
+a line read by one regular expression for a declaration, used for the block's split, the
+names and the lint, because one definition keeps the three from disagreeing again.
+Decided 2026-11-14 by the run, not the owner: a trailing comment on a declaration line
+stays `//` only, as before, because `{ }` and `(* *)` after a declaration were never read
+as part of the block and the item is about several declarations.
+Fixed in the commit that moves it here. Local: on `ad25`, in the commit that moves it here;
+not yet in a build. Upstream: not yet decided.
 
 ## Closed
 

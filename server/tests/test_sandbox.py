@@ -44,6 +44,26 @@ class VarBlockTest(unittest.TestCase):
         sp = sandbox.split_var_block("Variance := 1;")
         self.assertEqual(sp.decls, [])
 
+    def test_several_declarations_on_the_var_line(self):
+        sp = sandbox.split_var_block("var Board : IPCB_Board; Net : IPCB_Net; i : Integer;\nX := 1;")
+        self.assertEqual(sp.decls, ["Board : IPCB_Board; Net : IPCB_Net; i : Integer;"])
+        self.assertEqual(sp.body, ["X := 1;"])
+        self.assertEqual(sandbox.declared_names(sp.decls), ["Board", "Net", "i"])
+
+    def test_several_declarations_on_a_following_line(self):
+        sp = sandbox.split_var_block("var\n  A : Integer; B, C : String;\n  D : Double;\nX := 1;")
+        self.assertEqual(sp.decls, ["A : Integer; B, C : String;", "D : Double;"])
+        self.assertEqual(sp.decl_src, [2, 3])
+        self.assertEqual(sp.body, ["X := 1;"])
+        self.assertEqual(sandbox.declared_names(sp.decls), ["A", "B", "C", "D"])
+
+    def test_var_line_with_names_and_comment(self):
+        sp = sandbox.split_var_block("var a, b : Integer; // a : b; c : d;\nX := 1;")
+        self.assertEqual(sandbox.declared_names(sp.decls), ["a", "b"])
+        sp = sandbox.split_var_block("var\n  A : Integer; B : Integer; // E : Integer;\n  C : Integer; // D : Integer;\nX := 1;")
+        self.assertEqual(sp.body, ["X := 1;"])
+        self.assertEqual(sandbox.declared_names(sp.decls), ["A", "B", "C"])
+
 
 class CheckTest(unittest.TestCase):
     def check(self, script):
@@ -52,6 +72,22 @@ class CheckTest(unittest.TestCase):
 
     def test_scratch_and_declared_names_pass(self):
         self.assertEqual(self.check("var\n  Doc : IDispatch;\nDoc := nil;\nS9 := 'x';\nfor I4 := 1 to 2 do F1 := 0.5;"), [])
+
+    def test_every_declaration_of_a_var_line_is_known(self):
+        script = ("var Board : IPCB_Board; Net : IPCB_Net; i : Integer;\n"
+                  "Board := PCBServer.GetCurrentPCBBoard;\nNet := nil;\ni := 1;")
+        self.assertEqual(self.check(script), [])
+
+    def test_comma_list_and_later_declaration_lines_are_known(self):
+        script = ("var\n  a, b : Integer;\n  c : Integer; d, e : String;\n"
+                  "a := 1;\nb := 2;\nc := 3;\nd := 'x';\ne := 'y';")
+        self.assertEqual(self.check(script), [])
+
+    def test_a_name_in_a_comment_or_after_the_var_line_is_still_undeclared(self):
+        problems = self.check("var a : Integer; // z : Integer;\na := 1;\nz := 2;")
+        self.assertEqual(len(problems), 1)
+        self.assertIn("'z'", problems[0])
+        self.assertIn("line 3", problems[0])
 
     def test_undeclared_assignment(self):
         problems = self.check("S1 := 'a';\nS10 := 'b';")
@@ -108,6 +144,14 @@ class LintTest(unittest.TestCase):
                   "I1 := Prim.Corner.X;\nR := Comp.BoundingRectangle;\nI2 := Comp.BoundingRectangle.Left;")
         self.assertEqual(self.lint(script), [])
         self.assertEqual(len(self.lint("I1 := Obj3.BoundingRectangle.Left;")), 1)
+
+    def test_only_the_idispatch_declaration_of_a_line_is_checked_as_untyped(self):
+        script = ("var Prim : ISch_GraphicalObject; R : IDispatch; Q : IDispatch;\n"
+                  "I1 := Prim.Corner.X;\nI2 := R.Corner.X;\nI3 := Q.BoundingRectangle.Left;")
+        problems = self.lint(script)
+        self.assertEqual(len(problems), 2)
+        self.assertIn("line 3", problems[0])
+        self.assertIn("line 4", problems[1])
 
     def test_case_insensitive(self):
         self.assertEqual(len(self.lint("S1 := Obj1.getstate_descriptionstring;")), 1)

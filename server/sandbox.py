@@ -67,7 +67,10 @@ TEMPLATE_NAMES = (
     + ["IntMan", "DbDoc", "ResultText", "LogLines", "LogPath", "OutPath", "OutLines"]
 )
 
-_DECL_RE = re.compile(r"^\s*[A-Za-z_]\w*(\s*,\s*[A-Za-z_]\w*)*\s*:\s*[A-Za-z_][\w.]*\s*;\s*(//.*)?$")
+# One declaration, `Name1, Name2 : Type;`, and a line of one or more of them
+_ONE_DECL = r"[A-Za-z_]\w*(?:\s*,\s*[A-Za-z_]\w*)*\s*:\s*[A-Za-z_][\w.]*\s*;"
+_ONE_DECL_RE = re.compile(r"([A-Za-z_]\w*(?:\s*,\s*[A-Za-z_]\w*)*)\s*:\s*([A-Za-z_][\w.]*)\s*;")
+_DECL_RE = re.compile(r"^\s*(?:" + _ONE_DECL + r"\s*)+(//.*)?$")
 _ASSIGN_RE = re.compile(r"(?<![\w.\]\)])([A-Za-z_]\w*)\s*:=")
 _LINE_RE = re.compile(r"at Line:\s*(\d+),\s*Char:\s*(\d+)", re.IGNORECASE)
 
@@ -107,11 +110,18 @@ def split_var_block(script: str) -> SplitScript:
     return SplitScript(decls, src, lines[i:], i)
 
 
-def declared_names(decls: List[str]) -> List[str]:
-    names = []
+def declarations(decls: List[str]) -> List[tuple]:
+    """(names, type) of every declaration in `decls`: a line may hold several
+    (`A : Integer; B, C : String;`). Comments are ignored."""
+    out = []
     for d in decls:
-        names += [n.strip() for n in d.split(":", 1)[0].split(",") if n.strip()]
-    return names
+        for m in _ONE_DECL_RE.finditer(strip_strings_and_comments(d)):
+            out.append(([n.strip() for n in m.group(1).split(",")], m.group(2)))
+    return out
+
+
+def declared_names(decls: List[str]) -> List[str]:
+    return [n for names, _ in declarations(decls) for n in names]
 
 
 def strip_strings_and_comments(code: str) -> str:
@@ -316,8 +326,8 @@ def lint_script(body_lines: List[str], line_offset: int = 0, decls: List[str] = 
     """
     code = strip_strings_and_comments("\n".join(body_lines))
     untyped = ["Obj%d" % i for i in range(1, 10)] + [
-        name for d in decls if re.search(r":\s*IDispatch\s*;", d, re.IGNORECASE)
-        for name in declared_names([d])]
+        name for names, typ in declarations(list(decls)) if typ.lower() == "idispatch"
+        for name in names]
     # A record property (TLocation, TCoordRect) read through an IDispatch
     # variable crashed Altium; through a typed variable (ISch_GraphicalObject,
     # IPCB_Component, ...) it reads fine, and the production units do so

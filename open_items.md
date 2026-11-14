@@ -261,7 +261,7 @@ unasked, and ending and restarting `X2.EXE` when Altium hangs.
   to A33 new (Open, for the next run: decided by the run to keep this session to what the
   owner named, A29 and A30's probe). The scenario test ran once, not stopped, 99 turns.
 - [x] A29: committed
-- [ ] A30: probe, its result written into the item
+- [x] A30: probe, its result written into the item
 - [ ] A13: committed (or left Open, why written into it)
 - [ ] A14: committed (or left Open, why written into it)
 - [ ] A12: committed (or left Open, why written into it)
@@ -449,6 +449,84 @@ per call (it leaks on every launch now). Also worth a look: whether the running 
 takes commands another way (COM, DDE) without activating. Found: a decision with the owner
 before the build, as it changes the bridge upstream's tools all rest on; A22's guard stays
 either way. (The owner, 2026-11-14, after A22's commit.)
+
+Probed 2026-11-14 (live, AD25, the server not running; the scripts are in `dev/a30_probe/`).
+(1) Yes, from a script *project* only. A form shown with `Show` by
+`ScriptingSystem:RunScript(ProjectName=…)` outlives the script that showed it, and its
+`TTimer` (100 ms) kept firing: over 240 s with a call every 10 s, 24/24 served, no stall seen
+at a 0.2 s sampling. `RunScriptFile` cannot do it: it loads no `.dfm` ("Undeclared
+identifier: TProbeForm"), and DelphiScript takes no script routine as an event handler
+(`OnTimer := Proc`: "Invalid procedure usage"; `@Proc`: "Expression expected"). The form
+must stay visible: never shown, or shown and hidden in the same run, the script ends and
+the form is freed; shown borderless at -32000,-32000 it works. With the bridge's own units
+and a form unit in one project, its timer calling the bridge's `Run` whenever
+`request.json` is there: 30 calls, the reply after median 110 ms (max 153 ms), against
+median 1.90 s (max 2.02 s) for the same request through a launch of the bundle, 1.86 s of
+it before the script takes the request.
+(2) The timer fires while Altium shows a modal message (`ShowMessage`), while another
+script's runtime-error dialog is up, and while that script sits stopped after it: 5/5 calls
+served in each, about 110 ms. A request is then served inside a modal loop, so A24's rule
+(no call while a message is open) has to be checked by the server before it writes the
+request. While another script runs it fires only if that script pumps messages
+(`Application.ProcessMessages`: a request is served in the middle of that script); one that
+does not holds it off for its whole run (a 5.05 s gap for a 5 s loop). Scripts launched
+beside it run (30 bundle launches, 34 trivial ones); `-REditScript:Stop` with nothing
+stopped leaves it alive. It does not block Altium's UI: a window-message round trip median
+0.99 ms, p99 2.86 ms with it, 0.98 and 2.65 ms without; Altium's CPU 11.15 % against
+10.94 % of one core, idle. A runtime error inside its own handler (a command's) ends it:
+Altium shows a plain "Error" box (OK only) and opens the unit's source in its editor, the
+timer stops for good (a `try`/`finally` around the call did not keep it), and the next
+`-REditScript:Stop` frees the form. An exception from its own file write did the same once
+("Cannot create file … being used by another process": the probe was reading the heartbeat
+file at that moment), so the server must read such a file by its time only, never opening
+it. Once, not reproduced in three tries, a form stopped after a launch was refused behind
+another script stopped in the debugger.
+(3) It dies with Altium; it is started by one `RunScript` of its project, 2.3 s (Altium
+takes the front once, as at every launch now, which A22's guard handles). Not tried across
+a real restart: the process ends, so the form does, and the server starts it again at the
+first call that finds no window of it. A second launch of the same project while it lives
+is refused ("Another script executing now", an Error box, and the launch after it "There is
+another instance of running, but it is busy", an Information box), so the server checks it
+is alive before starting it: its window (by its caption, of X2.EXE, not hung) and a
+heartbeat file's time. A command it serves holds the heartbeat still, so a still heartbeat
+while a request is in flight is not a death. Each `RunScript` of a project adds that
+project to Altium's Projects panel; closing it there (`Client.CloseDocument`) left the form
+running.
+(4) Memory: 30 launches of the bundle, +3.9 MB private bytes (0.13 MB per call), GDI and
+USER objects unchanged; 30 launches of a trivial script file, +0.0 MB; 30 calls served by
+the resident, +0.0 MB and handles unchanged; the resident's own start, +1.4 to 4.5 MB and
++13 GDI, +26 USER objects, once.
+(5) No other way in found. The Running Object Table holds nothing of Altium;
+`GetActiveObject` on `Altium.Application`, `AltiumDesigner.Application`, `DXP.Application`,
+`X2.Application`, `DXP.Client` and `Altium.Client`: "Invalid class string"; the 104 HKCR keys
+naming Altium are file types, the Mechatronic `SolidSDK` classes ("Operation unavailable")
+and the URL protocols `DXP:` and `DXPProcess:`, whose open command is `X2.exe "%1"`, the
+same command line. No DDE server answered (services DXP, Altium, X2, AltiumDesigner,
+Client, ADVPCB, PROTEL; topics System, Client and the service's name). Not tried: the
+message a second X2.EXE hands its command line to the first with; the activation is in the
+first's handling of it.
+(6) 10 calls served by the resident with a window of another process in front: Altium in
+front 0 ms, 0 times, the window kept the foreground; 3 unguarded launches of a script file:
+Altium in front 3 times. Two traps met on the way: a script file with LF line ends does not
+compile ("Error in declaration block at Line:3, Char:53"), and a `FileName` holding a space,
+unquoted, starts a second X2.EXE instead of reaching the running one (the server's exchange
+folder has none).
+Recommended by the run, for the owner's decision: build it, as the first path, with the
+launch per call kept as its fallback. A form unit (about 80 lines) in the bridge's project,
+started by one guarded `RunScript` at a call that finds no window of it; the server checks
+it alive and that no Altium message is open, writes `request.json` as now and, when it is
+not taken within about 1 s, falls back to the launch it does now (which also covers a
+resident ended by a runtime error: `-REditScript:Stop` as now, and the resident started
+again at the next call). Its heartbeat carries the bundle's hash, and a resident of another
+build is told to close (a stop file) and started again, so a new release never serves with
+old code. Gains: about 1.8 s and 0.13 MB per call, and no activation at all for a served
+call (A22's 1 to 7 ms window and A31's gaps go away for those). Costs and risks: re-entrancy
+(a request served inside a modal loop or inside a user's script that pumps messages; the
+server's check before writing covers the first, nothing covers the second), one script
+project in the Projects panel and an off-screen form of Altium's for the session, a
+runtime error still opening the bridge's source in Altium's editor, and a second path to
+test (live tests: it serves, lasts minutes, takes no foreground, falls back once it is
+gone, comes back after a runtime error). A22's guard stays for the launches.
 
 **A31. A22's guard misses a call that starts with no window in front.** `ForegroundGuard`
 keeps nothing when `GetForegroundWindow` is 0 at the start, so for that whole call Altium

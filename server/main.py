@@ -5635,6 +5635,9 @@ async def run_drc(ctx: Context, board_path: str = "", max_violations: int = 200,
     The violations stay on the board, marked as Altium marks them. A board
     with no unsaved change is left unmodified ("board_modified": false), so
     its markers are not saved unless the board is saved for another change.
+    So is its project file ("project", "project_modified", given for a
+    board in a project): the check adds its report to the project's
+    generated documents, which is saved only with another change.
 
     A cancelled check leaves no violations, exactly like a clean board, so
     "ran" says whether the check really ran: the Run button was pressed and
@@ -5989,7 +5992,9 @@ async def get_project_info(ctx: Context) -> str:
 
     Returns:
         str: JSON with project_path, parameters [{name, value}],
-             schematic_sheet_count, modified_document_count, documents
+             schematic_sheet_count, project_modified (the project file
+             itself has unsaved changes), modified_document_count (the
+             documents modified, the project file included), documents
              [{path, kind, state}] where state is "closed", "open" or
              "modified" (unsaved changes in memory), and variants
              [{name, variations [{designator, kind}]}] where kind is

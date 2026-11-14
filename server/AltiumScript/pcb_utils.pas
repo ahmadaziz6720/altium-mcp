@@ -1925,6 +1925,29 @@ begin
     end;
 end;
 
+// The project file a board is a document of, or '' for a board under Free
+// Documents (which has no file)
+function BoardProjectPath(BoardPath: String): String;
+var
+    Project : IProject;
+    P, I    : Integer;
+    Want    : String;
+begin
+    Result := '';
+    Want := NormalizedPath(BoardPath);
+    for P := 0 to GetWorkspace.DM_ProjectCount - 1 do
+    begin
+        Project := GetWorkspace.DM_Projects(P);
+        if (Project <> nil) and not SameText(Project.DM_ProjectFullPath, 'Free Documents') then
+            for I := 0 to Project.DM_LogicalDocumentCount - 1 do
+                if NormalizedPath(Project.DM_LogicalDocuments(I).DM_FullPath) = Want then
+                begin
+                    Result := Project.DM_ProjectFullPath;
+                    Exit;
+                end;
+    end;
+end;
+
 // Run the design rule check on the focused board and list the violations it
 // leaves on the board. PCB:DesignRuleCheck opens the modal Design Rule
 // Checker dialog and returns once it closes; run_drc presses its Run button
@@ -1940,6 +1963,9 @@ var
     RuleName  : String;
     Doc       : IServerDocument;
     WasModified : Boolean;
+    ProjectPath : String;
+    ProjectDoc  : IServerDocument;
+    ProjectWasModified : Boolean;
 begin
     Board := GetBoardSafe(0);
     if Board = nil then
@@ -1954,12 +1980,22 @@ begin
     // and a later check makes them again.
     Doc := Client.GetDocumentByPath(Board.FileName);
     WasModified := (Doc = nil) or DocumentModified(Doc);
+    // The first check after a project is opened adds its report to the
+    // project's generated documents, which marks the project file modified.
+    // A project with no unsaved change is left so for the same reason.
+    ProjectPath := BoardProjectPath(Board.FileName);
+    ProjectDoc := nil;
+    if ProjectPath <> '' then
+        ProjectDoc := Client.GetDocumentByPath(ProjectPath);
+    ProjectWasModified := (ProjectDoc = nil) or DocumentModified(ProjectDoc);
 
     ResetParameters;
     RunProcess('PCB:DesignRuleCheck');
 
     if not WasModified then
         Doc.SetModified(False);
+    if not ProjectWasModified then
+        ProjectDoc.SetModified(False);
 
     Items := TStringList.Create;
     ResultProps := TStringList.Create;
@@ -2011,6 +2047,11 @@ begin
         AddJSONBoolean(ResultProps, 'success', True);
         AddJSONProperty(ResultProps, 'board', Board.FileName);
         AddJSONBoolean(ResultProps, 'board_modified', (Doc = nil) or DocumentModified(Doc));
+        if ProjectDoc <> nil then
+        begin
+            AddJSONProperty(ResultProps, 'project', ProjectPath);
+            AddJSONBoolean(ResultProps, 'project_modified', DocumentModified(ProjectDoc));
+        end;
         AddJSONInteger(ResultProps, 'violation_count', Count);
         ResultProps.Add(BuildJSONArray(Items, 'violations'));
         Result := BuildJSONObject(ResultProps);

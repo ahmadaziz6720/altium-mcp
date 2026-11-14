@@ -1439,7 +1439,8 @@ begin
     end;
 end;
 
-// Focused project: parameters, documents (with unsaved-changes flag) and variants
+// Focused project: parameters, documents (with unsaved-changes flag), the
+// project file's own flag, and variants
 function GetProjectInfo(ROOT_DIR: String): String;
 var
     Project      : IProject;
@@ -1458,6 +1459,7 @@ var
     ItemProps    : TStringList;
     OutputLines  : TStringList;
     OpenState    : String;
+    ProjectModified : Boolean;
 begin
     Project := GetWorkspace.DM_FocusedProject;
     if Project = Nil then
@@ -1533,8 +1535,20 @@ begin
             end;
         end;
 
+        // The project file is a document of its own: closing the project asks
+        // to save it when it has an unsaved change (a design rule check, for
+        // one, adds its report to the generated documents)
+        ProjectModified := False;
+        ServerDoc := Client.GetDocumentByPath(Project.DM_ProjectFullPath);
+        if (ServerDoc <> Nil) and DocumentModified(ServerDoc) then
+        begin
+            ProjectModified := True;
+            Inc(ModifiedCount);
+        end;
+
         ResultProps.Add(BuildJSONArray(ParamsArray, 'parameters'));
         AddJSONInteger(ResultProps, 'schematic_sheet_count', SchCount);
+        AddJSONBoolean(ResultProps, 'project_modified', ProjectModified);
         AddJSONInteger(ResultProps, 'modified_document_count', ModifiedCount);
         ResultProps.Add(BuildJSONArray(DocsArray, 'documents'));
         ResultProps.Add(BuildJSONArray(VariantsArray, 'variants'));

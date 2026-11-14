@@ -10,7 +10,7 @@ Three sections: **Open**, not yet fixed; **Waiting**, fixed and not yet settled 
 merged, a fix not yet run in a session); **Closed**, merged upstream, run and held, or
 decided against, with the record.
 
-**Open: A3, A5, A8, A9, A10 to A16, A19, A20.**
+**Open: A3, A5, A8, A9, A10 to A16, A20.**
 
 A2, A7, A4 and A6 went out together in `build-20261112-120520` (owner, 2026-11-12), so one
 scenario test covers them; A3 and A8 were not waited for. That test ran and held for
@@ -186,7 +186,12 @@ files; `run_drc` first, as A3's way out uses it):
 **Where the run stands** (ticked and committed after each step; a session that starts
 reads from the first step not ticked):
 
-- [ ] A19: committed (or left Open, why written into it)
+Opening answer (the owner, 2026-11-14): yes to all of it, for all five groups: the push of
+`ad25` before each release (the two plan commits with the first), the tag, the
+registration, the release page, the scenario tests headless, the commit of their entries
+unasked, and ending and restarting `X2.EXE` when Altium hangs.
+
+- [x] A19: committed
 - [ ] A20: committed (or left Open, why written into it)
 - [ ] A5: committed (or left Open, why written into it)
 - [ ] group 1: offline and live tests, pushed, released (build: …)
@@ -312,20 +317,6 @@ a datasheet leaves its library without the link, and each placement must give it
 Local: a `FOOTPRINT` record (model name, library, current or not) in the symbol batch, and
 the same in `create_schematic_symbol`.
 
-**A19. `run_drc` leaves the project file modified, and `get_project_info` does not say
-so.** The first `run_drc` after a project is opened marks the `.PrjPcb` modified while the
-board stays unmodified (A17 held). Saved, the project file gains a `[GeneratedDocument1]`
-section naming the DRC report's `.html` in the project's output folder, and two existing
-sections move. Later checks do not mark it again (the entry is there), also after the
-output folder is deleted; a fresh open of the project does, on its first `run_drc`.
-`get_project_info` gives `modified_document_count` 0 and no entry for the project file, so
-the "nothing unsaved" check reads clean while closing the project asks to save it. Near
-A5 (files a read leaves behind). Local: leave the project as the tool found it, as A17
-does the board (its flag read before the check and cleared after when it had no unsaved
-change), and give the project file's own state in `get_project_info`. Usage until then:
-close the project with its flag cleared (`SetModified(False)` on the `.PrjPcb`
-document). (2026-11-14, second entry, 3.)
-
 **A20. `run_drc`'s report ignores the rule filter.** `run_drc(rules=[one kind])` whose
 filter matched no violation still returned the per-rule report of all 14 rules, about
 2.1k characters a call; nine calls were 26k of a session's 47k characters. Local: the
@@ -378,6 +369,47 @@ Scenario test of that build held (2026-11-12, third entry, 2): 38 rules, the sco
 `filter2` only on binary rules. The reply went from 9.3k to 8.5k characters only (about
 9 %): what is left is mostly the key names and indentation repeated on every rule.
 Waits for the upstream PR.
+
+**A19. `run_drc` leaves the project file modified, and `get_project_info` does not say
+so.** The first `run_drc` after a project is opened marks the `.PrjPcb` modified while the
+board stays unmodified (A17 held). Saved, the project file gains a `[GeneratedDocument1]`
+section naming the DRC report's `.html` in the project's output folder, and two existing
+sections move. Later checks do not mark it again (the entry is there), also after the
+output folder is deleted; a fresh open of the project does, on its first `run_drc`.
+`get_project_info` gives `modified_document_count` 0 and no entry for the project file, so
+the "nothing unsaved" check reads clean while closing the project asks to save it. Near
+A5 (files a read leaves behind). Local: leave the project as the tool found it, as A17
+does the board (its flag read before the check and cleared after when it had no unsaved
+change), and give the project file's own state in `get_project_info`. Usage until then:
+close the project with its flag cleared (`SetModified(False)` on the `.PrjPcb`
+document). (2026-11-14, second entry, 3.)
+Cause: the first `PCB:DesignRuleCheck` after a project is opened adds its report to the
+project's generated documents, which marks the `.PrjPcb` document modified, whether the
+check finds violations or not (reproduced 2026-11-14 on a copy of the WiFi board's
+project of Altium's Mini PC example: 0 violations, project file marked). `get_project_info`
+walked the project's logical documents only, so the project file itself was never read.
+Fixed in the commit that moves it here: `run_drc`'s script finds the project the board is
+a document of (none for a board under Free Documents), reads its document's flag before
+the check and clears it after when the project had no unsaved change, as A17 does the
+board; the result gives `project` and `project_modified` for a board in a project. The
+generated-documents entry stays in memory and is saved with the project's next save.
+`get_project_info` gives `project_modified` (the `.PrjPcb` document's own flag) and counts
+it in `modified_document_count`. Live test `tests/test_live_drc.py`, class
+`LiveDrcProjectTest` (`ALTIUM_LIVE=1`, a copy of the WiFi project folder, its board given
+a via-to-via clearance rule it fails and saved, then the project opened with
+`DM_OpenProject` before its board, fresh for each test, everything under the copy closed
+unsaved after): before the fix both tests failed ("True is not false : the check left the
+project file modified"; with the project marked by script, `get_project_info` had no
+`project_modified` and `modified_document_count` 0). After: 5/5 of `test_live_drc` pass
+in AD25 (the two new, A17's two, A18's one); the old class now also closes the DRC
+reports its checks opened (helper `close_all_under` in `tests/live_altium.py`, with
+`open_project`). Offline: 271 tests pass.
+Decided 2026-11-14 by the run, not the owner: a board under Free Documents gives no
+`project` or `project_modified`, and the project file is not added to `documents` in
+`get_project_info`, because Free Documents has no file to save, and `documents` lists the
+project's own documents, which a caller walks by kind.
+Local: on `ad25`, in the commit that moves it here; not yet in a build. Upstream: not yet
+decided.
 
 ## Closed
 

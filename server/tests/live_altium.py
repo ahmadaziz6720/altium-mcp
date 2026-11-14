@@ -83,3 +83,26 @@ def close(name):
            "    Client.CloseDocument(Obj1);\n"
            "end;\n"
            "ResultText := 'closed';")
+
+
+def open_project(path):
+    """Open a .PrjPcb as a project, before its board: a board opened alone
+    lands under Free Documents. Returns the project's path as Altium has it."""
+    return script(f"Obj1 := GetWorkspace.DM_OpenProject('{path}', True);\n"
+                  "ResultText := Obj1.DM_ProjectFullPath;").strip()
+
+
+def close_all_under(folder):
+    """Close unsaved every open document whose name holds folder: a project,
+    its documents and the reports Altium opened for it (a report is open
+    under a file:/// name, which Client.GetDocumentByPath does not find)."""
+    script("var\n  I, J : Integer;\n  M : IServerModule;\n  D : IServerDocument;\nbegin\n"
+           "for I := 0 to Client.Count - 1 do\nbegin\n"
+           "  M := Client.ServerModule[I];\n"
+           "  for J := M.DocumentCount - 1 downto 0 do\n  begin\n"
+           "    D := M.Documents[J];\n"
+           f"    if Pos(UpperCase('{folder}'), UpperCase(D.FileName)) > 0 then\n    begin\n"
+           "      D.SetModified(False);\n"
+           "      Client.CloseDocument(D);\n"
+           "    end;\n  end;\nend;\n"
+           "ResultText := 'closed';\nend;")

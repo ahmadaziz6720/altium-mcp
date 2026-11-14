@@ -7,5 +7,9 @@
   "identity": "Ahmad Aziz",
   "meaningful_extra": [
     "closes or fixes an A-item in open_items.md"
+  ],
+  "pr_repo": "coffeenmusic/altium-mcp",
+  "no_pr": [
+    "ad25"
   ]
 }

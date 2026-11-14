@@ -169,3 +169,41 @@ A checkout of `ad25` driven from its live tests (`ALTIUM_LIVE=1`), not a release
 
 Sorted into A18 (2). Not filed (1): a lesson for scripts after `run_drc`, in the paragraph
 on live tests at the top of `open_items.md`.
+
+**2026-11-14: scenario test of a release fixing `run_drc` (A17, A18), on a small 2-layer board (read, edit, short checks of project, silkscreen, footprint library, output job)**
+
+Release `bin\0.7.0-20261114-145312` (build line `0.7.0-ad25-20261114-145312 1abba5f`).
+
+1. `run_drc` (A17, held): on a freshly opened board with no unsaved change, after
+   `get_board_summary`, `get_pcb_layer_stackup` and `get_all_nets`, one full `run_drc`
+   gave `ran` true, 4 violations (the baseline), `board_modified` false; the board stayed
+   "open" in `get_project_info`, Altium's own document flag read 0 by script, and a board
+   iterator still found the 4 violation objects. On the same board with unsaved changes
+   (5 tracks deleted) `board_modified` true, and true again after a route was added, as
+   the tool says. After a save, close and reopen, `board_modified` false again.
+2. `run_drc` (A18, held as far as met): three times the board was closed unsaved and
+   reopened by script, and the first `run_drc` after it gave `ran` true each time, with
+   the report rewritten by that call (file times after the call's start; the third time
+   the old report was deleted first and the call wrote a new one). The `ran` false path
+   was not met, so "no `report` when the check did not run" was not seen live.
+3. New, near A17: the first `run_drc` after a project is opened leaves the **project
+   file** (`.PrjPcb`) marked modified, while the board is not. Saved, the project file's
+   diff is a new `[GeneratedDocument1]` section naming the DRC report's `.html` in the
+   project's output folder, plus two existing sections moved. Clearing the project's
+   flag and running `run_drc` again did not mark it again (the entry is there already),
+   also after the output folder was deleted; a fresh open of the project marked it again
+   on its first `run_drc`. `get_project_info` does not show it: `modified_document_count`
+   0 and no entry for the project file, so the "nothing unsaved" check reads clean while
+   closing the project would ask to save it. Workaround: close the project with its flag
+   cleared (`SetModified(False)` on the `.PrjPcb` document). Expected: either the tool
+   leaves the project as it found it, as it does the board, or `get_project_info` reports
+   the project file's own state.
+4. Wasteful, small: `run_drc(rules=[one kind])` whose filter matched 0 still returned the
+   whole per-rule report, 14 rules, about 2.1k characters each call; nine `run_drc` calls
+   were 26k of the session's 47k characters. A filter could narrow the report to the
+   rules asked for, or the report to the rules with violations.
+5. Lesson for scripts that open a project: `Client.OpenDocument('PrjPcb', <path>)` then
+   opening its board put the board under "Free Documents" (`get_project_info` named Free
+   Documents); `GetWorkspace.DM_OpenProject(<path>, True)` before opening the board
+   works. After `run_drc`, `Client.GetDocumentByPath(<report .html path>)` returns nil
+   (the report is open under a `file:///` name), so a script cannot close it that way.

@@ -10,7 +10,7 @@ Three sections: **Open**, not yet fixed; **Waiting**, fixed and not yet settled 
 merged, a fix not yet run in a session); **Closed**, merged upstream, run and held, or
 decided against, with the record.
 
-**Open: A8, A11 to A15, A23, A25 to A33.**
+**Open: A8, A11 to A15, A23, A25 to A28, A30 to A33.**
 
 A2, A7, A4 and A6 went out together in `build-20261112-120520` (owner, 2026-11-12), so one
 scenario test covers them; A3 and A8 were not waited for. That test ran and held for
@@ -260,7 +260,7 @@ unasked, and ending and restarting `X2.EXE` when Altium hangs.
   committed and sorted, release page; A22 and A24 held for what they asked and Closed, A31
   to A33 new (Open, for the next run: decided by the run to keep this session to what the
   owner named, A29 and A30's probe). The scenario test ran once, not stopped, 99 turns.
-- [ ] A29: committed (or left Open, why written into it)
+- [x] A29: committed
 - [ ] A30: probe, its result written into the item
 - [ ] A13: committed (or left Open, why written into it)
 - [ ] A14: committed (or left Open, why written into it)
@@ -433,26 +433,6 @@ into the project in focus, as A10's probe found for a sheet. Local: `create` for
 and `.PcbLib` in `add_project_document`, or a library made by the symbol and footprint
 tools when missing. (2026-11-14, fifth entry, 7.) For the next run.
 
-**A29. A message with choices blocks Altium until someone answers it.** Since A24 a
-message Altium puts up during a call that has choices (Yes/No, OK/Cancel) or another single
-button ends the call at once, named, with a picture of it, and is left open; every later
-call is refused while it is up. So the call no longer waits, but Altium does: nothing the
-server has can answer it, and only the owner, at Altium's screen, can (the owner,
-2026-11-14: "bikin agent nunggu gw dong"). The server should not choose an answer itself:
-"No" to a save question throws work away, and "Cancel" in the middle of a command can leave
-the design half changed. Local: a tool that answers an open Altium message with one of its
-buttons by caption (`answer_altium_message`, e.g. `button="Cancel"`), its list of open
-messages with title, buttons and picture when called with none, and the answer read back
-(the window gone, what the waiting command then answered); the A24 failure and refusal
-naming the tool. The agent, which sees the picture and knows what it was doing, answers,
-and asks the owner only when unsure. A live test: a script's `MessageDlg` with Yes/No
-(`tests/test_live_windows.py`'s `MessageTest` puts one up), answered "No" by the tool, the
-script's reply read back. (The owner, 2026-11-14, after A24's commit.)
-Also, from the scenario test of `build-20261114-225815` (2026-11-14, sixth entry, 4):
-each refusal writes a new picture of the same window, and the `altium_messages` list
-reaches the tool's reply only as the error text: one picture per window, and the list
-in the reply, with the tool.
-
 **A30. A script launch per call is what brings Altium to the front.** A22's guard gives
 the foreground back within 1 to 7 ms, but every call still starts
 `X2.EXE -RScriptingSystem:RunScriptFile(…)`, and Altium activates itself on each such
@@ -555,6 +535,73 @@ Scenario test of that build held (2026-11-12, third entry, 2): 38 rules, the sco
 `filter2` only on binary rules. The reply went from 9.3k to 8.5k characters only (about
 9 %): what is left is mostly the key names and indentation repeated on every rule.
 Waits for the upstream PR.
+
+**A29. A message with choices blocks Altium until someone answers it.** Since A24 a
+message Altium puts up during a call that has choices (Yes/No, OK/Cancel) or another single
+button ends the call at once, named, with a picture of it, and is left open; every later
+call is refused while it is up. So the call no longer waits, but Altium does: nothing the
+server has can answer it, and only the owner, at Altium's screen, can (the owner,
+2026-11-14: "bikin agent nunggu gw dong"). The server should not choose an answer itself:
+"No" to a save question throws work away, and "Cancel" in the middle of a command can leave
+the design half changed. Local: a tool that answers an open Altium message with one of its
+buttons by caption (`answer_altium_message`, e.g. `button="Cancel"`), its list of open
+messages with title, buttons and picture when called with none, and the answer read back
+(the window gone, what the waiting command then answered); the A24 failure and refusal
+naming the tool. The agent, which sees the picture and knows what it was doing, answers,
+and asks the owner only when unsure. A live test: a script's `MessageDlg` with Yes/No
+(`tests/test_live_windows.py`'s `MessageTest` puts one up), answered "No" by the tool, the
+script's reply read back. (The owner, 2026-11-14, after A24's commit.)
+Also, from the scenario test of `build-20261114-225815` (2026-11-14, sixth entry, 4):
+each refusal writes a new picture of the same window, and the `altium_messages` list
+reaches the tool's reply only as the error text: one picture per window, and the list
+in the reply, with the tool.
+Cause: nothing in the server pressed a button other than a lone OK or Close, and nothing
+kept the command left waiting, so its late reply was dropped by the next call (which
+deletes any leftover reply); the refusal took a new picture of the same window at each
+call. Fix: `answer_altium_message` (`main.py`, `altium_messages.py`). With no `button` it
+lists Altium's open message windows (title, class, buttons, picture, and
+`command_waiting` on the one a call of this server left its command waiting on),
+changing nothing, and gives that command's reply once it is in. With a `button` it picks
+the only open message or the one with that `title` (any case), presses the button by
+caption (`button_key`: no `&`, any case), and, when it is the message the left command
+waits on (or that one is gone and this may be its next), waits for that command's reply,
+told apart by its `request_id`: `outcome` "replied" with `reply`, "another_message" (the
+command met a further message, named with its picture, left open), "no_reply_yet" after
+`wait_seconds` (60) without progress, said so, or "no_command_waiting". A caption the
+message does not have, no message, several and no title, or two with the same title:
+fails, naming them, nothing pressed. A24's failure ("left open") and refusal ("Not run")
+now say "answer it with answer_altium_message (…) or in Altium". One picture per window:
+`altium_messages.Pictures`, kept by handle, class, title and buttons, dropped once the
+window is gone.
+Decided 2026-11-14 by the run, not the owner: listing takes no lock; pressing takes this
+server's command lock and then the exchange lock, each with a bounded 10 s wait
+(`ANSWER_LOCK_WAIT`), and presses nothing when one stays held, because the script waiting
+on the message holds neither lock (the call that launched it ended and let both go), so
+no wait here can deadlock with it, and holding both until the reply is read keeps a new
+request from deleting that reply; an exchange lock held by another session means the
+message may be that session's, which is not this caller's to answer.
+Decided 2026-11-14 by the run, not the owner: a button named by the caller is pressed by
+a posted click, then `BM_CLICK`, never by closing the window, because a close gives the
+script another answer than the one asked for (A32 (a): Cancel, 2); a further message met
+while waiting for the reply is named and left, even an OK-only one, because the tool
+answers only what the caller asked.
+Decided 2026-11-14 by the run, not the owner: the reply is taken only with the waiting
+command's `request_id` (one without it is not), because a reply of another request would
+be a wrong result.
+Decided 2026-11-14 by the run, not the owner: the `altium_messages` list is not added to
+the reply of every tool (they pass on only the error text, which names each message's
+title, buttons and picture); the list, with the pictures, is `answer_altium_message`'s
+reply with no button, because that is the smaller change and the error already names the
+tool.
+Live test `tests/test_live_windows.py` (`AnswerTest`, the script's `MessageDlg` with Yes
+and No; `MESSAGE_SCRIPT` now echoes the request's `request_id`, as the bridge does):
+before, 4/4 fail: "module 'main' has no attribute 'answer_altium_message'" (3) and "a new
+picture per refusal" (three files of one window); after, 4/4 pass ("No" pressed, the window
+gone, the reply "answered 7" read back, the next call run; the listing with the picture,
+the window still open; "Cancel" failing with "its buttons are Yes, No"; one picture), the
+file 9/9 in 56 s. Offline tests in `test_altium_messages.py` (40, 24 new); offline 392 OK.
+Local: on `ad25`, in the commit that moves it here; not yet in a build. Upstream: not yet
+decided.
 
 ## Closed
 

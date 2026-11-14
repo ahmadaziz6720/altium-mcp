@@ -13,13 +13,20 @@ reads Altium's top-level message windows while it waits:
   naming it: no answer is safe to give for them;
 - a call made while such a message is still open is not run.
 
+The server never answers a message with choices itself; the caller does,
+with answer_altium_message (A29): it lists the open messages, presses the
+button asked for by its caption, and reads back what the command that waited
+on the message then answered.
+
 Altium's own message boxes (TMessageForm) draw their text where it cannot be
-read from outside, so each message is kept as a picture too.
+read from outside, so each message is kept as a picture too, one per window.
 """
 import ctypes
+import json
+import os
 import time
 from dataclasses import dataclass, field
-from typing import Callable, Dict, List, Optional
+from typing import Callable, Dict, List, Optional, Tuple
 
 from sandbox import _process_name, _window_text
 
@@ -35,6 +42,10 @@ GRACE = 1.0
 MAX_PRESSES = 3
 SAFE_BUTTONS = ("ok", "close")
 WM_CLOSE, WM_LBUTTONDOWN, WM_LBUTTONUP, MK_LBUTTON = 0x0010, 0x0201, 0x0202, 0x0001
+BM_CLICK = 0x00F5
+# How a result tells the caller to answer a message the server leaves open
+HOW_TO_ANSWER = ("answer it with answer_altium_message (button = one of its buttons; with no "
+                 "button it lists the open messages and their pictures) or in Altium")
 
 
 def button_key(text: str) -> str:
@@ -117,21 +128,27 @@ def find(handled: Optional[Callable[["Message"], bool]] = None) -> List[Message]
     return found
 
 
-def press(m: Message) -> bool:
-    """Press a message's only button (a posted click, which Altium's own
-    buttons take where they ignore BM_CLICK); close it if that did not.
+def press(m: Message, button: Optional[str] = None) -> bool:
+    """Press a message's button (a posted click, which Altium's own buttons
+    take where they ignore BM_CLICK). With no button given, its only OK or
+    Close button, and the window is closed if that did not do it; with one
+    given (A29), that button by caption and nothing else: closing the window
+    would give the command another answer than the one asked for.
     True once it is gone."""
     from ctypes import wintypes
     user32 = ctypes.windll.user32
     proto = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+    wanted = (button_key(button),) if button else SAFE_BUTTONS
     target = []
 
     def child(h, _):
-        if _is_button(_class_name(h)) and button_key(_window_text(h)) in SAFE_BUTTONS:
+        if _is_button(_class_name(h)) and button_key(_window_text(h)) in wanted:
             target.append(h)
         return True
 
     user32.EnumChildWindows(m.hwnd, proto(child), 0)
+    if button and not target:
+        return False
     if target:
         user32.PostMessageW(target[0], WM_LBUTTONDOWN, MK_LBUTTON, 0)
         user32.PostMessageW(target[0], WM_LBUTTONUP, 0, 0)
@@ -140,8 +157,126 @@ def press(m: Message) -> bool:
         if not (user32.IsWindow(m.hwnd) and user32.IsWindowVisible(m.hwnd)):
             return True
         if attempt == 9:
-            user32.PostMessageW(m.hwnd, WM_CLOSE, 0, 0)
+            if button:
+                user32.PostMessageW(target[0], BM_CLICK, 0, 0)
+            else:
+                user32.PostMessageW(m.hwnd, WM_CLOSE, 0, 0)
     return False
+
+
+def _is_window(hwnd: int) -> bool:
+    return bool(ctypes.windll.user32.IsWindow(hwnd))
+
+
+class Pictures:
+    """One picture per message window (A29): a refusal, a listing or a watch
+    that meets the same window again gives the picture taken first, not a
+    new one each time. take(m) makes a picture and returns its path."""
+
+    def __init__(self, take: Callable[[Message], Optional[str]],
+                 alive: Callable[[int], bool] = _is_window,
+                 exists: Callable[[str], bool] = os.path.exists):
+        self._take, self._alive, self._exists = take, alive, exists
+        self._kept: Dict[tuple, str] = {}
+
+    @staticmethod
+    def _key(m: Message) -> tuple:
+        # A handle may be given to another window once its own is gone; the
+        # class, title and buttons tell most of those apart
+        return (m.hwnd, m.cls, m.title, tuple(m.buttons))
+
+    def get(self, m: Message) -> Optional[str]:
+        for key in [k for k in self._kept if not self._alive(k[0])]:
+            del self._kept[key]
+        path = self._kept.get(self._key(m))
+        if path and self._exists(path):
+            return path
+        path = self._take(m)
+        if path:
+            self._kept[self._key(m)] = path
+        return path
+
+
+def pick(found: List[Message], title: str = "") -> Tuple[Optional[Message], str]:
+    """The message to answer: the only one open, or the only one titled
+    title (any case); else (None, why)."""
+    named = ([m for m in found if m.title.strip().lower() == title.strip().lower()]
+             if title else list(found))
+    if len(named) == 1:
+        return named[0], ""
+    listed = "; ".join(m.describe() for m in found)
+    if not found:
+        return None, "No Altium message is open. Nothing was pressed."
+    if not named:
+        return None, f"No open Altium message is titled '{title}'. Open: {listed}. Nothing was pressed."
+    if title:
+        return None, (f"{len(named)} open Altium messages are titled '{title}', so which one to "
+                      f"answer cannot be told: {listed}. Answer them in Altium. Nothing was pressed.")
+    return None, (f"{len(found)} Altium messages are open: {listed}. Give the title of the one to "
+                  f"answer. Nothing was pressed.")
+
+
+def matching_button(m: Message, button: str) -> Optional[str]:
+    """The message's button whose caption is button (no & mark, any case)."""
+    for b in m.buttons:
+        if button_key(b) == button_key(button):
+            return b
+    return None
+
+
+def no_such_button(m: Message, button: str) -> dict:
+    shown = ", ".join(b.replace("&", "") for b in m.buttons) or "none found"
+    return {"success": False,
+            "error": f"'{m.title}' has no button '{button}': its buttons are {shown}. "
+                     f"Nothing was pressed.",
+            "altium_messages": [m.as_dict()]}
+
+
+def reply_for(text: str, request_id: str) -> Optional[dict]:
+    """The reply in text when it answers request_id: one without it, or to
+    another request, is not taken for the waiting command's."""
+    try:
+        reply = json.loads(text, strict=False)
+    except (ValueError, TypeError):
+        return None
+    if isinstance(reply, dict) and reply.get("request_id") == request_id:
+        return reply
+    return None
+
+
+def after_answer(m: Message, caption: str, command: Optional[str], reply: Optional[dict],
+                 next_message: Optional[Message], waited: float, mutating: bool) -> dict:
+    """The tool's result once a button was pressed and the window is gone:
+    what was answered, and what the command that waited on it did then."""
+    caption = caption.replace("&", "")
+    out = {"success": True, "answered": {**m.as_dict(), "button": caption}, "command": command}
+    pressed = f"'{caption}' was pressed on '{m.title}' and the message is gone"
+    if command is None:
+        out["outcome"] = "no_command_waiting"
+        out["note"] = (f"{pressed}. No call of this server was waiting on it (it may be a script of "
+                       f"the user's own, another session's command, or one from before this server "
+                       f"started), so there is no reply to read.")
+    elif reply is not None:
+        out["outcome"] = "replied"
+        out["reply"] = reply
+        said = ("reported success" if reply.get("success") else
+                f"reported failure: {reply.get('error', 'no reason given')}")
+        out["note"] = f"{pressed}. '{command}', which waited on it, went on and {said} (reply)."
+        if mutating:
+            out["note"] += f" '{command}' changes the design: check what it did with this answer."
+    elif next_message is not None:
+        out["outcome"] = "another_message"
+        out["altium_messages"] = [next_message.as_dict()]
+        out["note"] = (f"{pressed}. '{command}' went on and Altium is showing another message: "
+                       f"{next_message.describe()}. The command waits on it; {HOW_TO_ANSWER}.")
+    else:
+        out["outcome"] = "no_reply_yet"
+        out["note"] = (f"{pressed}. '{command}', which waited on it, gave no reply within "
+                       f"{waited:.0f} s without progress: it may still be working"
+                       + (" and changing the design" if mutating else "")
+                       + ". answer_altium_message with no button reads its reply once it is in, "
+                         "until a call of another tool starts.")
+    return out
 
 
 class Watch:
@@ -182,8 +317,9 @@ def failure(command: str, pressed: List[Message], left: Optional[Message],
                      f"open: {left.describe()}. Altium may need a restart; the command waits on it")
     elif left is not None:
         parts.append(f"Altium is showing a message during '{command}' that waits for an answer: "
-                     f"{left.describe()}. It was left open, as no answer is safe to give for it: "
-                     f"answer it in Altium. The command waits on it and goes on once it is answered")
+                     f"{left.describe()}. It was left open, as the server gives no answer of its own: "
+                     f"{HOW_TO_ANSWER}. The command waits on it and goes on once it is answered; "
+                     f"answer_altium_message then reads its reply")
     if left is None:
         if reply is None:
             parts.append("The command gave no answer after it")
@@ -206,5 +342,6 @@ def refusal(command: str, open_messages: List[Message]) -> dict:
     return {"success": False,
             "error": f"Not run: '{command}' would wait behind a message Altium is showing that waits "
                      f"for an answer: " + "; ".join(m.describe() for m in open_messages)
-                     + ". Answer it in Altium (it may be one the user has open), then retry.",
+                     + f". {HOW_TO_ANSWER[0].upper()}{HOW_TO_ANSWER[1:]} (it may be one the user "
+                       f"has open), then retry.",
             "altium_messages": [m.as_dict() for m in open_messages]}

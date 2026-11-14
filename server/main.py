@@ -152,6 +152,9 @@ RESPONSE_TIMEOUT_MAX = 30 * 60
 
 # How long to wait while another server's command holds the exchange folder
 LOCK_TIMEOUT = START_TIMEOUT_COLD + RESPONSE_TIMEOUT
+# How long answer_altium_message waits for a command running in Altium: a
+# call that meets a message with choices ends within about a second (A24)
+ANSWER_LOCK_WAIT = 10
 
 # Commands that change the design or write files. When one of them times out
 # it may have done some or all of its work, so it must not just be retried.
@@ -477,6 +480,11 @@ class AltiumBridge:
         # using the same exchange folder by the file lock
         self._command_lock = asyncio.Lock()
         self._exchange_lock = ExchangeLock(EXCHANGE_DIR / "bridge.lock")
+        # The command a call left waiting on an Altium message with choices
+        # (A24), for answer_altium_message to read its reply (A29): command,
+        # request_id, mutating, and hwnd of the message it waits on (None
+        # once that is not known)
+        self._waiting: Optional[Dict[str, Any]] = None
 
     async def ensure_paths(self, need_script: bool = True) -> Optional[str]:
         """None when Altium (and the bridge script project) can be found,
@@ -550,6 +558,132 @@ class AltiumBridge:
                 self._exchange_lock.release()
         return _lift_failed_result(response)
 
+    def _waiting_reply(self) -> Optional[dict]:
+        """The reply of the command left waiting on a message, once it is in."""
+        w = self._waiting
+        if w is None:
+            return None
+        try:
+            text = read_altium_text(RESPONSE_FILE)
+        except OSError:
+            return None
+        return altium_messages.reply_for(text, w["request_id"])
+
+    async def answer_message(self, button: str = "", title: str = "",
+                             wait: float = RESPONSE_TIMEOUT) -> Dict[str, Any]:
+        """answer_altium_message (A29): with no button, Altium's open messages;
+        with one, that button pressed on the message and what the command
+        that waited on it then answered.
+
+        Locks: the script waiting on a message holds Altium only (its UI
+        thread and script engine), neither lock, as the call that launched
+        it ended and let both go; so nothing here waits on that script.
+        Listing takes no lock. Pressing takes this server's command lock and
+        the exchange lock, each with a short bounded wait, so that no call
+        writes a new request (which drops the reply) before the reply is
+        read; a lock still held means a command is running in Altium, and
+        nothing is pressed.
+        """
+        if not button:
+            found = await asyncio.to_thread(altium_messages.find)
+            out: Dict[str, Any] = {"success": True, "messages": []}
+            w = self._waiting
+            for m in found:
+                m.picture = await asyncio.to_thread(_message_picture, m)
+                d = m.as_dict()
+                if w is not None and w["hwnd"] == m.hwnd:
+                    d["command_waiting"] = w["command"]
+                out["messages"].append(d)
+            reply = self._waiting_reply()
+            if reply is not None:
+                out["reply"], out["command"] = reply, w["command"]
+                out["note"] = (f"'{w['command']}', which had waited on a message, has replied "
+                               f"(reply).")
+                self._waiting = None
+            elif not found:
+                out["note"] = "No Altium message is open."
+            return out
+
+        try:
+            await asyncio.wait_for(self._command_lock.acquire(), ANSWER_LOCK_WAIT)
+        except asyncio.TimeoutError:
+            return {"success": False,
+                    "error": f"Not pressed: a call of this server has had a command running in "
+                             f"Altium for over {ANSWER_LOCK_WAIT} s. Retry when it has ended."}
+        try:
+            if not await self._exchange_lock.acquire(ANSWER_LOCK_WAIT):
+                return {"success": False,
+                        "error": f"Not pressed: another Altium MCP server (another Claude session) "
+                                 f"has had a command running in Altium for over {ANSWER_LOCK_WAIT} "
+                                 f"s, and the message may be its own. Retry when it has ended, or "
+                                 f"answer it in Altium."}
+            try:
+                return await self._answer_locked(button, title, wait)
+            finally:
+                self._exchange_lock.release()
+        finally:
+            self._command_lock.release()
+
+    async def _answer_locked(self, button: str, title: str, wait: float) -> Dict[str, Any]:
+        found = await asyncio.to_thread(altium_messages.find)
+        m, why = altium_messages.pick(found, title)
+        if m is None:
+            for f in found:
+                f.picture = await asyncio.to_thread(_message_picture, f)
+            return {"success": False, "error": why, "altium_messages": [f.as_dict() for f in found]}
+        m.picture = await asyncio.to_thread(_message_picture, m)  # the record of what was answered
+        caption = altium_messages.matching_button(m, button)
+        if caption is None:
+            return altium_messages.no_such_button(m, button)
+        w = self._waiting
+        # The command waits on this message, or on one that is gone (answered
+        # in Altium) and this may be its next; not once its reply is in
+        waits = (w is not None and self._waiting_reply() is None and
+                 (w["hwnd"] in (None, m.hwnd) or not altium_messages._is_window(w["hwnd"])))
+        logger.warning(f"Pressing '{caption}' on an Altium message, as the caller asked: {m.describe()}")
+        with foreground.ForegroundGuard(_bring_to_front):
+            if not await asyncio.to_thread(altium_messages.press, m, caption):
+                return {"success": False,
+                        "error": f"'{caption.replace('&', '')}' was pressed on '{m.title}', but the "
+                                 f"message is still open after 2 s: {m.describe()}. Answer it in "
+                                 f"Altium.",
+                        "altium_messages": [m.as_dict()]}
+            if not waits:
+                return altium_messages.after_answer(m, caption, None, None, None, 0, False)
+            reply, next_message, waited = await self._wait_after_answer(m.hwnd, wait)
+        if reply is not None:
+            self._waiting = None
+        else:
+            w["hwnd"] = next_message.hwnd if next_message is not None else None
+        return altium_messages.after_answer(m, caption, w["command"], reply, next_message,
+                                            waited, w["mutating"])
+
+    async def _wait_after_answer(self, answered: int, wait: float):
+        """(reply, None, s) once the waiting command's reply is in; (None,
+        message, s) when it meets another message; (None, None, s) after
+        wait seconds without progress."""
+        start = last_progress = time.monotonic()
+        progress_mark = None
+        watch = altium_messages.Watch()
+        while True:
+            reply = self._waiting_reply()
+            now = time.monotonic()
+            if reply is not None:
+                return reply, None, now - start
+            try:
+                mark = PROGRESS_FILE.stat().st_mtime
+            except OSError:
+                mark = None
+            if mark != progress_mark:
+                progress_mark, last_progress = mark, now
+            for m in watch.due(await asyncio.to_thread(altium_messages.find), now):
+                if m.hwnd != answered:
+                    m.picture = await asyncio.to_thread(_message_picture, m)
+                    return None, m, now - start
+            if now - last_progress > wait or now - start > max(RESPONSE_TIMEOUT_MAX, wait):
+                return None, None, now - last_progress
+            await asyncio.sleep(0.25)
+
     @staticmethod
     def _altium_running() -> bool:
         # Read in-process: starting tasklist took about 110 ms on every
@@ -619,6 +753,9 @@ class AltiumBridge:
             # The script echoes request_id so a late reply to an earlier,
             # timed-out command is never mistaken for this command's result
             request_id = uuid.uuid4().hex[:12]
+            # A reply of a command left waiting on a message is dropped from
+            # here on (the leftover above), so there is none to read any more
+            self._waiting = None
             with open(REQUEST_FILE, "w") as f:
                 json.dump({
                     "command": command,
@@ -729,8 +866,10 @@ class AltiumBridge:
 
             if left is not None:
                 # The script waits on the message, not in the debugger: it
-                # goes on once the user answers, and its late reply is told
-                # apart by its request_id
+                # goes on once it is answered, and its late reply is told
+                # apart by its request_id (answer_altium_message reads it)
+                self._waiting = {"command": command, "request_id": request_id,
+                                 "mutating": mutating, "hwnd": left.hwnd}
                 return altium_messages.failure(command, pressed, left, None, mutating)
 
             if response_text is None:
@@ -1593,14 +1732,22 @@ def _window_process_name(hwnd) -> str:
         kernel32.CloseHandle(handle)
 
 
-def _message_picture(m) -> Optional[str]:
-    """A picture of an Altium message, kept with the dialogs the sandbox
-    answered: the text of most cannot be read from outside Altium."""
+def _take_message_picture(m) -> Optional[str]:
     try:
         return sandbox.snapshot_dialog(m, SANDBOX_DIALOGS)
     except Exception as e:
         logger.warning(f"message picture failed: {e}")
         return None
+
+
+# One picture per message window, however often it is met (A29)
+_MESSAGE_PICTURES = altium_messages.Pictures(_take_message_picture)
+
+
+def _message_picture(m) -> Optional[str]:
+    """A picture of an Altium message, kept with the dialogs the sandbox
+    answered: the text of most cannot be read from outside Altium."""
+    return _MESSAGE_PICTURES.get(m)
 
 
 def _dismiss_altium_dialogs(message_boxes_only: bool = False):
@@ -6730,6 +6877,44 @@ async def create_pcb_footprint(ctx: Context, footprint_name: str, description: s
     result = response.get("result", {})
     logger.info(f"Footprint {footprint_name} created successfully")
     return json.dumps(result, indent=2)
+
+@_tool()
+async def answer_altium_message(ctx: Context, button: str = "", title: str = "",
+                                wait_seconds: int = 60) -> str:
+    """
+    Answer a message Altium is showing (a Yes/No, OK/Cancel or other modal
+    box), or list the open ones.
+
+    A message with choices that Altium puts up during a call is left open,
+    and the call fails naming it; every later call is refused while it is
+    up. The server never picks an answer: "No" to a save question can throw
+    work away, "Cancel" in the middle of a command can leave the design half
+    changed. Look at the message (its picture), decide from what you were
+    doing, and ask the user when unsure.
+
+    Args:
+        button: The caption of the button to press, e.g. "No" or "Cancel"
+            (the & mark and case do not matter). Empty: list the open messages
+            (title, class, buttons, picture), changing nothing; it also gives
+            the reply of a command that waited on a message once it is in.
+        title: Which message, when more than one is open (its title, any case).
+        wait_seconds: How long to wait, without progress, for the reply of the
+            command that waited on the message (default 60).
+
+    Returns:
+        str: JSON. Listing: success, messages [{title, class, text, buttons,
+             picture, command_waiting}], reply when one is in. Answering:
+             success (the button was pressed and the window is gone),
+             answered {title, buttons, picture, button}, command (the call
+             that waited on it, or null), outcome ("replied", "no_reply_yet",
+             "another_message" with altium_messages, or "no_command_waiting"),
+             reply (the command's own reply) and a note. A caption the message
+             does not have fails, naming its buttons, and nothing is pressed.
+    """
+    wait = max(1, min(int(wait_seconds), RESPONSE_TIMEOUT_MAX))
+    out = await altium_bridge.answer_message(button.strip(), title.strip(), wait)
+    return json.dumps(out, indent=2, ensure_ascii=False)
+
 
 @_tool(read_only=True)
 async def get_server_status(ctx: Context) -> str:

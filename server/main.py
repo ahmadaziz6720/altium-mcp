@@ -108,6 +108,10 @@ RESPONSE_FILE = EXCHANGE_DIR / "response.json"
 # second, while a long command (a batch) is still working
 PROGRESS_FILE = EXCHANGE_DIR / "progress.txt"
 
+# The board the PCB commands last ran on, which the bridge script writes as it
+# brings a board to the front for one (before run_drc's check starts)
+LAST_BOARD_FILE = EXCHANGE_DIR / "last_board.txt"
+
 # Copies of command results (design data) that older bridge scripts left in
 # this folder, which every account on the machine can read. Nothing reads
 # them. Named one by one: users keep their own script output here too.
@@ -5624,14 +5628,19 @@ async def get_pcb_rules(ctx: Context) -> str:
 
 @_tool()
 async def run_drc(ctx: Context, board_path: str = "", max_violations: int = 200, rules: list = None,
-                  nets: list = None, area: list = None) -> str:
+                  nets: list = None, area: list = None, keep_report: bool = False) -> str:
     """
     Run the design rule check (DRC) on a PCB and list the violations.
 
     Runs Altium's own batch DRC with the board's rules and the options last
     set in its Design Rule Checker dialog. The dialog is answered from
     outside Altium: it may flash on screen. Altium writes its usual report
-    beside the board (or in the project's output folder) and may open it.
+    (Design Rule Check - <board>.drc and .html) beside the board or in the
+    project's output folder, and may open it. Once read, the report is
+    deleted, with the output folder when the check made it, so the folder
+    is left as the call found it ("report": {"deleted": true}); an earlier
+    report there is put back as it was ("restored": true). keep_report=true
+    keeps it, and "report"'s "path" names it.
     The violations stay on the board, marked as Altium marks them. A board
     with no unsaved change is left unmodified ("board_modified": false), so
     its markers are not saved unless the board is saved for another change.
@@ -5667,6 +5676,8 @@ async def run_drc(ctx: Context, board_path: str = "", max_violations: int = 200,
             Altium stops the check at its own violation limit (500 unless
             changed in its Design Rule Checker dialog); "complete": false
             then says the board may have more.
+        keep_report (bool): Keep the report Altium wrote (default False:
+            it is deleted once read).
 
     Returns:
         str: JSON with ran, violation_count, the violations (rule,
@@ -5695,7 +5706,17 @@ async def run_drc(ctx: Context, board_path: str = "", max_violations: int = 200,
     logger.info(f"Running DRC on {board_path or 'the focused board'}")
     started = time.time()
     outcome = drc.DialogOutcome()
-    driver = asyncio.create_task(drc.drive_dialog(outcome, PROGRESS_FILE))
+    # What the board's folder holds where the report goes, taken once the
+    # dialog is up (the board brought to the front and named in
+    # LAST_BOARD_FILE) and before the check writes anything
+    before = {}
+
+    def take_snapshot():
+        lines = read_altium_text(LAST_BOARD_FILE).strip().splitlines()
+        if lines:
+            before["snap"] = drc.snapshot_reports(lines[0].strip())
+
+    driver = asyncio.create_task(drc.drive_dialog(outcome, PROGRESS_FILE, before_press=take_snapshot))
     try:
         response = await altium_bridge.execute_command(
             "run_drc", {"board_path": board_path,
@@ -5749,15 +5770,28 @@ async def run_drc(ctx: Context, board_path: str = "", max_violations: int = 200,
         by_rule[v.get("rule", "")] = by_rule.get(v.get("rule", ""), 0) + 1
     out["listed_by_rule"] = by_rule
     # A check that did not run wrote no report: one found is another run's,
-    # and its counts would read as a result
-    report = drc.find_report(result.get("board", board_path), started) if ran else None
-    if report is not None:
+    # and its counts would read as a result. Either way the folder is left
+    # as the call found it (remove_report keeps what was there before).
+    checked_board = result.get("board", board_path)
+    report = drc.find_report(checked_board, started)
+    if report is not None and ran:
         try:
             out["report"] = {"path": str(report),
                              **drc.narrow_report(drc.parse_report(read_altium_text(report)), rules,
                                                  fetched_violations)}
         except OSError:
             pass
+    if report is not None and not keep_report:
+        snap = before.get("snap")
+        if snap is not None and drc._key(snap.board) != drc._key(checked_board):
+            snap = None   # another board's folder
+        removed = drc.remove_report(report, snap)
+        if "report" in out:
+            if removed["deleted"]:
+                out["report"].pop("path")
+            out["report"].update(removed)
+    elif "report" in out:
+        out["report"]["deleted"] = False
     if out.get("report", {}).get("stopped"):
         out["complete"] = False
         out["note"] = ("Altium stopped the check at its violation limit (set in its Design Rule "
@@ -6092,8 +6126,9 @@ async def get_erc_violations(ctx: Context, compile: bool = True, project_path: s
     unsaved changes: that one is compiled from Altium's copy and listed in
     unsaved_in_altium. Save it (or close it unsaved) for the file to count.
     Sheets the project lists but that are not on disk are in
-    missing_on_disk. Compiling does not save any document (Altium may
-    refresh the derived .PrjPcbStructure file).
+    missing_on_disk. Compiling does not save any document and writes no
+    file (Altium writes <project>.PrjPcbStructure when the project is
+    closed, compiled or not).
 
     Args:
         compile (bool): Compile before reading (default True). False returns

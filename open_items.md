@@ -10,7 +10,7 @@ Three sections: **Open**, not yet fixed; **Waiting**, fixed and not yet settled 
 merged, a fix not yet run in a session); **Closed**, merged upstream, run and held, or
 decided against, with the record.
 
-**Open: A3, A5, A8, A9, A10 to A16.**
+**Open: A3, A8, A9, A10 to A16.**
 
 A2, A7, A4 and A6 went out together in `build-20261112-120520` (owner, 2026-11-12), so one
 scenario test covers them; A3 and A8 were not waited for. That test ran and held for
@@ -193,7 +193,7 @@ unasked, and ending and restarting `X2.EXE` when Altium hangs.
 
 - [x] A19: committed
 - [x] A20: committed
-- [ ] A5: committed (or left Open, why written into it)
+- [x] A5: committed
 - [ ] group 1: offline and live tests, pushed, released (build: …)
 - [ ] group 1: scenario test (session id: …), entry committed and sorted, release page
 - [ ] A3: committed (or left Open, why written into it)
@@ -244,14 +244,6 @@ connection open (DRC: 1 Un-Routed Net), closed and reopened, gave `analyzed` fal
 `connection_count` 0, and no `eConnectionObject` on the whole board; before the save, on
 the modified board, `analyzed` true also gave 0. So the ratsnest built at open lacks the
 connection objects too. 3D view throughout, 2D not tried.
-
-**A5. Read calls leave files in the project folder.** `run_drc` writes `Design Rule Check -
-<board>.drc` and `.html` beside the board or in `Project Outputs for <project>`, and
-compiling (`get_erc_violations`, `get_project_components`) leaves `<project>.PrjPcbStructure`.
-On a project that must stay untouched they were deleted by hand. Local: an option on
-`run_drc` to delete its report once read (or write it elsewhere, if Altium allows), and the
-compile calls to remove a `.PrjPcbStructure` they created where none was before.
-(2026-11-12, 5.)
 
 **A8. No tool to make a PcbLib from a board.** `RunProcess('PCB:MakeLibrary')` and
 `Client.SendMessage('PCB:MakeLibrary', ...)` from `run_altium_script` returned success and
@@ -432,6 +424,72 @@ Decided 2026-11-14 by the run, not the owner: the report is narrowed to the rule
 for only, not also to "the rules with violations" (the other half of the item's first
 wording), because the plan's decision is the filter alone, and a rule that was checked
 and passed is a fact the caller may be asking for.
+Local: on `ad25`, in the commit that moves it here; not yet in a build. Upstream: not yet
+decided.
+
+**A5. Read calls leave files in the project folder.** `run_drc` writes `Design Rule Check -
+<board>.drc` and `.html` beside the board or in `Project Outputs for <project>`, and
+compiling (`get_erc_violations`, `get_project_components`) leaves `<project>.PrjPcbStructure`.
+On a project that must stay untouched they were deleted by hand. Local: an option on
+`run_drc` to delete its report once read (or write it elsewhere, if Altium allows), and the
+compile calls to remove a `.PrjPcbStructure` they created where none was before.
+(2026-11-12, 5.)
+Cause: `run_drc` is Altium's own check, which writes its report (`Design Rule Check -
+<board>.drc` and `.html`) beside the board or in the project's output folder, making that
+folder when there is none; the tool read the report and left it. The compile calls write
+nothing. On a copy of the WiFi project of Altium's Mini PC example with its
+`.PrjPcbStructure` removed, `get_erc_violations` and `get_project_components` (the only
+tools that compile, `DM_Compile`), the project opened by the call or before it, left the
+folder as it was, also 5 to 15 s later; the file appeared when the project was closed, and
+as well after a project was only opened and closed with no call at all. An existing one
+was written back with the same content. So it is Altium's close of the project, not the
+call.
+Fixed in the commit that moves it here: once the Design Rule Checker dialog is up, before
+the check runs, `run_drc` notes the folders where the report may go and any report already
+there (`drc.snapshot_reports`), for the board the bridge script names in the exchange
+folder's `last_board.txt` as it brings the board to the front (so also with no
+`board_path`). Once the report is read it deletes the report and its `.html`, puts an
+earlier report back as it was (bytes and times), and removes the folders the check made,
+when empty (`drc.remove_report`); a report left by a check that did not run goes too. The
+result's `report` gives `deleted` true and no `path`, `restored` true when an earlier
+report was put back, `folder_left` when a folder the check made holds something else;
+`keep_report=true` keeps it, with `deleted` false and `path` naming the `.drc`. A report
+not deleted (a file error, the board's folder not known) keeps its `path`, with
+`delete_error`. Deleting the `.html` the project lists among its generated documents (A19)
+brought up no dialog and marked neither the project file nor the board; the entry stays in
+the project's memory and is saved with its next save, as before. An output folder the
+project sets outside the board's folder is not looked in, as before (no `report`, nothing
+deleted). `get_erc_violations` now says when Altium writes the structure file.
+Live tests in `tests/test_live_drc.py` (`ALTIUM_LIVE=1`; folder listings with each file's
+size and time, helper `listing` in `tests/live_altium.py`): on the copy of the WiFi
+project folder, `LiveDrcProjectTest.test_check_leaves_the_project_folder_as_found`
+(listing equal, `deleted` true, no `path`, project and board unmodified),
+`test_keep_report_keeps_it` and `test_an_existing_outputs_folder_and_report_stay` (an
+outputs folder holding another file and an earlier report: all as they were); on the copy
+of the board under Free Documents, `LiveDrcTest.test_check_of_the_focused_board_leaves_its_folder_as_found`
+(no `board_path`, the report beside the board); and `LiveCompileFolderTest`, two tests (no
+structure file where none was; an existing one unchanged). Before the fix the four
+`run_drc` tests failed: "Lists differ: ... ('Project Outputs for WiFi_miniPCIe',) ... : the
+check left files in the project folder", the earlier report overwritten (2428 bytes for
+17), `keep_report` an unexpected keyword argument, the focused board's report left beside
+it; the two compile tests passed. After: 12/12 of `test_live_drc` pass in AD25. Offline:
+281 tests pass (8 new in `tests/test_drc.py`, for `remove_report` and the dialog driver's
+`before_press`).
+Usage: a project that must stay untouched gets a `.PrjPcbStructure` when Altium closes it;
+delete it after the close.
+Decided 2026-11-14 by the run, not the owner: the compile calls are left unchanged, their
+part of the item settled by the test passing, because no call writes the
+`.PrjPcbStructure`: Altium writes it when the project closes, compiled or not, after the
+call has returned, so a call has nothing to remove and could reach the file only by
+closing a project the caller may have open.
+Decided 2026-11-14 by the run, not the owner: an earlier report in the same place is put
+back as it was (bytes and times), not left overwritten by this check's, because the call
+is to leave the folder as it found it, and the earlier report is someone's own.
+Decided 2026-11-14 by the run, not the owner: the folder is noted when the dialog is up,
+for the board named in `last_board.txt`, not by a call made before the check, because with
+no `board_path` only the bridge script knows the board, and that moment comes before the
+check writes anything at no extra call; when the reply names another board nothing is
+deleted (`delete_error`).
 Local: on `ad25`, in the commit that moves it here; not yet in a build. Upstream: not yet
 decided.
 

@@ -13,11 +13,12 @@ the dialog closed, and the report Altium writes is read to confirm it.
 """
 import asyncio
 import ctypes
+import os
 import re
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List, Optional
+from typing import Callable, Dict, List, Optional, Set, Tuple
 
 from sandbox import _process_name, _window_text
 
@@ -84,16 +85,24 @@ class DialogOutcome:
 
 
 async def drive_dialog(outcome: DialogOutcome, progress_file: Path, keep_alive: float = 5.0,
-                       settle: float = 0.6, attempts: int = 3, press_wait: float = 5.0) -> None:
+                       settle: float = 0.6, attempts: int = 3, press_wait: float = 5.0,
+                       before_press: Optional[Callable[[], None]] = None) -> None:
     """Press Run in the Design Rule Checker dialog when it opens, then keep the
     bridge's progress file fresh while the check runs, so a long check is not
-    taken for a hung command. Runs until cancelled by the caller."""
+    taken for a hung command. before_press is called once the dialog is up,
+    before the check runs and writes its report. Runs until cancelled by the
+    caller."""
     user32 = ctypes.windll.user32
     while not outcome.pressed and not outcome.cancelled:
         dialog = find_dialog()
         if dialog is None:
             await asyncio.sleep(0.2)
             continue
+        if not outcome.seen and before_press is not None:
+            try:
+                before_press()
+            except Exception as e:   # never keep the check from running
+                outcome.notes.append(f"before the check: {e}")
         outcome.seen = True
         await asyncio.sleep(settle)   # the buttons answer only once the form is up
         for n in range(attempts):
@@ -254,6 +263,32 @@ def narrow_report(report: dict, rules, violations=()) -> dict:
     return {**report, "rules": kept, "rules_omitted": len(report.get("rules", [])) - len(kept)}
 
 
+REPORT_SUFFIXES = (".drc", ".html")
+
+
+def report_names(board_stem: str) -> List[str]:
+    """The files Altium's check writes for a board: its report and the
+    report's page."""
+    return [f"Design Rule Check - {board_stem}{suffix}" for suffix in REPORT_SUFFIXES]
+
+
+def _report_folders(root: Path):
+    """The folders a board's report is looked for in: the board's own, the
+    folders in it (the project's output folder) and the folders in those."""
+    yield root
+    try:
+        level1 = [p for p in root.iterdir() if p.is_dir()]
+    except OSError:
+        return
+    for folder in level1:
+        yield folder
+    for folder in level1:
+        try:
+            yield from (p for p in folder.iterdir() if p.is_dir())
+        except OSError:
+            pass
+
+
 def find_report(board_path: str, since: float) -> Optional[Path]:
     """The .drc report written for this board after `since`. Altium writes it
     beside the board, or into the project's output folder."""
@@ -261,12 +296,86 @@ def find_report(board_path: str, since: float) -> Optional[Path]:
     if not board.parent.is_dir():
         return None
     candidates = []
-    pattern = f"Design Rule Check - {board.stem}.drc"
-    for folder in [board.parent] + [p for p in board.parent.iterdir() if p.is_dir()]:
-        for p in list(folder.glob(pattern)) + list(folder.glob(f"*/{pattern}")):
+    name = report_names(board.stem)[0]
+    for folder in _report_folders(board.parent):
+        p = folder / name
+        try:
+            if p.stat().st_mtime >= since - 2:
+                candidates.append(p)
+        except OSError:
+            pass
+    return max(candidates, key=lambda p: p.stat().st_mtime) if candidates else None
+
+
+def _key(path) -> str:
+    return os.path.normcase(os.path.abspath(str(path)))
+
+
+@dataclass
+class ReportSnapshot:
+    """What a board's folder held, where its report goes, before a check."""
+    board: str
+    root: Path
+    folders: Set[str]                               # _key of each folder there
+    files: Dict[str, Tuple[bytes, int, int]]        # an earlier report: bytes, atime_ns, mtime_ns
+
+
+def snapshot_reports(board_path: str) -> Optional[ReportSnapshot]:
+    """The folders a check may write the board's report into and the report
+    files already there, so remove_report can leave them as they were."""
+    root = Path(board_path).parent
+    if not root.is_dir():
+        return None
+    folders, files = set(), {}
+    for folder in _report_folders(root):
+        folders.add(_key(folder))
+        for name in report_names(Path(board_path).stem):
+            p = folder / name
             try:
-                if p.stat().st_mtime >= since - 2:
-                    candidates.append(p)
+                st = p.stat()
+                files[_key(p)] = (p.read_bytes(), st.st_atime_ns, st.st_mtime_ns)
             except OSError:
                 pass
-    return max(candidates, key=lambda p: p.stat().st_mtime) if candidates else None
+    return ReportSnapshot(board_path, root, folders, files)
+
+
+def remove_report(report: Path, snap: Optional[ReportSnapshot]) -> dict:
+    """Leave the folder as `snap` found it: the report this check wrote and its
+    page are deleted, or, where an earlier report was, put back as it was;
+    then the folders the check made for them, when empty. {"deleted": True},
+    with "restored" when an earlier report was put back and "folder_left"
+    when a folder the check made held something else; {"deleted": False,
+    "delete_error": why} when the report stays."""
+    if snap is None:
+        return {"deleted": False, "delete_error": "what the folder held before the check is not known"}
+    root = _key(snap.root)
+    made = []
+    folder = report.parent
+    while _key(folder) != root:
+        if folder.parent == folder:
+            return {"deleted": False, "delete_error": "the report is not in the board's folder"}
+        if _key(folder) not in snap.folders:
+            made.append(folder)
+        folder = folder.parent
+    out = {"deleted": True}
+    try:
+        for suffix in REPORT_SUFFIXES:
+            p = report.with_suffix(suffix)
+            earlier = snap.files.get(_key(p))
+            if earlier is not None:
+                data, atime, mtime = earlier
+                if not p.is_file() or p.read_bytes() != data:
+                    p.write_bytes(data)
+                os.utime(p, ns=(atime, mtime))
+                out["restored"] = True
+            elif p.exists():
+                p.unlink()
+    except OSError as e:
+        return {"deleted": False, "delete_error": str(e)}
+    for folder in made:   # the deepest first
+        try:
+            folder.rmdir()
+        except OSError:
+            out["folder_left"] = str(folder)
+            break
+    return out

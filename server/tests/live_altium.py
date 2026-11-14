@@ -92,6 +92,20 @@ def open_project(path):
                   "ResultText := Obj1.DM_ProjectFullPath;").strip()
 
 
+def listing(folder):
+    """What a folder holds, to compare before and after a call: every folder
+    and file under it by its relative path, a file with its size and time."""
+    out = []
+    for p in sorted(Path(folder).rglob("*")):
+        rel = str(p.relative_to(folder))
+        if p.is_file():
+            st = p.stat()
+            out.append((rel, st.st_size, st.st_mtime_ns))
+        else:
+            out.append((rel,))
+    return out
+
+
 def close_all_under(folder):
     """Close unsaved every open document whose name holds folder: a project,
     its documents and the reports Altium opened for it (a report is open

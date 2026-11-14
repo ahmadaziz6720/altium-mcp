@@ -6,7 +6,10 @@ dialog close is still a check that ran. A19: a check of a board in a
 freshly opened project leaves the project file unmodified too (the check
 adds its report to the project's generated documents), a project with an
 unsaved change stays marked, and get_project_info says which. A20: with
-"rules" the report lists only the rules asked for.
+"rules" the report lists only the rules asked for. A5: a check leaves the
+project folder as it found it (Altium's report, and the outputs folder it
+made for it, are deleted once read, unless keep_report), and a compile
+call leaves no file in it.
 
 See tests/live_altium.py for how to run it. It works on copies of the small
 WiFi board of the "Mini PC" example Altium installs (skipped when it is not
@@ -20,7 +23,7 @@ from pathlib import Path
 from unittest import mock
 
 from tests.live_altium import (LIVE, SKIP_REASON, check_scripts_are_this_checkouts, close, close_all_under,
-                                modified, open_board, open_project, script, tool)
+                                listing, modified, open_board, open_project, script, tool)
 
 if LIVE:
     import drc
@@ -106,6 +109,19 @@ class LiveDrcTest(unittest.TestCase):
         self.assertGreater(sum(r["violations"] for r in rules), 0, rules)
         self.assertGreater(out["matching_count"], 0, out)
 
+    def test_check_of_the_focused_board_leaves_its_folder_as_found(self):
+        # A5, a board under Free Documents, named by no board_path: the
+        # report beside it goes
+        self.save_and_reopen()
+        folder = Path(self.board).parent
+        before = listing(folder)
+        out = tool(main.run_drc(None))
+        self.assertTrue(out["ran"], out)
+        self.assertEqual(out["board"].lower(), self.board.lower(), out)
+        self.assertEqual(listing(folder), before, "the check left its report beside the board")
+        self.assertIs(out["report"].get("deleted"), True, out["report"])
+        self.assertFalse(modified(self.board), "the check left the board modified")
+
     def test_check_keeps_unsaved_changes_marked(self):
         self.assertTrue(modified(self.board), "the added rule is an unsaved change")
         out = tool(main.run_drc(None, board_path=self.board))
@@ -148,6 +164,8 @@ class LiveDrcProjectTest(unittest.TestCase):
 
     def setUp(self):
         self.open()
+        # A report a check left (A5) goes, so each test starts from the copy
+        self.addCleanup(shutil.rmtree, self.outputs(), ignore_errors=True)
         self.addCleanup(close_all_under, self.folder)
 
     def check(self):
@@ -185,6 +203,89 @@ class LiveDrcProjectTest(unittest.TestCase):
         info = tool(main.get_project_info(None))
         self.assertIs(info.get("project_modified"), True, info)
         self.assertEqual(info["modified_document_count"], 1, info)
+
+    @classmethod
+    def outputs(cls):
+        return Path(cls.folder) / "Project Outputs for WiFi_miniPCIe"
+
+    def test_check_leaves_the_project_folder_as_found(self):
+        self.assertFalse(self.outputs().exists(), "the copy has no outputs folder")
+        before = listing(self.folder)
+        out = self.check()
+        self.assertEqual(listing(self.folder), before, "the check left files in the project folder")
+        report = out["report"]
+        self.assertIs(report.get("deleted"), True, report)
+        self.assertNotIn("path", report, "a deleted report has no path")
+        self.assertGreater(report["violations"], 0, "the report was read before it was deleted")
+        # Deleting the report Altium lists among the project's generated
+        # documents marks nothing and asks nothing
+        self.assertFalse(modified(self.project), "the project file is left modified")
+        self.assertFalse(modified(self.board), "the board is left modified")
+
+    def test_keep_report_keeps_it(self):
+        out = tool(main.run_drc(None, board_path=self.board, keep_report=True))
+        self.assertTrue(out["ran"], out)
+        report = out["report"]
+        self.assertIs(report.get("deleted"), False, report)
+        self.assertEqual(Path(report["path"]).parent, self.outputs(), report)
+        self.assertTrue(Path(report["path"]).is_file(), report)
+        self.assertTrue(Path(report["path"]).with_suffix(".html").is_file(), report)
+
+    def test_an_existing_outputs_folder_and_report_stay(self):
+        # Only what the check wrote goes: a folder that was there stays,
+        # with what it held, and an earlier report is put back as it was
+        self.outputs().mkdir()
+        (self.outputs() / "other.txt").write_text("kept")
+        earlier = self.outputs() / "Design Rule Check - WiFi.drc"
+        earlier.write_text("an earlier report")
+        before = listing(self.folder)
+        out = self.check()
+        self.assertEqual(listing(self.folder), before, "the check did not leave the folder as found")
+        self.assertEqual(earlier.read_text(), "an earlier report")
+        self.assertIs(out["report"].get("deleted"), True, out["report"])
+        self.assertIs(out["report"].get("restored"), True, out["report"])
+
+
+@unittest.skipUnless(LIVE, SKIP_REASON)
+@unittest.skipUnless(WIFI.exists(), f"Altium's example board is not at {WIFI}")
+class LiveCompileFolderTest(unittest.TestCase):
+    """A5: a compile call writes nothing into the project folder. The
+    project's <name>.PrjPcbStructure is written by Altium when the project
+    is closed, compiled or not, so the call cannot remove it."""
+
+    @classmethod
+    def setUpClass(cls):
+        check_scripts_are_this_checkouts()
+
+    def setUp(self):
+        tmp = Path(win32api.GetLongPathName(tempfile.mkdtemp(prefix="compile_live_")))
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        self.folder = tmp / "WiFi"
+        shutil.copytree(WIFI.parent, self.folder)
+        self.project = str(self.folder / "WiFi_miniPCIe.PrjPcb")
+        self.structure = self.folder / "WiFi_miniPCIe.PrjPcbStructure"
+        self.addCleanup(close_all_under, str(self.folder))
+
+    def compile_calls(self):
+        # Opened by the first call, as a caller giving project_path does
+        erc = tool(main.get_erc_violations(None, project_path=self.project))
+        self.assertEqual(erc["project_path"].lower(), self.project.lower(), erc)
+        self.assertTrue(erc["compiled"], erc)
+        parts = tool(main.get_project_components(None, project_path=self.project))
+        self.assertGreater(parts["component_count"], 0, parts)
+
+    def test_no_structure_file_where_none_was(self):
+        self.structure.unlink()
+        before = listing(self.folder)
+        self.compile_calls()
+        self.assertEqual(listing(self.folder), before, "a compile call left a file in the project folder")
+
+    def test_an_existing_structure_file_stays(self):
+        content = self.structure.read_bytes()
+        before = listing(self.folder)
+        self.compile_calls()
+        self.assertEqual(listing(self.folder), before)
+        self.assertEqual(self.structure.read_bytes(), content)
 
 
 if __name__ == "__main__":

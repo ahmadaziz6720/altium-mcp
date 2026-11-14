@@ -113,11 +113,93 @@ class ReportTest(unittest.TestCase):
             self.assertIsNone(drc.find_report(str(board), time.time()))
 
 
+class RemoveReportTest(unittest.TestCase):
+    """A5: the folder is left as the check found it."""
+
+    def tree(self, d):
+        return sorted((str(p.relative_to(d)), p.read_bytes() if p.is_file() else None,
+                       p.stat().st_mtime_ns if p.is_file() else None) for p in Path(d).rglob("*"))
+
+    def write_report(self, folder):
+        folder.mkdir(parents=True, exist_ok=True)
+        for name in drc.report_names("board"):
+            (folder / name).write_text("this check")
+        return folder / drc.report_names("board")[0]
+
+    def test_report_and_the_folder_made_for_it_go(self):
+        with tempfile.TemporaryDirectory() as d:
+            board = Path(d) / "board.PcbDoc"
+            board.write_text("x")
+            (Path(d) / "History").mkdir()
+            before = self.tree(d)
+            snap = drc.snapshot_reports(str(board))
+            report = self.write_report(Path(d) / "Project Outputs for P")
+            self.assertEqual(drc.find_report(str(board), time.time()), report)
+            self.assertEqual(drc.remove_report(report, snap), {"deleted": True})
+            self.assertEqual(self.tree(d), before)
+
+    def test_beside_the_board(self):
+        with tempfile.TemporaryDirectory() as d:
+            board = Path(d) / "board.PcbDoc"
+            board.write_text("x")
+            before = self.tree(d)
+            snap = drc.snapshot_reports(str(board))
+            report = self.write_report(Path(d))
+            self.assertEqual(drc.remove_report(report, snap), {"deleted": True})
+            self.assertEqual(self.tree(d), before)
+
+    def test_an_earlier_report_and_its_folder_stay(self):
+        with tempfile.TemporaryDirectory() as d:
+            board = Path(d) / "board.PcbDoc"
+            board.write_text("x")
+            outputs = Path(d) / "Project Outputs for P"
+            outputs.mkdir()
+            (outputs / "other.txt").write_text("kept")
+            earlier = outputs / drc.report_names("board")[0]
+            earlier.write_text("an earlier report")
+            past = time.time() - 3600
+            os.utime(earlier, (past, past))
+            before = self.tree(d)
+            snap = drc.snapshot_reports(str(board))
+            report = self.write_report(outputs)
+            self.assertEqual(drc.remove_report(report, snap), {"deleted": True, "restored": True})
+            self.assertEqual(self.tree(d), before)
+
+    def test_a_folder_holding_something_else_is_left(self):
+        with tempfile.TemporaryDirectory() as d:
+            board = Path(d) / "board.PcbDoc"
+            board.write_text("x")
+            snap = drc.snapshot_reports(str(board))
+            outputs = Path(d) / "Project Outputs for P"
+            report = self.write_report(outputs)
+            (outputs / "status.txt").write_text("not the report")
+            out = drc.remove_report(report, snap)
+            self.assertEqual(out, {"deleted": True, "folder_left": str(outputs)})
+            self.assertEqual(sorted(p.name for p in outputs.iterdir()), ["status.txt"])
+
+    def test_nothing_goes_without_a_snapshot(self):
+        with tempfile.TemporaryDirectory() as d:
+            report = self.write_report(Path(d) / "Project Outputs for P")
+            out = drc.remove_report(report, None)
+            self.assertFalse(out["deleted"])
+            self.assertIn("delete_error", out)
+            self.assertTrue(report.is_file())
+
+    def test_a_report_outside_the_boards_folder_stays(self):
+        with tempfile.TemporaryDirectory() as d, tempfile.TemporaryDirectory() as e:
+            board = Path(d) / "board.PcbDoc"
+            board.write_text("x")
+            snap = drc.snapshot_reports(str(board))
+            report = self.write_report(Path(e) / "out")
+            self.assertFalse(drc.remove_report(report, snap)["deleted"])
+            self.assertTrue(report.is_file())
+
+
 class DriveDialogTest(unittest.TestCase):
     """drive_dialog with the window functions replaced: the outcome must say
     whether the check really ran."""
 
-    def run_driver(self, open_states, button=1):
+    def run_driver(self, open_states, button=1, before_press=None):
         states = iter(open_states)
         outcome = drc.DialogOutcome()
         with tempfile.TemporaryDirectory() as d, \
@@ -127,7 +209,7 @@ class DriveDialogTest(unittest.TestCase):
                 mock.patch.object(drc.ctypes, "windll") as windll:
             async def go():
                 task = asyncio.create_task(drc.drive_dialog(outcome, Path(d) / "progress.txt", keep_alive=0.01,
-                                                            settle=0, press_wait=0.5))
+                                                            settle=0, press_wait=0.5, before_press=before_press))
                 for _ in range(400):
                     if outcome.pressed or outcome.cancelled:
                         break
@@ -143,6 +225,19 @@ class DriveDialogTest(unittest.TestCase):
         self.assertTrue(outcome.pressed)
         self.assertFalse(outcome.cancelled)
         self.assertEqual(posted, [drc.WM_LBUTTONDOWN, drc.WM_LBUTTONUP])
+
+    def test_before_press_runs_once(self):
+        calls = []
+        outcome, posted = self.run_driver([True, False], before_press=lambda: calls.append(1))
+        self.assertTrue(outcome.pressed)
+        self.assertEqual(calls, [1])
+
+    def test_a_failing_before_press_does_not_stop_the_check(self):
+        def fail():
+            raise OSError("no such file")
+        outcome, posted = self.run_driver([True, False], before_press=fail)
+        self.assertTrue(outcome.pressed)
+        self.assertIn("before the check: no such file", outcome.notes)
 
     def test_closed_not_left_open_when_run_does_nothing(self):
         outcome, posted = self.run_driver([True] * 1000)

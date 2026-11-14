@@ -5643,7 +5643,9 @@ async def run_drc(ctx: Context, board_path: str = "", max_violations: int = 200,
     "ran" says whether the check really ran: the Run button was pressed and
     the dialog closed. "report" (when Altium wrote one in this call) gives
     the per-rule counts and confirms it independently; it is left out when
-    the check did not run.
+    the check did not run. With "rules" it lists only those rules (by kind,
+    as the report names them; "rules_omitted" counts the others), its
+    totals still the whole check's.
 
     Args:
         board_path (str): Full path of the .PcbDoc to check. It is opened if
@@ -5733,6 +5735,7 @@ async def run_drc(ctx: Context, board_path: str = "", max_violations: int = 200,
     # By how much each violation fails, as numbers; then the filters
     for v in out.get("violations", []):
         v.update(drc.measurement(v.get("description", "")))
+    fetched_violations = out.get("violations", [])
     if filtered:
         fetched = out.get("violations", [])
         picked = [v for v in fetched if drc.matches(v, rules, nets, area)]
@@ -5751,7 +5754,8 @@ async def run_drc(ctx: Context, board_path: str = "", max_violations: int = 200,
     if report is not None:
         try:
             out["report"] = {"path": str(report),
-                             **drc.parse_report(read_altium_text(report))}
+                             **drc.narrow_report(drc.parse_report(read_altium_text(report)), rules,
+                                                 fetched_violations)}
         except OSError:
             pass
     if out.get("report", {}).get("stopped"):

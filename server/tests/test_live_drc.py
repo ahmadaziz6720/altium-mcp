@@ -5,7 +5,8 @@ still modified. A18: a check answered before the dialog driver saw the
 dialog close is still a check that ran. A19: a check of a board in a
 freshly opened project leaves the project file unmodified too (the check
 adds its report to the project's generated documents), a project with an
-unsaved change stays marked, and get_project_info says which.
+unsaved change stays marked, and get_project_info says which. A20: with
+"rules" the report lists only the rules asked for.
 
 See tests/live_altium.py for how to run it. It works on copies of the small
 WiFi board of the "Mini PC" example Altium installs (skipped when it is not
@@ -22,6 +23,7 @@ from tests.live_altium import (LIVE, SKIP_REASON, check_scripts_are_this_checkou
                                 modified, open_board, open_project, script, tool)
 
 if LIVE:
+    import drc
     import main
     import win32api
 
@@ -76,6 +78,33 @@ class LiveDrcTest(unittest.TestCase):
         self.assertTrue(out["ran"], out)
         self.assertTrue(out["success"], out)
         self.assertIn("report", out, "the report this check wrote is its result")
+
+    def test_report_lists_only_the_rules_asked_for(self):
+        # A20: the filter used to narrow the violations and leave the
+        # report's per-rule counts at all the board's rules
+        full = tool(main.run_drc(None, board_path=self.board))
+        self.assertTrue(full["ran"], full)
+        kinds = {drc.rule_key(drc._kind(r["rule"])) for r in full["report"]["rules"]}
+        self.assertGreater(len(kinds), 2, "the report lists the board's rules")
+        self.assertIn("clearance", kinds)
+        self.assertNotIn("rules_omitted", full["report"], "without rules the report is whole")
+        # a kind that is not the via rule's (the violations it filters to
+        # are none, the case that cost the most)
+        out = tool(main.run_drc(None, board_path=self.board, rules=["Width"]))
+        self.assertTrue(out["ran"], out)
+        self.assertEqual(out["matching_count"], 0, out)
+        rules = out["report"]["rules"]
+        self.assertTrue(rules, "the board has width rules")
+        self.assertEqual({drc.rule_key(drc._kind(r["rule"])) for r in rules}, {"width"}, rules)
+        self.assertEqual(out["report"]["rules_omitted"], len(full["report"]["rules"]) - len(rules))
+        self.assertEqual(out["report"]["violations"], full["report"]["violations"],
+                         "the totals are the check's")
+        # the via rule's own kind: its entries, with the violations the rule found
+        out = tool(main.run_drc(None, board_path=self.board, rules=["Clearance"]))
+        rules = out["report"]["rules"]
+        self.assertEqual({drc.rule_key(drc._kind(r["rule"])) for r in rules}, {"clearance"}, rules)
+        self.assertGreater(sum(r["violations"] for r in rules), 0, rules)
+        self.assertGreater(out["matching_count"], 0, out)
 
     def test_check_keeps_unsaved_changes_marked(self):
         self.assertTrue(modified(self.board), "the added rule is an unsaved change")

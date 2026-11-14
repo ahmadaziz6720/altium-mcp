@@ -236,6 +236,24 @@ def parse_report(text: str) -> dict:
             "stopped": any("stopped" in e.lower() for e in errors)}
 
 
+def narrow_report(report: dict, rules, violations=()) -> dict:
+    """The parsed report cut to the rules a `rules` filter asks for, by the
+    same match the violations get (matches): a report entry names its rule
+    by kind and settings ("Clearance Constraint (Gap=0.15mm) (All),(All)"),
+    not by the rule's own name, so an entry is kept when its kind is one of
+    rules; a rule's own name in rules keeps the kinds of the violations
+    (the ones given) that name picked. "rules_omitted" counts the entries
+    left out; the totals stay the whole check's."""
+    if not rules:
+        return report
+    kinds = {rule_key(r) for r in rules}
+    for v in violations:
+        if matches(v, rules):
+            kinds.add(rule_key(v.get("kind") or _kind(v.get("description", ""))))
+    kept = [r for r in report.get("rules", []) if rule_key(_kind(r["rule"])) in kinds]
+    return {**report, "rules": kept, "rules_omitted": len(report.get("rules", [])) - len(kept)}
+
+
 def find_report(board_path: str, since: float) -> Optional[Path]:
     """The .drc report written for this board after `since`. Altium writes it
     beside the board, or into the project's output folder."""

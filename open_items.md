@@ -10,7 +10,7 @@ Three sections: **Open**, not yet fixed; **Waiting**, fixed and not yet settled 
 merged, a fix not yet run in a session); **Closed**, merged upstream, run and held, or
 decided against, with the record.
 
-**Open: A3, A5, A8, A9, A10 to A16, A20.**
+**Open: A3, A5, A8, A9, A10 to A16.**
 
 A2, A7, A4 and A6 went out together in `build-20261112-120520` (owner, 2026-11-12), so one
 scenario test covers them; A3 and A8 were not waited for. That test ran and held for
@@ -192,7 +192,7 @@ registration, the release page, the scenario tests headless, the commit of their
 unasked, and ending and restarting `X2.EXE` when Altium hangs.
 
 - [x] A19: committed
-- [ ] A20: committed (or left Open, why written into it)
+- [x] A20: committed
 - [ ] A5: committed (or left Open, why written into it)
 - [ ] group 1: offline and live tests, pushed, released (build: …)
 - [ ] group 1: scenario test (session id: …), entry committed and sorted, release page
@@ -317,12 +317,6 @@ a datasheet leaves its library without the link, and each placement must give it
 Local: a `FOOTPRINT` record (model name, library, current or not) in the symbol batch, and
 the same in `create_schematic_symbol`.
 
-**A20. `run_drc`'s report ignores the rule filter.** `run_drc(rules=[one kind])` whose
-filter matched no violation still returned the per-rule report of all 14 rules, about
-2.1k characters a call; nine calls were 26k of a session's 47k characters. Local: the
-report narrowed to the rules asked for when `rules` is given, or to the rules with
-violations, the full one on request. (2026-11-14, second entry, 4.)
-
 ## Waiting
 
 **A1. `get_server_status` reports no version or commit.** It returns the Altium exe and the
@@ -408,6 +402,36 @@ Decided 2026-11-14 by the run, not the owner: a board under Free Documents gives
 `project` or `project_modified`, and the project file is not added to `documents` in
 `get_project_info`, because Free Documents has no file to save, and `documents` lists the
 project's own documents, which a caller walks by kind.
+Local: on `ad25`, in the commit that moves it here; not yet in a build. Upstream: not yet
+decided.
+
+**A20. `run_drc`'s report ignores the rule filter.** `run_drc(rules=[one kind])` whose
+filter matched no violation still returned the per-rule report of all 14 rules, about
+2.1k characters a call; nine calls were 26k of a session's 47k characters.
+(2026-11-14, second entry, 4.)
+Cause: `run_drc` filtered the violations with `drc.matches` and then attached the parsed
+`.drc` report whole. A report entry names a rule by its kind and settings (`Clearance
+Constraint (Gap=0.2mm) (All),(All)`), never by the rule's own name.
+Fixed in the commit that moves it here: with `rules` given, `drc.narrow_report` keeps the
+report entries whose kind is one of `rules` (compared as `matches` compares, `rule_key`:
+any case, spacing, a trailing "Constraint"), so "Clearance" keeps the Clearance entries
+and not Hole To Hole Clearance. A rule's own name in `rules` keeps the kinds of the
+violations that name picked (a name with no violation keeps nothing). `report` then also
+gives `rules_omitted`, the number of entries left out; its `violations`, `waived` and
+`stopped` stay the whole check's. Without `rules` the report is whole, as before, and
+`nets` and `area` do not narrow it. Offline: two tests in `tests/test_drc.py`. Live test
+`tests/test_live_drc.py`, `LiveDrcTest.test_report_lists_only_the_rules_asked_for` (a copy
+of the WiFi board with its via-to-via clearance rule): `rules=["Width"]` gives a report of
+the Width entries only, with `rules_omitted` and the check's totals; `rules=["Clearance"]`
+the Clearance entries, the via rule's 8 violations among them; no `rules`, the whole
+report. Before the fix (narrowing switched off) it failed: "Items in the first set but not
+the second: 'powerplaneconnectrule' 'unroutednet' 'clearance' 'shortcircuit'" (all 7
+entries listed for `rules=["Width"]`). After: 6/6 of `test_live_drc` pass in AD25;
+offline: 273 tests pass.
+Decided 2026-11-14 by the run, not the owner: the report is narrowed to the rules asked
+for only, not also to "the rules with violations" (the other half of the item's first
+wording), because the plan's decision is the filter alone, and a rule that was checked
+and passed is a fact the caller may be asking for.
 Local: on `ad25`, in the commit that moves it here; not yet in a build. Upstream: not yet
 decided.
 

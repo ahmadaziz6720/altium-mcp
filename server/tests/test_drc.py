@@ -49,6 +49,37 @@ class ReportTest(unittest.TestCase):
         self.assertEqual(drc.parse_report(""), {"violations": None, "waived": None, "rules": [],
                                                  "errors": [], "stopped": False})
 
+    def test_report_narrowed_to_the_rules_asked_for(self):
+        r = drc.parse_report(REPORT)
+        self.assertEqual(drc.narrow_report(r, [])["rules"], r["rules"])    # no filter: as it is
+        self.assertNotIn("rules_omitted", drc.narrow_report(r, []))
+        # a kind, in any case, spacing or "Constraint": the entries of that kind
+        for ask in (["Clearance"], ["clearance constraint"], ["CLEARANCE"]):
+            n = drc.narrow_report(r, ask)
+            self.assertEqual([x["violations"] for x in n["rules"]], [3], ask)
+            self.assertEqual(n["rules_omitted"], 2)
+            self.assertEqual((n["violations"], n["waived"]), (4, 1), "the totals are the check's")
+        # whole kinds: Clearance is not Hole To Hole Clearance
+        n = drc.narrow_report(r, ["Hole To Hole Clearance"])
+        self.assertEqual([x["violations"] for x in n["rules"]], [1])
+        # a rule with no violation is still a rule asked for
+        self.assertEqual([x["violations"] for x in drc.narrow_report(r, ["Width"])["rules"]], [0])
+        n = drc.narrow_report(r, ["Width", "Clearance"])
+        self.assertEqual([x["violations"] for x in n["rules"]], [3, 0])
+        # a kind the report has no entry for: no entries, all omitted
+        n = drc.narrow_report(r, ["Short-Circuit"])
+        self.assertEqual((n["rules"], n["rules_omitted"]), ([], 3))
+        self.assertEqual(len(r["rules"]), 3, "the parsed report is not changed")
+
+    def test_report_narrowed_by_a_rules_own_name(self):
+        r = drc.parse_report(REPORT)
+        gnd = {"rule": "Clearance_GND", "description": "Clearance Constraint: (0.1mm < 0.152mm) Between Via"}
+        gnd.update(drc.measurement(gnd["description"]))
+        # the report does not name a rule: the kind of what the name picked
+        n = drc.narrow_report(r, ["clearance_gnd"], [gnd])
+        self.assertEqual([x["violations"] for x in n["rules"]], [3])
+        self.assertEqual(drc.narrow_report(r, ["clearance_gnd"], [])["rules"], [])
+
     def test_stopped_at_the_violation_limit(self):
         head, rest = REPORT.split("\n\n", 1)
         r = drc.parse_report(head + "\n\nERROR : More than 500 violations detected, DRC was stopped\n\n" + rest)

@@ -29,6 +29,7 @@ import label_blocks
 import script_bundle
 import build_info
 import pcblib_file
+import symbol_footprint
 import uuid
 
 from altium_files import long_path, read_altium_text, spec_with_long_library, write_altium_text
@@ -1056,7 +1057,7 @@ async def search_library_symbol(ctx: Context, symbol_name: str, library_path: st
     return json.dumps(result, indent=2)
 
 @_tool()
-async def create_schematic_symbol(ctx: Context, symbol_name: str, description: str, pins: list, part_count: int = 1, graphics: list = None) -> str:
+async def create_schematic_symbol(ctx: Context, symbol_name: str, description: str, pins: list, part_count: int = 1, graphics: list = None, footprints: list = None) -> str:
     r"""
     Before executing, run get_symbol_placement_rules first.
 
@@ -1118,11 +1119,33 @@ async def create_schematic_symbol(ctx: Context, symbol_name: str, description: s
                     - "label|part|x|y|text" (free text annotation)
                     Tip: to reproduce an existing symbol's style, dump it first
                     with get_symbol_primitives and mirror its primitives.
+        footprints (list, optional): PCB footprint models to link the symbol
+                    to, so a part placed from it carries its footprint. Each
+                    entry "model name[|library[|current]]": library is the
+                    full path of the .PcbLib that holds the footprint (left
+                    out, the model is linked by name and Altium looks for it
+                    in the libraries of the project); current is 1 or 0. A
+                    symbol can carry several footprints; one is the current
+                    one: the one given 1, else the first when none says so.
+                    Two entries asking for 1, a library that is not an
+                    existing .PcbLib file, or a name given twice are refused
+                    before anything is made.
 
     Returns:
-        str: JSON object with the result of the component creation
+        str: JSON object with the result of the component creation. With
+             footprints it lists them as read back from the symbol in the
+             library ("footprints": model, library, current) and any
+             "problems". The library is not saved: the user saves it.
     """
     logger.info(f"Creating schematic symbol: {symbol_name} with {len(pins)} pins, {part_count} part(s)")
+
+    footprint_records = []
+    if footprints:
+        try:
+            footprint_records = [symbol_footprint.format_record(*r)
+                                 for r in symbol_footprint.check_records(footprints)]
+        except ValueError as e:
+            return json.dumps({"success": False, "error": f"Failed to create symbol: {e}"})
 
     params = {
         "symbol_name": symbol_name,
@@ -1132,6 +1155,8 @@ async def create_schematic_symbol(ctx: Context, symbol_name: str, description: s
     }
     if graphics:
         params["graphics"] = graphics
+    if footprint_records:
+        params["footprints"] = footprint_records
 
     # Execute the command in Altium to create the symbol
     response = await altium_bridge.execute_command(
@@ -2482,6 +2507,25 @@ async def create_symbols_batch(ctx: Context, spec_file: str) -> str:
                                 clear the list, so an empty one is reported
                                 under problems; Altium merges repeated names,
                                 and a stored list that differs is reported.
+            FOOTPRINT|<model name>[|<library>[|<current 1/0>]]   link the
+                                symbol to a PCB footprint, so a part placed
+                                from it carries it. library: the full path
+                                of the .PcbLib that holds the footprint
+                                (left out, the model is linked by name and
+                                Altium looks for it in the project's
+                                libraries). A symbol can carry several
+                                footprints, one record each; one is the
+                                current one: the one given 1, else the first
+                                when none says so (an existing symbol keeps
+                                its current one unless a record says 1). A
+                                record for a name the symbol has already
+                                changes that footprint instead of adding one.
+                                Footprints of a symbol that are not named are
+                                left as they are, and so are its other models
+                                (3D, simulation). Two records asking for 1
+                                for one symbol, a library that is not an
+                                existing .PcbLib file or a name given twice
+                                refuse the whole spec before anything is made.
             These records work after SYMBOL and EDITSYMBOL alike.
             Each SYMBOL or EDITSYMBOL line starts a new symbol; the other
             records belong to the most recent one.
@@ -2492,7 +2536,9 @@ async def create_symbols_batch(ctx: Context, spec_file: str) -> str:
     Returns:
         str: JSON object with created and edited counts, a failed name list
              and problems (e.g. a pin number not in the symbol, an unknown
-             IEEE symbol or justification)
+             IEEE symbol or justification). For each symbol with FOOTPRINT
+             records, "footprints" lists the symbol's footprints as read back
+             from the library (model, library, current), not as asked.
     """
     logger.info(f"Creating symbols batch from {spec_file}")
 
@@ -2502,7 +2548,18 @@ async def create_symbols_batch(ctx: Context, spec_file: str) -> str:
     # left as it is.
     copy = None
     try:
-        fixed = spec_with_long_library(read_altium_text(spec_file))
+        text = read_altium_text(spec_file)
+        fixed = spec_with_long_library(text)
+        if fixed is not None:
+            text = fixed
+        # FOOTPRINT records are checked here, the whole spec before the first
+        # symbol is made, and rewritten with the library's long path
+        with_footprints, errors = symbol_footprint.normalize_spec(text)
+        if errors:
+            return json.dumps({"success": False,
+                               "error": "Failed batch creation, nothing was made: " + "; ".join(errors)})
+        if with_footprints != text:
+            fixed = with_footprints
     except OSError:
         fixed = None  # missing or unreadable: the script reports it
     if fixed is not None:

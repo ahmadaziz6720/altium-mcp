@@ -10,7 +10,7 @@ Three sections: **Open**, not yet fixed; **Waiting**, fixed and not yet settled 
 merged, a fix not yet run in a session); **Closed**, merged upstream, run and held, or
 decided against, with the record.
 
-**Open: A8, A11 to A16, A22 to A24.**
+**Open: A8, A11 to A15, A22 to A24.**
 
 A2, A7, A4 and A6 went out together in `build-20261112-120520` (owner, 2026-11-12), so one
 scenario test covers them; A3 and A8 were not waited for. That test ran and held for
@@ -228,7 +228,7 @@ unasked, and ending and restarting `X2.EXE` when Altium hangs.
   and left running.
 - [x] A10: committed
 - [x] A11: left Open (RCW error after the ECO twice; code in a named stash, see A11)
-- [ ] A16: committed (or left Open, why written into it)
+- [x] A16: committed
 - [ ] group 3: offline and live tests, pushed, released (build: …)
 - [ ] group 3: scenario test (session id: …), entry committed and sorted, release page
 - [ ] A13: committed (or left Open, why written into it)
@@ -351,13 +351,6 @@ datasheet with the symbol and footprint tools, unchecked against a vendor's mode
 `.IntLib` parts in `build_schematic`, the DbLib search as a tool, a supplier lookup that
 fills the part number parameters, and an import of a vendor's downloaded symbol and
 footprint worth a look.
-
-**A16. A library symbol cannot be given its footprint.** `create_schematic_symbol` and
-`create_symbols_batch` (`SYMBOL`, `EDITSYMBOL`) have no record for a footprint model; a
-footprint is set only on a part `build_schematic` places (`footprint`). A symbol made from
-a datasheet leaves its library without the link, and each placement must give it again.
-Local: a `FOOTPRINT` record (model name, library, current or not) in the symbol batch, and
-the same in `create_schematic_symbol`.
 
 **A22. A call takes the keyboard and the front of the screen for Altium.** While the server
 runs, Altium's window comes to the front at every call, over a full-screen video too, and
@@ -529,7 +522,78 @@ saving it, as the other PCB edit tools do; the result's `board_modified` says so
 Fixed in the commit that moves it here. Local: on `ad25`, not yet in a build. Upstream: not
 yet decided.
 
-
+**A16. A library symbol cannot be given its footprint.** `create_schematic_symbol` and
+`create_symbols_batch` (`SYMBOL`, `EDITSYMBOL`) have no record for a footprint model; a
+footprint is set only on a part `build_schematic` places (`footprint`). A symbol made from
+a datasheet leaves its library without the link, and each placement must give it again.
+Local: a `FOOTPRINT` record (model name, library, current or not) in the symbol batch, and
+the same in `create_schematic_symbol`.
+Found 2026-11-14 by the run's probes in AD25: a symbol's footprint is an `ISch_Implementation`
+of type `PCBLIB` (`Comp.AddSchImplementation`, `ModelName`, `ModelType := 'PCBLIB'`,
+`IsCurrent`) and its library a datafile link (`AddDataFileLink(<entity>, <path>, 'PCBLib')`,
+`ClearAllDatafileLinks`; `DatafileCount` and the link's getters are not in the script API).
+`Impl.ExportToParameters` gives the stored record: `MODELDATAFILE0=<library>`,
+`MODELDATAFILEENTITY0`, `MODELDATAFILEKIND0=PCBLib`, `ISCURRENT=T` (absent on a model that is
+not current). A link with no location stores the entity and kind only, which is what a model
+linked "by name" holds; `UseComponentLibrary` gives another record (`USECOMPONENTLIBRARY=T`)
+that belongs to integrated libraries. A symbol also carries 3D (`PCB3DLIB`) and simulation
+(`SI`) models in the same list, each type with a current of its own; `Comp.Replicate`, which
+`build_schematic` places parts with, copies all of them.
+Fix: `FOOTPRINT|<model>[|<library>[|<current 1/0>]]` after `SYMBOL` or `EDITSYMBOL` in the
+batch spec, and `footprints` (entries `model[|library[|current]]`) in `create_schematic_symbol`.
+A symbol can carry several; a record for a name the symbol already has changes that footprint
+(library, current) instead of adding one, and nothing else of the symbol's models is touched
+(`ApplyFootprint` in `schematic_utils.pas`, applied in `ApplySymbolEdits`' one undo step).
+`server/symbol_footprint.py` checks the records before Altium is called: a library must be a
+full path to an existing `.PcbLib` (long path form), `current` 1 or 0 or empty, no name twice
+for a symbol, at most one asking for `1`; a bad spec is refused whole (`nothing was made`),
+and a batch's records are rewritten in full for the script. The results are read back from
+the symbol in the library: the batch result gets `footprints` (per symbol with such records:
+`symbol` and `models` with `model`, `library`, `current`; the key is absent when no record was
+given), `create_schematic_symbol`'s a `footprints` list and `problems`; what a record stored
+(current mark, library) is checked after and a difference is a `problems` entry.
+Live test `tests/test_live_symbol_footprint.py` (`ALTIUM_LIVE=1`, a temporary folder, closed
+unsaved; copies of a library and a footprint library of the SpiritLevel-SL1 example): a batch
+symbol with two footprints (one `1`) read back in the result, in the open library and, after
+the library is saved, closed and opened anew, from the saved file; first footprint current when
+none says so; a footprint with no library (link by name); `EDITSYMBOL` of an example symbol that
+has a footprint, a 3D and a simulation model: an added footprint not current, the same name
+again with `1` taking the mark, the 3D and simulation models unchanged; refused records
+(two `1`, a missing library, a `.SchLib` as library) leaving the library without the symbol;
+`create_schematic_symbol` with footprints and without; a batch with `SYMPARAM`, `DESCRIPTION`
+around a `FOOTPRINT` and a symbol with none (no `footprints` in its result); a part placed by
+`build_schematic` with no `footprint` from such a symbol, its footprint model current on the
+placed part. Before the code 7 of the 8 tests then written failed (`KeyError: 'footprints'` in
+the batch results, `TypeError: create_schematic_symbol() got an unexpected keyword argument
+'footprints'`, and `AssertionError: {} != {'HDR1X2': True}` : "the placed part did not take
+the library's footprint"); the 8th, a symbol made without footprints, passed and is kept as a
+guard. After: 9/9 pass in AD25 (the ninth, the batch with the other records, added after);
+`test_live_project_setup`'s `build_schematic` test (the file the code shares) passes. Offline:
+18 new in `tests/test_symbol_footprint.py`; 341 tests pass in the offline list of
+`.github/workflows/tests.yml`.
+Decided 2026-11-14 by the run, not the owner: the result is read from the symbol in the
+library as it is in Altium, not from a saved file, because neither tool saves the library (the
+user does); the live test saves, closes and reopens it and reads the file's models through
+Altium as well.
+Decided 2026-11-14 by the run, not the owner: `current` left out gives a new footprint the
+mark only when no other footprint of the symbol has it, and an existing one keeps its own,
+because adding a footprint to a symbol must not change the one a design already uses; only a
+record saying `1` moves the mark.
+Decided 2026-11-14 by the run, not the owner: a record for a name the symbol already has
+replaces that footprint's library and mark instead of adding a second model of the same name,
+because two models of one name in one symbol cannot both be placed and a repeated batch
+should leave the same library.
+Decided 2026-11-14 by the run, not the owner: a library is a full path to an existing
+`.PcbLib` file, and a record without one links the model by name only (the stored form of
+"Any"), because a path that is not a file is a broken link and a relative name resolves
+against whatever Altium has open; whether the footprint name is in the library is not
+checked, as nothing reads a `.PcbLib`'s footprint names without Altium here and Altium does
+not check it when the link is made.
+Decided 2026-11-14 by the run, not the owner: a bad `FOOTPRINT` record refuses the whole batch
+spec before the first symbol is made, because the symbols made before a bad record would stay
+in the library of a call that reports failure.
+Fixed in the commit that moves it here. Local: on `ad25`, not yet in a build. Upstream: not
+yet decided.
 
 
 ## Closed

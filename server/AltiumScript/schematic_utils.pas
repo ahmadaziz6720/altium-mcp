@@ -847,10 +847,14 @@ end;
 // records. Returns 1 created, 2 edited, 0 nothing to do, -1 failed (the name
 // is added to Failed, the reason to Problems).
 function BatchFlushSymbol(Mode, SymName, SymDesc: String; PartCount: Integer;
-    PinsList, GraphicsList, EditsList, Failed, Problems: TStringList): Integer;
+    PinsList, GraphicsList, EditsList, Failed, Problems, Footprints: TStringList): Integer;
 var
     Lib  : ISch_Lib;
     Comp : ISch_Component;
+    Items : TStringList;
+    Props : TStringList;
+    HasFootprints : Boolean;
+    k : Integer;
 begin
     Result := 0;
     if (SymName = '') then Exit;
@@ -886,6 +890,27 @@ begin
         Exit;
     end;
     ApplySymbolEdits(Lib, Comp, EditsList, Problems);
+
+    // A symbol with FOOTPRINT records is listed with its footprint models as
+    // the library holds them now, not as the records asked
+    HasFootprints := False;
+    for k := 0 to EditsList.Count - 1 do
+        if (UpperCase(Trim(GetFieldFromPipeString(EditsList[k], 0))) = 'FOOTPRINT') then
+            HasFootprints := True;
+    if HasFootprints then
+    begin
+        Items := TStringList.Create;
+        Props := TStringList.Create;
+        try
+            ReadSymbolFootprints(Comp, Items);
+            AddJSONProperty(Props, 'symbol', Comp.LibReference);
+            Props.Add(BuildJSONArray(Items, 'models', 3));
+            Footprints.Add(BuildJSONObject(Props, 2));
+        finally
+            Items.Free;
+            Props.Free;
+        end;
+    end;
 end;
 
 // Create or edit many symbols in a single script run from a spec file. The
@@ -903,6 +928,7 @@ end;
 //   PINDESC|<pin number>|<text>
 //   PINSYMBOL|<pin number>|<inside|inside_edge|outside_edge|outside>|<IEEE symbol>
 //   PINFUNC|<pin number>|<F1>/<F2>/...   (optional)
+//   FOOTPRINT|<model>[|<library>[|<current 1/0>]]   link a PCB footprint model
 // Records belong to the most recent SYMBOL or EDITSYMBOL line. Far fewer
 // Altium script launches than one create call per symbol.
 function CreateSymbolsBatch(SpecFilePath: String): String;
@@ -913,6 +939,7 @@ var
     EditsList     : TStringList;
     FailedArray   : TStringList;
     ProblemsArray : TStringList;
+    FootprintsArray : TStringList;
     ResultProps   : TStringList;
     ServerDoc     : IServerDocument;
     Line, Kind    : String;
@@ -942,6 +969,7 @@ begin
     EditsList := TStringList.Create;
     FailedArray := TStringList.Create;
     ProblemsArray := TStringList.Create;
+    FootprintsArray := TStringList.Create;
     ResultProps := TStringList.Create;
     Mode := '';
     CurrentName := '';
@@ -986,7 +1014,7 @@ begin
             begin
                 // Finish the previous symbol
                 Outcome := BatchFlushSymbol(Mode, CurrentName, CurrentDesc, PartCount,
-                                            PinsList, GraphicsList, EditsList, FailedArray, ProblemsArray);
+                                            PinsList, GraphicsList, EditsList, FailedArray, ProblemsArray, FootprintsArray);
                 if (Outcome > 0) and (EditsList.Count > 0) then
                     EditsApplied := True;
                 if (Outcome = 1) then
@@ -1024,7 +1052,7 @@ begin
             end
             else if (Kind = 'COMMENT') or (Kind = 'DESCRIPTION') or (Kind = 'SYMPARAM') or
                     (Kind = 'PINPARAM') or (Kind = 'PINDESC') or (Kind = 'PINSYMBOL') or
-                    (Kind = 'PINFUNC') then
+                    (Kind = 'PINFUNC') or (Kind = 'FOOTPRINT') then
             begin
                 if (CurrentName <> '') then
                     EditsList.Add(Line)
@@ -1059,6 +1087,8 @@ begin
             ResultProps.Add(BuildJSONArray(ProblemsArray, 'problems'))
         else
             ResultProps.Add('"problems": []');
+        if (FootprintsArray.Count > 0) then
+            ResultProps.Add(BuildJSONArray(FootprintsArray, 'footprints'));
 
         Result := BuildJSONObject(ResultProps);
     finally
@@ -1068,7 +1098,62 @@ begin
         EditsList.Free;
         FailedArray.Free;
         ProblemsArray.Free;
+        FootprintsArray.Free;
         ResultProps.Free;
+    end;
+end;
+
+// A new symbol's creation result (the JSON CreateSchematicSymbol returns) with
+// its footprints applied and read back: Records are FOOTPRINT records without
+// the keyword (<model>|<library>|<current>). The result gets "footprints", the
+// models as the library holds them, and "problems".
+function AddFootprintsToSymbolResult(Created: String; SymName: String; Records: TStringList): String;
+var
+    Lib      : ISch_Lib;
+    Comp     : ISch_Component;
+    Edits    : TStringList;
+    Problems : TStringList;
+    Items    : TStringList;
+    Extra    : String;
+    Cut, i   : Integer;
+begin
+    Result := Created;
+    Edits := TStringList.Create;
+    Problems := TStringList.Create;
+    Items := TStringList.Create;
+    try
+        Comp := nil;
+        Lib := SchServer.GetCurrentSchDocument;
+        if (Lib <> nil) then
+            if (Lib.ObjectID = eSchLib) then
+                Comp := FindLibSymbol(Lib, SymName);
+        if (Comp = nil) then
+            Problems.Add('"' + JSONEscapeString(SymName + ': created, but not found again to set its footprints') + '"')
+        else
+        begin
+            for i := 0 to Records.Count - 1 do
+                Edits.Add('FOOTPRINT|' + Records[i]);
+            ApplySymbolEdits(Lib, Comp, Edits, Problems);
+            ReadSymbolFootprints(Comp, Items);
+        end;
+        Extra := BuildJSONArray(Items, 'footprints', 1) + ',' + #13#10 + BuildJSONArray(Problems, 'problems', 1);
+        // Insert before the closing brace of the object
+        Cut := Length(Created);
+        while (Cut > 0) and (Copy(Created, Cut, 1) <> '}') do
+            Cut := Cut - 1;
+        if (Cut > 1) then
+        begin
+            Result := Copy(Created, 1, Cut - 1);
+            // The last property had no comma
+            Cut := Length(Result);
+            while (Cut > 0) and ((Copy(Result, Cut, 1) = #13) or (Copy(Result, Cut, 1) = #10) or (Copy(Result, Cut, 1) = ' ')) do
+                Cut := Cut - 1;
+            Result := Copy(Result, 1, Cut) + ',' + #13#10 + Extra + #13#10 + '}' + #13#10;
+        end;
+    finally
+        Edits.Free;
+        Problems.Free;
+        Items.Free;
     end;
 end;
 
@@ -2364,6 +2449,179 @@ begin
     Result := IntToStr(MinX) + '|' + IntToStr(MinY);
 end;
 
+// The value of Key in a '|Key=Value|...|' record, or ''
+function PipeRecordValue(Rec: String; Key: String): String;
+var
+    Start : Integer;
+    Rest  : String;
+begin
+    Result := '';
+    Start := Pos('|' + Key + '=', Rec);
+    if (Start = 0) then Exit;
+    Rest := Copy(Rec, Start + Length(Key) + 2, Length(Rec));
+    if (Pos('|', Rest) > 0) then
+        Result := Copy(Rest, 1, Pos('|', Rest) - 1)
+    else
+        Result := Rest;
+end;
+
+// Footprint models of a library symbol: its implementations of type PCBLIB
+// (it may also carry 3D and simulation models, which are not touched). An
+// implementation's record is read from ExportToParameters, which has the
+// library as MODELDATAFILE0 (absent for a model linked by name alone) and
+// ISCURRENT=T on the current one (absent on the others).
+function FootprintRecord(Impl: ISch_Implementation): String;
+begin
+    Result := '|' + Impl.ExportToParameters + '|';
+end;
+
+function IsFootprintModel(Impl: ISch_Implementation): Boolean;
+begin
+    Result := (UpperCase(Impl.ModelType) = 'PCBLIB');
+end;
+
+function FootprintIsCurrent(Impl: ISch_Implementation): Boolean;
+begin
+    Result := (PipeRecordValue(FootprintRecord(Impl), 'ISCURRENT') = 'T');
+end;
+
+function FootprintLibrary(Impl: ISch_Implementation): String;
+begin
+    Result := PipeRecordValue(FootprintRecord(Impl), 'MODELDATAFILE0');
+end;
+
+// Add the footprint models of Comp to Items as JSON objects (model, library,
+// current), read from the symbol as it is in the library
+procedure ReadSymbolFootprints(Comp: ISch_Component; Items: TStringList);
+var
+    Iter  : ISch_Iterator;
+    Impl  : ISch_Implementation;
+    Props : TStringList;
+begin
+    Iter := Comp.SchIterator_Create;
+    Iter.AddFilter_ObjectSet(MkSet(eImplementation));
+    Impl := Iter.FirstSchObject;
+    while (Impl <> nil) do
+    begin
+        if IsFootprintModel(Impl) then
+        begin
+            Props := TStringList.Create;
+            try
+                AddJSONProperty(Props, 'model', Impl.ModelName);
+                AddJSONProperty(Props, 'library', FootprintLibrary(Impl));
+                AddJSONBoolean(Props, 'current', FootprintIsCurrent(Impl));
+                Items.Add(BuildJSONObject(Props, 3));
+            finally
+                Props.Free;
+            end;
+        end;
+        Impl := Iter.NextSchObject;
+    end;
+    Comp.SchIterator_Destroy(Iter);
+end;
+
+// One footprint record of a symbol (FOOTPRINT|<model>|<library>|<current>),
+// applied as part of ApplySymbolEdits' undo step. The model is added, or when
+// the symbol has a footprint of that name already it is changed to the
+// record's library; other footprints and the symbol's other models are left
+// alone. Current: 1 makes it the current footprint (and takes the mark from
+// the other footprints), 0 makes it not current, empty keeps an existing
+// footprint's mark and gives a new one the mark only when no other footprint
+// of the symbol has it. What is stored is checked after and a difference is
+// added to Problems.
+procedure ApplyFootprint(Comp: ISch_Component; Rec: String; Problems: TStringList);
+var
+    Iter        : ISch_Iterator;
+    Impl        : ISch_Implementation;
+    Found       : ISch_Implementation;
+    Model       : String;
+    LibPath     : String;
+    CurField    : String;
+    OtherCurrent: Boolean;
+    MakeCurrent : Boolean;
+begin
+    Model := Trim(GetFieldFromPipeString(Rec, 1));
+    LibPath := Trim(GetFieldFromPipeString(Rec, 2));
+    CurField := Trim(GetFieldFromPipeString(Rec, 3));
+    if (Model = '') then
+    begin
+        Problems.Add('"' + JSONEscapeString(Comp.LibReference + ': FOOTPRINT has no model name') + '"');
+        Exit;
+    end;
+
+    Found := nil;
+    OtherCurrent := False;
+    Iter := Comp.SchIterator_Create;
+    Iter.AddFilter_ObjectSet(MkSet(eImplementation));
+    Impl := Iter.FirstSchObject;
+    while (Impl <> nil) do
+    begin
+        if IsFootprintModel(Impl) then
+        begin
+            if (UpperCase(Impl.ModelName) = UpperCase(Model)) then
+                Found := Impl
+            else if FootprintIsCurrent(Impl) then
+                OtherCurrent := True;
+        end;
+        Impl := Iter.NextSchObject;
+    end;
+    Comp.SchIterator_Destroy(Iter);
+
+    if (CurField = '1') then
+        MakeCurrent := True
+    else if (CurField = '0') then
+        MakeCurrent := False
+    else if (Found <> nil) then
+        MakeCurrent := FootprintIsCurrent(Found)
+    else
+        MakeCurrent := not OtherCurrent;
+
+    // The mark moves: only one footprint of a symbol is the current one
+    if MakeCurrent then
+    begin
+        Iter := Comp.SchIterator_Create;
+        Iter.AddFilter_ObjectSet(MkSet(eImplementation));
+        Impl := Iter.FirstSchObject;
+        while (Impl <> nil) do
+        begin
+            if IsFootprintModel(Impl) and (UpperCase(Impl.ModelName) <> UpperCase(Model)) then
+                if FootprintIsCurrent(Impl) then
+                begin
+                    SchServer.RobotManager.SendMessage(Impl.I_ObjectAddress, c_BroadCast, SCHM_BeginModify, c_NoEventData);
+                    Impl.IsCurrent := False;
+                    SchServer.RobotManager.SendMessage(Impl.I_ObjectAddress, c_BroadCast, SCHM_EndModify, c_NoEventData);
+                end;
+            Impl := Iter.NextSchObject;
+        end;
+        Comp.SchIterator_Destroy(Iter);
+    end;
+
+    if (Found = nil) then
+    begin
+        Found := Comp.AddSchImplementation;
+        Found.ModelName := Model;
+        Found.ModelType := 'PCBLIB';
+        Found.UseComponentLibrary := False;
+        Found.AddDataFileLink(Model, LibPath, 'PCBLib');
+        Found.IsCurrent := MakeCurrent;
+        SchServer.RobotManager.SendMessage(Comp.I_ObjectAddress, c_BroadCast, SCHM_PrimitiveRegistration, Found.I_ObjectAddress);
+    end
+    else
+    begin
+        SchServer.RobotManager.SendMessage(Found.I_ObjectAddress, c_BroadCast, SCHM_BeginModify, c_NoEventData);
+        Found.ClearAllDatafileLinks;
+        Found.AddDataFileLink(Found.ModelName, LibPath, 'PCBLib');
+        Found.IsCurrent := MakeCurrent;
+        SchServer.RobotManager.SendMessage(Found.I_ObjectAddress, c_BroadCast, SCHM_EndModify, c_NoEventData);
+    end;
+
+    if (FootprintIsCurrent(Found) <> MakeCurrent) then
+        Problems.Add('"' + JSONEscapeString(Comp.LibReference + ': footprint ' + Model + ' did not take its current mark') + '"');
+    if (UpperCase(FootprintLibrary(Found)) <> UpperCase(LibPath)) then
+        Problems.Add('"' + JSONEscapeString(Comp.LibReference + ': footprint ' + Model + ' stored the library "' +
+            FootprintLibrary(Found) + '", not "' + LibPath + '"') + '"');
+end;
+
 // Apply edit records to a symbol, as one undo step:
 //   COMMENT|<text>[|<visible 1/0>]               set the Comment (hidden unless visible is 1)
 //   DESCRIPTION|<text>                           set the Description
@@ -2378,6 +2636,9 @@ end;
 //   PINSYMBOL|<pin number>|<edge>|<symbol>       set an IEEE symbol of every pin with that
 //                                                number; edge inside, inside_edge,
 //                                                outside_edge or outside
+//   FOOTPRINT|<model>|<library>|<current 1/0>    add a footprint model, or change the one
+//                                                of that name (ApplyFootprint); library
+//                                                and current may be empty
 //   PINFUNC|<pin number>|<F1>/<F2>/...           replace the Functions list (Properties
 //                                                panel > Pin > Functions) of every pin
 //                                                with that number, in that order. Only
@@ -2509,6 +2770,11 @@ begin
             end;
             Result := Result + 1;
         end
+        else if (Kind = 'FOOTPRINT') then
+        begin
+            ApplyFootprint(Comp, Line, Problems);
+            Result := Result + 1;
+        end
         else if (Kind = 'PINFUNC') then
         begin
             PinNum := Trim(GetFieldFromPipeString(Line, 1));
@@ -2624,22 +2890,6 @@ begin
     end;
     SchServer.ProcessControl.PostProcess(Lib, '');
     Lib.GraphicallyInvalidate;
-end;
-
-// The value of Key in a '|Key=Value|...|' record, or ''
-function PipeRecordValue(Rec: String; Key: String): String;
-var
-    Start : Integer;
-    Rest  : String;
-begin
-    Result := '';
-    Start := Pos('|' + Key + '=', Rec);
-    if (Start = 0) then Exit;
-    Rest := Copy(Rec, Start + Length(Key) + 2, Length(Rec));
-    if (Pos('|', Rest) > 0) then
-        Result := Copy(Rest, 1, Pos('|', Rest) - 1)
-    else
-        Result := Rest;
 end;
 
 // A pin's Functions list (Properties panel > Pin > Functions) joined with

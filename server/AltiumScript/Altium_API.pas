@@ -177,12 +177,14 @@ var
     PartCount: Integer;
     PinsList: TStringList;
     GraphicsList: TStringList;
+    FootprintsList: TStringList;
 begin
     // Look for component name
     ComponentName := '';
     PartCount := 1;  // Default to single-part symbol
     PinsList := TStringList.Create;
     GraphicsList := TStringList.Create;
+    FootprintsList := TStringList.Create;
 
     try
         // Parse parameters from the request
@@ -211,6 +213,11 @@ begin
             begin
                 i := ReadJSONStringArray(RequestData, i, GraphicsList);
             end
+            // Look for footprints array (<model>|<library>|<current>)
+            else if (Pos('"footprints"', RequestData[i]) > 0) then
+            begin
+                i := ReadJSONStringArray(RequestData, i, FootprintsList);
+            end
             // Look for description
             else if (Pos('"description"', RequestData[i]) > 0) then
             begin
@@ -224,6 +231,10 @@ begin
         if ComponentName <> '' then
         begin
             Result := CreateSchematicSymbol(ComponentName, PinsList, GraphicsList, PartCount);
+            // The symbol's footprints, applied once it is in the library; the
+            // result then lists them as read back from it
+            if (FootprintsList.Count > 0) and (Pos('"success": true', Result) > 0) then
+                Result := AddFootprintsToSymbolResult(Result, ComponentName, FootprintsList);
         end
         else
         begin
@@ -233,6 +244,7 @@ begin
     finally
         PinsList.Free;
         GraphicsList.Free;
+        FootprintsList.Free;
     end;
 end;
 

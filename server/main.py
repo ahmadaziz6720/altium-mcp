@@ -39,6 +39,8 @@ import routing
 import pcb_layout
 import sandbox
 import win_processes
+import foreground
+import functools
 from outjob_parser import parse_outjob
 
 # Set MCP_DIR to the directory of the current Python file
@@ -525,7 +527,10 @@ class AltiumBridge:
                 # is no reason to give up.
                 if await asyncio.to_thread(sandbox.altium_hung):
                     return {"success": False, "error": ALTIUM_HUNG_ERROR}
-                response = await self._execute_command_locked(command, params, timeout)
+                # Altium activates itself on every script launch: keep the
+                # foreground, and with it the keyboard, where the user has it
+                with foreground.ForegroundGuard(_bring_to_front):
+                    response = await self._execute_command_locked(command, params, timeout)
             finally:
                 self._exchange_lock.release()
         return _lift_failed_result(response)
@@ -1597,7 +1602,18 @@ def _sandbox() -> sandbox.Sandbox:
                            template=SANDBOX_PAS, runs_dir=SANDBOX_RUNS)
 
 
+def _keeping_foreground(fn):
+    """Run a tool that launches scripts in Altium with the foreground kept
+    where the user has it (foreground.ForegroundGuard)."""
+    @functools.wraps(fn)
+    async def wrapper(*args, **kwargs):
+        with foreground.ForegroundGuard(_bring_to_front):
+            return await fn(*args, **kwargs)
+    return wrapper
+
+
 @_tool()
+@_keeping_foreground
 async def run_altium_script(ctx: Context, script: str, timeout_seconds: int = 120,
                             skip_lint: bool = False) -> str:
     """

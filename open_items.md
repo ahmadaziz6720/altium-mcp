@@ -10,7 +10,7 @@ Three sections: **Open**, not yet fixed; **Waiting**, fixed and not yet settled 
 merged, a fix not yet run in a session); **Closed**, merged upstream, run and held, or
 decided against, with the record.
 
-**Open: A8, A11 to A15, A22 to A28.**
+**Open: A8, A11 to A15, A23 to A28.**
 
 A2, A7, A4 and A6 went out together in `build-20261112-120520` (owner, 2026-11-12), so one
 scenario test covers them; A3 and A8 were not waited for. That test ran and held for
@@ -245,6 +245,8 @@ unasked, and ending and restarting `X2.EXE` when Altium hangs.
   `taskkill //IM X2.EXE //F` in Bash). The scenario test ran once, not stopped. The record
   commits after the release (the entry, the sort, this line) are not pushed: they go out
   with the next push of `ad25`. Altium was restarted by the run and left running.
+- [x] A22: committed (a session of its own, 2026-11-14, before groups 4 and 5)
+- [ ] A24: committed (or left Open, why written into it)
 - [ ] A13: committed (or left Open, why written into it)
 - [ ] A14: committed (or left Open, why written into it)
 - [ ] A12: committed (or left Open, why written into it)
@@ -366,22 +368,6 @@ datasheet with the symbol and footprint tools, unchecked against a vendor's mode
 fills the part number parameters, and an import of a vendor's downloaded symbol and
 footprint worth a look.
 
-**A22. A call takes the keyboard and the front of the screen for Altium.** While the server
-runs, Altium's window comes to the front at every call, over a full-screen video too, and
-the keys typed in another program go to Altium, read as its commands (the owner,
-2026-11-14). A stray key there can change the open board under a call, so a result, a
-live test or a scenario test can be wrong without anyone seeing it; the window on top is a
-nuisance only. Likely cause, unchecked: every call starts `X2.EXE -RScriptingSystem:…`,
-which the running Altium takes as a new command line and answers by activating its main
-window; only the screenshot tool gives the foreground back after (`_bring_to_front`, then
-the previous window). Local, to reproduce first: a live test that notes the foreground
-window, makes one read, and fails when Altium kept the foreground. Then either give the
-foreground back to the window that had it once the response is in, as the screenshot tool
-does, or reach the running Altium without activating it (another way to start the script,
-or the window shown without activation), whichever holds. Usage until then: nothing is
-typed on the machine while a test or a scenario test runs. Not in the run of 2026-11-14's
-groups (the owner: "catat dulu aja"): for the next run.
-
 **A23. `get_unrouted_connections` read by net names no pad.** With `nets` only, the
 connections come with `from_pad` and `to_pad` null even where an end is a pad's centre;
 the same connection read with `designators` names both ends. As the description says
@@ -498,6 +484,42 @@ Scenario test of that build held (2026-11-12, third entry, 2): 38 rules, the sco
 `filter2` only on binary rules. The reply went from 9.3k to 8.5k characters only (about
 9 %): what is left is mostly the key names and indentation repeated on every rule.
 Waits for the upstream PR.
+
+**A22. A call takes the keyboard and the front of the screen for Altium.** While the server
+runs, Altium's window comes to the front at every call, over a full-screen video too, and
+the keys typed in another program go to Altium, read as its commands (the owner,
+2026-11-14). A stray key there can change the open board under a call, so a result, a
+live test or a scenario test can be wrong without anyone seeing it; the window on top is a
+nuisance only. Likely cause, unchecked: every call starts `X2.EXE -RScriptingSystem:…`,
+which the running Altium takes as a new command line and answers by activating its main
+window; only the screenshot tool gives the foreground back after (`_bring_to_front`, then
+the previous window). Local, to reproduce first: a live test that notes the foreground
+window, makes one read, and fails when Altium kept the foreground. Then either give the
+foreground back to the window that had it once the response is in, as the screenshot tool
+does, or reach the running Altium without activating it (another way to start the script,
+or the window shown without activation), whichever holds. Usage until then: nothing is
+typed on the machine while a test or a scenario test runs. Not in the run of 2026-11-14's
+groups (the owner: "catat dulu aja"): for the next run.
+Cause, found 2026-11-14: Altium activates itself whenever it takes a script command line
+(`RunScriptFile`, even of a script that does nothing); `X2.EXE` launched with no argument
+does not. Launching shown without activation (`SW_SHOWNOACTIVATE`, `SW_SHOWMINNOACTIVE`) and
+`LockSetForegroundWindow` from the server (refused: not the foreground process) changed
+nothing, so no way was found to reach Altium without the activation. Fix: `foreground.py`'s
+`ForegroundGuard`, around every bridge command and `run_altium_script`, listens for
+foreground changes (a WinEvent hook) and gives the foreground back to the window that had
+it the moment an Altium window takes it; it does nothing when Altium was in front at the
+start, and follows the user to another program. Altium now holds the foreground 1 to 7 ms
+per call instead of the whole call and after; a key typed in those milliseconds still goes
+to Altium. Decided 2026-11-14 by the session, not the owner: the give-back, as the way that
+holds, because the activation could not be prevented. Live test
+`tests/test_live_windows.py` (`ForegroundTest`, a window of another process in front, the
+time Altium is in front measured from the events): before, "Altium had the foreground for
+760 ms during the call" (a read) and 240 ms (`run_altium_script`), 2/2 fail; after, 2/2
+pass. Offline tests in `test_foreground.py` (11). Offline 352 OK; the live set 43 tests, 42
+pass: `test_add_documents` was refused once by the "Altium is not responding" check before
+its call was launched (Altium busy just after a 7 s `add_project_document`), and its module
+passed 9/9 twice alone after. Local: on `ad25`, in the commit that moves it here; not yet in
+a build. Upstream: not yet decided.
 
 ## Closed
 

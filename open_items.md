@@ -10,7 +10,7 @@ Three sections: **Open**, not yet fixed; **Waiting**, fixed and not yet settled 
 merged, a fix not yet run in a session); **Closed**, merged upstream, run and held, or
 decided against, with the record.
 
-**Open: A8, A11 to A15, A23, A25 to A28.**
+**Open: A8, A11 to A15, A23, A25 to A30.**
 
 A2, A7, A4 and A6 went out together in `build-20261112-120520` (owner, 2026-11-12), so one
 scenario test covers them; A3 and A8 were not waited for. That test ran and held for
@@ -247,6 +247,9 @@ unasked, and ending and restarting `X2.EXE` when Altium hangs.
   with the next push of `ad25`. Altium was restarted by the run and left running.
 - [x] A22: committed (a session of its own, 2026-11-14, before groups 4 and 5)
 - [x] A24: committed (the same session)
+  Next, on the owner's word of 2026-11-14, in a new session: the release of A22 and A24
+  (steps 1 to 5 of *Release and run*, the push of `ad25` with it) and its scenario test,
+  then A29 (a tool to answer a message), then A30's probe; groups 4 and 5 after.
 - [ ] A13: committed (or left Open, why written into it)
 - [ ] A14: committed (or left Open, why written into it)
 - [ ] A12: committed (or left Open, why written into it)
@@ -417,6 +420,39 @@ a new `.SchLib` or `.PcbLib` is made by script (`CreateNewDocumentFromDocumentKi
 into the project in focus, as A10's probe found for a sheet. Local: `create` for `.SchLib`
 and `.PcbLib` in `add_project_document`, or a library made by the symbol and footprint
 tools when missing. (2026-11-14, fifth entry, 7.) For the next run.
+
+**A29. A message with choices blocks Altium until someone answers it.** Since A24 a
+message Altium puts up during a call that has choices (Yes/No, OK/Cancel) or another single
+button ends the call at once, named, with a picture of it, and is left open; every later
+call is refused while it is up. So the call no longer waits, but Altium does: nothing the
+server has can answer it, and only the owner, at Altium's screen, can (the owner,
+2026-11-14: "bikin agent nunggu gw dong"). The server should not choose an answer itself:
+"No" to a save question throws work away, and "Cancel" in the middle of a command can leave
+the design half changed. Local: a tool that answers an open Altium message with one of its
+buttons by caption (`answer_altium_message`, e.g. `button="Cancel"`), its list of open
+messages with title, buttons and picture when called with none, and the answer read back
+(the window gone, what the waiting command then answered); the A24 failure and refusal
+naming the tool. The agent, which sees the picture and knows what it was doing, answers,
+and asks the owner only when unsure. A live test: a script's `MessageDlg` with Yes/No
+(`tests/test_live_windows.py`'s `MessageTest` puts one up), answered "No" by the tool, the
+script's reply read back. (The owner, 2026-11-14, after A24's commit.)
+
+**A30. A script launch per call is what brings Altium to the front.** A22's guard gives
+the foreground back within 1 to 7 ms, but every call still starts
+`X2.EXE -RScriptingSystem:RunScriptFile(…)`, and Altium activates itself on each such
+command line (a bare `X2.EXE` does not): a key typed in those milliseconds still goes to
+Altium (about 2 to 3 % of calls while the owner types without pause), the window may flash
+for a frame, and each launch costs about 2 s of the call (from "Running command" to
+"Bridge script started" in the server log). Cleaner: a bridge that stays in Altium,
+started once, reading `request.json` by itself (a script form kept open with a timer, or
+another way into the running Altium), so no command line per call. Unknown, to probe
+first: whether a script form shown non-modal survives the end of the script that showed
+it in AD25, whether its timer fires while a script of the user's own runs or sits in the
+debugger, how it is started again after Altium restarts, and the script engine's memory
+per call (it leaks on every launch now). Also worth a look: whether the running Altium
+takes commands another way (COM, DDE) without activating. Found: a decision with the owner
+before the build, as it changes the bridge upstream's tools all rest on; A22's guard stays
+either way. (The owner, 2026-11-14, after A22's commit.)
 
 ## Waiting
 

@@ -357,3 +357,75 @@ small board; `get_layout` of an area on a copy gave the 5 tracks expected (the s
 
 Sorted into A10 (1), Closed; A25, new (2); A26, new (3, 6); A16 (4), Closed; A27, new
 (5); A28, new (7).
+
+**2026-11-14: scenario test of a release keeping the foreground and answering Altium's messages (A22, A24), with short checks on a small 2-layer board**
+
+Release `bin\0.7.0-20261114-225815` (build line `0.7.0-ad25-20261114-225815 62aa16d`).
+A window of another process (a small Tk window) was put in front, and every foreground change
+logged by a WinEvent hook plus a poll of `GetForegroundWindow` every 20 ms. Messages were put
+up by `run_altium_script` (`MessageDlg`), as a message inside a bridge command cannot be
+raised from the user's side; so the bridge's watch was met only with a message already open
+when the call began.
+
+1. A22, held for ordinary calls: `get_project_info`, `get_board_summary`,
+   `run_drc(rules=[…])` (its Design Rule Checker dialog included), `get_layout`,
+   `check_silkscreen`, and `run_altium_script` opening a project: Altium in front 5 to 31 ms
+   per call, the foreground back on the other window after each, the server log saying
+   "gave the foreground back from Altium N time(s)". `get_screenshot`: 1.15 s, as its
+   description says.
+2. A22, the guard is off when no window is in front at the start. `ForegroundGuard` keeps
+   nothing when `GetForegroundWindow` is 0, so for that whole call Altium is not sent back:
+   here it took the foreground in the middle of a `run_altium_script` (its recovery's
+   `-REditScript:Stop`) and kept it 4 minutes, until it was taken back by hand; every call
+   after it found Altium in front and left it there, by design. The 0 came from the server's
+   own path: each probe launch of `run_altium_script`'s recovery, refused by a busy Altium,
+   raised an "Information" box ("There is another instance of running, but it is busy at the
+   moment…"); the guard gave the foreground back, then the box was closed and the
+   foreground fell to no window, for 15 s, 15 s and 31 s. So after a call that met a message,
+   the user's window no longer has the keyboard either. A guess at a fix: keep the last
+   window that was not Altium's (from the previous call) when the start reads 0, and give
+   it back once more after a box is closed.
+3. A22, partly: a `run_altium_script` that closes one project and opens another
+   (`DM_OpenProject`, `Client.OpenDocument`, `Client.ShowDocument`) left Altium in front
+   about 3.4 s in all, 2.75 s of it with no foreground event at all (only the poll saw
+   Altium there); the guard reacts to events only. The same opening without closing a project
+   first: 7 ms.
+4. A24, held: with a Yes/No message open in Altium, `get_board_summary` and `run_drc` were
+   refused within a second, "Not run: '…' would wait behind a message Altium is showing that
+   waits for an answer: 'Confirm' (#32770, buttons: Yes, No); its text cannot be read from
+   outside Altium, see the picture …"; the picture shows the text. Small: each refusal wrote
+   a new picture of the same window, and the `altium_messages` list does not reach these
+   tools' replies (the error text only).
+5. A24 does not reach `run_altium_script`, which answers messages its own way, against
+   A24's rule for messages with choices. (a) A script's own `MessageDlg` with Yes and No is
+   closed after 6 s with `WM_CLOSE`: the script gets 2 (Cancel, not one of its buttons) and
+   the call reports `success` true; only `dialogs_dismissed` 1 and a picture say so.
+   (b) A call made while such a message is open (left by an earlier call) is launched
+   anyway, and closes that message after 6 s, answering it Cancel: the earlier script then
+   ran on to its end with that answer. The call itself said "no result after 20 s … Altium
+   never started the script: a script of ours was stuck and has been stopped", `recovered`
+   true. Expected, as for the bridge: not run, the message named. Bears on A24, A29.
+6. Wrong diagnosis: `run_altium_script` with a timeout shorter than a message's wait (4 s, the
+   script waiting on its `MessageDlg`) returned after about 55 s "no result after 4 s", "The
+   debugger has been stopped, so it is no longer running", `executor_wedged` true,
+   `recovered` false (3 attempts); the message was not named. The script had not stopped: it
+   went on to its end when its message was closed 78 s later.
+7. A24 not met: an OK-only message open before a bridge call, a script waiting on it. The
+   check before the launch lets an OK-only message through (it leaves it to the watch),
+   Altium refuses the launch as busy (a new modal "Information" `TMessageForm` over the
+   message), and the watch never runs, as it starts only once the command has started.
+   `get_board_summary` ended after 46 s with "Altium did not start the command (not
+   executed). A script of ours was stuck in Altium's debugger and stopping it did not free
+   Altium…": the message neither pressed nor named, two boxes left open. A click posted to
+   the message did nothing while the busy box was over it; the busy box first, then the
+   message, closed both, and the waiting script ended ("answered 1"). A guess at a fix:
+   before the launch, press a lone OK (topmost first) or refuse naming it, as for a message
+   with choices. Bears on A24.
+
+Short checks, as the baseline: `get_server_status` (version and build as the release),
+`get_project_info` (4 documents, `project_modified` false), `get_board_summary`,
+`run_drc(rules=["Un-Routed Net"])` (`ran` true, 4 in all, 13 rules omitted, report deleted),
+on a copy `get_layout` of an area (5 tracks) and `check_silkscreen` (0 to fix, 3 checked),
+`get_outjob_settings` (2 containers, 1 output). The reference project's `.PrjPcbStructure`
+appeared on closing and was deleted. 22 calls, 0 errors, 15k characters (8
+`run_altium_script`: opening, closing, the messages).

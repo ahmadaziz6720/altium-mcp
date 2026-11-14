@@ -10,7 +10,7 @@ Three sections: **Open**, not yet fixed; **Waiting**, fixed and not yet settled 
 merged, a fix not yet run in a session); **Closed**, merged upstream, run and held, or
 decided against, with the record.
 
-**Open: A8, A11 to A16, A22, A23.**
+**Open: A8, A11 to A16, A22 to A24.**
 
 A2, A7, A4 and A6 went out together in `build-20261112-120520` (owner, 2026-11-12), so one
 scenario test covers them; A3 and A8 were not waited for. That test ran and held for
@@ -322,6 +322,26 @@ know the pads. Local: name a pad whenever an end lies on one, whatever the group
 by; or, the smaller change, a line in the description. Usage until then: read with the
 net's `designators` to get the pads. (2026-11-14, fourth entry, 4.) Not in the run of
 2026-11-14's later groups (not in their files): for the next run.
+
+**A24. A modal message no driver knows blocks the call until the bridge's limit.** When
+Altium puts up a message the server does not expect, the script that raised it waits on it,
+the bridge keeps waiting (up to its 30 minute limit, as A21's did), and every later call
+waits behind it; nothing says a message is up, and the result, when it comes, does not name
+it. Each one met so far was fixed for its own tool only: A21's repour message in `run_drc`.
+Met again in the run of 2026-11-14: an "Information" message, "File Not Open", one OK
+button, while A11's probe drove the ECO dialog and exported its report; and a
+`TShowException` "COM object that has been separated from its underlying RCW cannot be
+used" that came back after each close (A11). The owner, 2026-11-14: it has happened before
+with other messages. Local, to reproduce first: a live test that has a script put up a
+message Altium's way (e.g. `ShowMessage` from `run_altium_script`) and fails when the call
+does not return within a short limit naming the message. Then a watch in the bridge, for
+every command: while it waits, a top-level modal window of X2.EXE that the tool's own
+driver does not handle (`TMessageForm`, `#32770`, `TShowException`) ends the call as a
+failure that gives its title, text and buttons; which messages it may then close, and
+with which button, to be decided with the test (an OK-only message is safe to close, one
+with choices may not be). Usage until then: a call that does not return in a minute or two
+is looked at on Altium's screen. Not in the run of 2026-11-14's groups: for the next run,
+with A22 (both are how a call meets Altium's windows).
 
 ## Waiting
 

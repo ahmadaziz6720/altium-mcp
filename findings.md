@@ -243,3 +243,42 @@ Release `bin\0.7.0-20261114-163431` (build line `0.7.0-ad25-20261114-163431 d7e5
    description or the item, so a caller comparing folders by time is not misled.
 
 Sorted into A19 (1); A20 (2); A5 (3, 4), all three Closed.
+
+**2026-11-14: scenario test of a release fixing `get_unrouted_connections`, the script checker and `run_drc`'s repour message (A3, A9, A21), on a small 2-layer board (read, edit on a copy)**
+
+Release `bin\0.7.0-20261114-180059` (build line `0.7.0-ad25-20261114-180059 bb0eeee`).
+
+1. A3, held: on a copy of the board, the 5 tracks between two pads of a 3-pad net deleted
+   with `delete_pcb_objects`, `get_unrouted_connections(nets=[it])` gave
+   `connection_count` 1, its ends those of the one Un-Routed Net violation `run_drc(nets=[it])`
+   gave (a track end to a pad, 34.67 mil). After save, close and reopen by script the same
+   call gave the same 1, and `get_project_info` kept the board "open" (A4 still held).
+   A whole-board call on the original gave 0, as the board is fully routed. `route_track`
+   over the gap brought the whole board's count to 0. A second net, a bottom track between
+   two vias deleted, gave its 1 connection (via to via, 240 mil), as DRC did. `analyzed` is
+   gone from the result, as the item says.
+2. A9, held: a script beginning `var WS : IDispatch; Prj : IDispatch; Doc : IDispatch; i, n : Integer;`
+   on one line ran, all five names used. A leading line `var A : Integer; Bx, Cx : Integer; // E : Integer;`
+   with `E` assigned in the body was refused before Altium was called, "'E' is not
+   declared", so the comment is not read as a declaration and an undeclared name is still
+   caught.
+3. A21, held: the one bottom-layer track of a signal net under a board-wide bottom ground
+   pour deleted, `run_drc(rules=["Un-Routed Net", "Modified Polygon"])` returned within
+   seconds with `ran` true, `repour_prompt` true and the `repour_note`; Un-Routed Net 1
+   and Modified Polygon 1 ("Polygon Not Repour After Edit"). The pour was unchanged (its
+   region's hole count and outline points read by script the same before and after), no
+   message was left up (the next script ran at once), `board_modified` true (the deletion
+   unsaved), `project_modified` false. A full check after gave the same prompt and 7 in
+   all: the 4 known, Un-Routed 1, Modified Polygon 1 and Net Antennae 1. On the unchanged
+   board a full `run_drc` gave no `repour_prompt` field, as the item says.
+4. Small, not wrong: with `nets` only, `get_unrouted_connections` gives `from_pad` and
+   `to_pad` null even where an end is a pad's centre; the same connection read with
+   `designators` names both ends, the track-end side by the pad that track leaves from. As
+   the description says (pads are named with `designators`), but a caller reading by net
+   cannot tell the pad without a second call. Naming a pad whenever an end lies on one, or
+   a line in the description, would settle it.
+
+The deleted copper and the test copy were closed unsaved (the copy saved once, with its net
+routed again). `.PrjPcbStructure` appeared on closing each project, as the A5 usage line
+says, and was deleted. 30 calls, 0 errors, 24k characters (9 `run_altium_script` for
+opening, closing and checks; 4 `run_drc` 8.4k).

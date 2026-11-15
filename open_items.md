@@ -291,7 +291,8 @@ unasked, and ending and restarting `X2.EXE` when Altium hangs.
 - [x] A12: committed
 - [x] group 4: offline and live tests, pushed, released (build: `build-20261115-143551`;
   519 offline, 63 live; Altium restarted before the live tests)
-- [ ] group 4: scenario test (session id: …), entry committed and sorted, release page
+- [ ] group 4: scenario test (session id: `982a2248-9a1b-4881-b5ee-2da83c636478`, started 2026-11-15), entry committed and
+  sorted, release page
 - [ ] A15: committed (or left Open, why written into it)
 - [ ] A8: committed (or left Open, why written into it)
 - [ ] group 5: offline and live tests, pushed, released (build: …)

@@ -262,6 +262,14 @@ unasked, and ending and restarting `X2.EXE` when Altium hangs.
   owner named, A29 and A30's probe). The scenario test ran once, not stopped, 99 turns.
 - [x] A29: committed
 - [x] A30: probe, its result written into the item
+  A30 built on the owner's word of 2026-11-15 ("Build it, launch as fallback"), in a
+  session of its own; then, on the owner's yes of the same day: the release of A29 and A30,
+  its scenario test headless and the commit of its entry.
+- [x] A30: committed (`f1b1559`)
+- [x] A29 and A30: offline and live tests, pushed, released (build:
+  `build-20261115-114630`; 415 offline, 55 live through the resident)
+- [ ] A29 and A30: scenario test (session id: `7b30a860-4934-4fb9-9d6a-c5e1b88d69b2`), entry committed and sorted,
+  release page
 - [ ] A13: committed (or left Open, why written into it)
 - [ ] A14: committed (or left Open, why written into it)
 - [ ] A12: committed (or left Open, why written into it)
@@ -583,7 +591,7 @@ picture per refusal" (three files of one window); after, 4/4 pass ("No" pressed,
 gone, the reply "answered 7" read back, the next call run; the listing with the picture,
 the window still open; "Cancel" failing with "its buttons are Yes, No"; one picture), the
 file 9/9 in 56 s. Offline tests in `test_altium_messages.py` (40, 24 new); offline 392 OK.
-Local: on `ad25`, in the commit that moves it here; not yet in a build. Upstream: not yet
+Fixed in `c348b6d`. Local: on `ad25`, released in `build-20261115-114630`. Upstream: not yet
 decided.
 
 **A30. A script launch per call is what brings Altium to the front.** A22's guard gives
@@ -720,7 +728,7 @@ script by a launch (resident off in the test). All live modules, 55 tests, throu
 resident (114 calls taken by it, the A24 tests' 7 by launch): 54 passed, the one failure
 the replacement test's own (a blank line did not change the bundle; it now adds a
 routine), then 5/5. Offline: `tests/test_resident.py` (23); 415 OK.
-Local: on `ad25`, in the commit that moves it here; not yet in a build. Upstream: not yet
+Fixed in `f1b1559`. Local: on `ad25`, released in `build-20261115-114630`. Upstream: not yet
 decided.
 
 ## Closed

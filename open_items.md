@@ -10,7 +10,7 @@ Three sections: **Open**, not yet fixed; **Waiting**, fixed and not yet settled 
 merged, a fix not yet run in a session); **Closed**, merged upstream, run and held, or
 decided against, with the record.
 
-**Open: A8, A11, A12, A14, A15, A23, A25 to A28, A31 to A34.**
+**Open: A8, A11, A12, A14, A15, A23, A25 to A28, A31 to A34, A36.**
 
 A2, A7, A4 and A6 went out together in `build-20261112-120520` (owner, 2026-11-12), so one
 scenario test covers them; A3 and A8 were not waited for. That test ran and held for
@@ -512,6 +512,16 @@ never; a guess, the board brought to view the first time a tool uses it), and af
 (d) `run_altium_script` is not served by the resident, each call still a launch (its
 description still says `RunScriptFile`); A30 did not say whether that is meant: to
 decide, with A31 and A32. Local. For the next run.
+
+**A36. A board open under its short (8.3) path is opened a second time.** A tool given a
+`board_path` in the short form (`C:\Users\ABCDEF~1\...`) while that board is open under it
+opens the file again: `long_path` turns the path into its long form and `FocusBoardByPath`
+then does not find the open document by it, so the call works on a second copy while the
+first keeps its own state. Met by the run while building A13 (2026-11-15); A13's live test
+opens its copies by the long path, as `test_live_project_setup` does. Local: compare
+documents by one form of the path (both made long, or Altium's own name read back), and a
+live test that opens a board by its short path and then calls a tool with that path. For
+the next run.
 
 ## Waiting
 

@@ -988,6 +988,25 @@ begin
     end;
 end;
 
+// make_pcblib_from_board: its board is "source_board", not "board_path", so the
+// command opens the board itself and closes it again when it was not open
+function ExecuteMakePcbLibFromBoard(RequestData: TStringList): String;
+var
+    Wanted : TStringList;
+    i      : Integer;
+begin
+    Wanted := TStringList.Create;
+    try
+        ExtractRequestArray(RequestData, 'footprints', Wanted);
+        for i := 0 to Wanted.Count - 1 do
+            Wanted[i] := UpperCase(Trim(Wanted[i]));
+        Result := MakePcbLibFromBoard(RequestText(RequestData, 'source_board', ''),
+            RequestText(RequestData, 'library_path', ''), Wanted);
+    finally
+        Wanted.Free;
+    end;
+end;
+
 // Function to execute get output job containers
 function ExecuteGetOutputJobContainers(RequestData: TStringList): String;
 begin
@@ -1575,6 +1594,8 @@ begin
             Result := SetBoardOutline(RequestText(RequestData, 'outline', ''));
         'board_layer_shapes':
             Result := GetBoardLayerShapes(RequestText(RequestData, 'layer', ''));
+        'make_pcblib_from_board':
+            Result := ExecuteMakePcbLibFromBoard(RequestData);
     else
         LogScriptError('Error: Unknown command: ' + CommandName);
     end;

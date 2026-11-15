@@ -2426,6 +2426,89 @@ async def create_footprints_batch(ctx: Context, spec_file: str) -> str:
     result = response.get("result", {})
     return json.dumps(result, indent=2) if not isinstance(result, str) else result
 
+
+# Altium's Make PCB Library is one call that reports no progress: about 20 s
+# for a board of 115 components; a large board takes longer
+MAKE_PCBLIB_TIMEOUT = 900
+
+
+@_tool()
+async def make_pcblib_from_board(ctx: Context, board_path: str, library_path: str,
+                                 footprints: list = None) -> str:
+    """
+    Make a PCB library (.PcbLib) of the footprints on a board, as Altium's
+    Design > Make PCB Library does, and save it at library_path.
+
+    Altium's own command (PCB:BuildPCBLibrary) does the work, hidden and
+    without adding the library to the project: every primitive kind and 3D
+    body of each component's footprint is copied as Altium copies it. One
+    footprint per pattern; when components of one pattern differ, Altium
+    writes the second as "<pattern>_2" (and so on), and it comes with its
+    pattern. The saved file is opened again by Altium and read back: the
+    result lists what the file holds, and compares it with the board.
+
+    The board and its project are left as found: a board that was not open
+    is opened for the call and closed again, an open one keeps its
+    unsaved-changes flag, the document that was in front is in front again,
+    the library is closed once saved, and nothing is written beside the
+    board.
+
+    Refused, nothing written: a file already at library_path (nothing is
+    overwritten), a library_path that is open in Altium, a board not found,
+    a name in footprints that is not a pattern of the board.
+
+    Args:
+        board_path (str): Full path of the .PcbDoc.
+        library_path (str): Full path of the .PcbLib to write; its folder is
+            made when missing.
+        footprints (list, optional): Pattern names to keep (any case), each
+            with Altium's "_<n>" variants of it. Omitted: all.
+
+    Returns:
+        str: JSON with library_path, footprint_count, footprints [{name,
+             pads, primitives, pattern (only when the name differs from it)}]
+             as read back from the saved file, board_patterns and
+             board_components in scope, not_written (patterns in scope with
+             no footprint in the file), problems (anything that does not
+             agree with the board: a pattern not written, a pad count no
+             component of the pattern has; success is false when there is
+             one, the file then kept), board_was_open, board_modified,
+             removed_by_filter (footprints left out by footprints).
+    """
+    import board_library
+
+    board_path = long_path(board_path or "")
+    if not board_path or os.path.splitext(board_path)[1].lower() != ".pcbdoc":
+        return json.dumps({"success": False, "error": "board_path must be the full path of a .PcbDoc"})
+    if not os.path.isfile(board_path):
+        return json.dumps({"success": False, "error": f"Board not found: {board_path}"})
+    library_path, error = _new_document_path(library_path, (".pcblib",))
+    if error:
+        return json.dumps({"success": False, "error": error})
+    wanted = []
+    for name in footprints or []:
+        if not isinstance(name, str) or not name.strip():
+            return json.dumps({"success": False, "error": "footprints must be a list of pattern names"})
+        wanted.append(name.strip())
+
+    reply, error = await _bridge_json("make_pcblib_from_board", {
+        "source_board": board_path, "library_path": library_path, "footprints": wanted},
+        timeout=MAKE_PCBLIB_TIMEOUT)
+    if error:
+        return json.dumps({"success": False, "error": error,
+                           "library_written": os.path.isfile(library_path)})
+    result = board_library.summarise(reply, wanted)
+    if result["problems"]:
+        return json.dumps({"success": False,
+                           "error": f"The library was saved at {library_path}, but it does not agree with "
+                                    "the board: " + "; ".join(result["problems"][:10]),
+                           **result}, indent=2)
+    return json.dumps({"success": True, **result}, indent=2)
+
+
+MUTATING_COMMANDS.add("make_pcblib_from_board")
+
+
 @_tool()
 async def build_schematic(ctx: Context, parts: list, wires: list = None,
                           junctions: list = None, net_labels: list = None,

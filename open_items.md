@@ -10,7 +10,7 @@ Three sections: **Open**, not yet fixed; **Waiting**, fixed and not yet settled 
 merged, a fix not yet run in a session); **Closed**, merged upstream, run and held, or
 decided against, with the record.
 
-**Open: A8, A11, A15, A23, A25 to A28, A31 to A34, A36 to A39.**
+**Open: A11, A15, A23, A25 to A28, A31 to A34, A36 to A39.**
 
 A2, A7, A4 and A6 went out together in `build-20261112-120520` (owner, 2026-11-12), so one
 scenario test covers them; A3 and A8 were not waited for. That test ran and held for
@@ -300,7 +300,7 @@ unasked, and ending and restarting `X2.EXE` when Altium hangs.
   the owner's word of 2026-11-15, to go on in a new session from A15.
 - [x] A15: committed (split: A15 (a) done as A40, in Waiting; A15 (b), the supplier lookup
   and vendor import, stays Open by the plan)
-- [ ] A8: committed (or left Open, why written into it)
+- [x] A8: committed (found: `PCB:BuildPCBLibrary` run hidden; `make_pcblib_from_board`)
 - [ ] group 5: offline and live tests, pushed, released (build: …)
 - [ ] group 5: scenario test (session id: …), entry committed and sorted, release page
 - [ ] the report
@@ -308,12 +308,6 @@ unasked, and ending and restarting `X2.EXE` when Altium hangs.
 ---
 
 ## Open
-
-**A8. No tool to make a PcbLib from a board.** `RunProcess('PCB:MakeLibrary')` and
-`Client.SendMessage('PCB:MakeLibrary', ...)` from `run_altium_script` returned success and
-did nothing (no document, no dialog); it was done by hand through the menu. Local: find a
-way that works from a script (the process with its parameters, or building the library from
-the board's footprints through the PcbLib API), then a tool. (2026-11-12, 7.)
 
 **A11. No tool to update the board from the schematic.** No Update PCB Document (ECO):
 parts and nets reach a board only through Altium's menu, and so does a schematic change
@@ -674,6 +668,78 @@ no rows from a failed query read as "no such part".
 Decided 2026-11-15 by the run, not the owner: the live test compiles its `.IntLib` from the
 example's libraries and uninstalls it again (Altium installs a library it compiles),
 because the `.IntLib`s AD25 installs carry no footprints to read back.
+Fixed in the commit that moves it here.
+Local: on `ad25`, in the commit that moves it here; not yet in a build. Upstream: not yet
+decided.
+
+**A8. No tool to make a PcbLib from a board.** `RunProcess('PCB:MakeLibrary')` and
+`Client.SendMessage('PCB:MakeLibrary', ...)` from `run_altium_script` returned success and
+did nothing (no document, no dialog); it was done by hand through the menu. Local: find a
+way that works from a script (the process with its parameters, or building the library from
+the board's footprints through the PcbLib API), then a tool. (2026-11-12, 7.)
+Probe 2026-11-15 by the run, live in AD25, on a copy of the SpiritLevel-SL1 example project
+(its board: 115 components, 29 patterns). Cause: `PCB:MakeLibrary` is the menu item's
+process launcher id (`PLPCB:MakeLibrary` in `AdvPcb.rcs`), not a command; its command is
+`PCB:BuildPCBLibrary` with `AddLibraryToProject=True`, which hands over to
+`MakeLib:BuildPCBLibrary` (`Makelib.ins`, "Builds a PCB library from the current board").
+`Makelib.dll` reads three parameters: `RunHidden`, `AddLibraryToProject` and `FileName`.
+`RunProcess('PCB:BuildPCBLibrary')` with `RunHidden=True` and `AddLibraryToProject=False`,
+the board in front, made the library in about 20 s with no dialog: a new, unsaved PCB
+library document named `<board name>.PcbLib` in the board's folder (nothing written there),
+32 footprints (one per pattern, and `HDR1X2_2`, `CC2012-0805_2`, `CR2012-0805_2` where
+components of one pattern differ, as the menu does), the board and the project file left
+unmodified, the project's documents unchanged. With a file of that name already there it
+named the document `<board name>1.PcbLib` and left the file alone. `FileName` (a full path,
+with or without `.PcbLib`) was ignored. `DoSafeChangeFileNameAndSave` then wrote the
+library at another path in one save, and the file reopened held 32 footprints;
+`IPCB_Library.RemoveComponent` took footprints out before the save (the one shown
+included), and the file reopened held the 2 kept. So the API way (copying each footprint's
+primitives) was not needed.
+Fix: `make_pcblib_from_board(board_path, library_path, footprints)` (`main.py`,
+`board_library.py`, `MakePcbLibFromBoard` in `other_utils.pas`). The script notes the
+document in front and whether the board is open and modified, opens the board when it is
+not, reads its components (pattern and pad count), refuses a name in `footprints` that is
+not a pattern of the board before anything is made, runs the process as above, takes the
+PCB library that was not open before as Altium's, removes the footprints not asked for
+(a pattern keeps its `_<n>` variants), saves it at `library_path` and closes it, then opens
+the saved file again and reads each footprint's pads and primitives, and closes it. The
+board is left as found: closed again when it was not open, its flag cleared when the call
+marked a board that had no unsaved change (the process did not), the document that was in
+front shown again. `board_library.summarise` compares the file read back with the board:
+a pattern in scope with no footprint, a footprint whose pad count no component of its
+pattern has, a component pad count no footprint of its pattern has, a footprint kept but not
+in the file; any of these fails the call, the file kept and named. Refused before Altium: a
+file at `library_path` (nothing overwritten), not a `.PcbLib`, a board not found or not a
+`.PcbDoc`. One call on the example board: 26 s, 32 footprints from 29 patterns (PQ208 with
+210 pads), 2.1k characters.
+Live test `tests/test_live_pcblib_from_board.py` (copy of the SpiritLevel-SL1 project
+folder, each library read back by `get_footprint_primitives` on the saved file and compared
+with the tool's result and with the board's components read by a board iterator): before
+the tool, 3/3 failed, "AttributeError: module 'main' has no attribute
+'make_pcblib_from_board'". After, 4/4: the board open in its project with a sheet in front
+(32 footprints read back equal, every pattern there with its pad counts; the open documents,
+the document in front, the board's and the project file's flags, the project's documents
+and the project folder's files all as before); the board not open and three patterns asked
+for (4 footprints, `CR2012-0805_2` with its pattern, 28 removed, the board closed again);
+a board with unsaved changes still marked after; refusals (a file there unchanged, a name
+not on the board, a board not found: no file written, no document left open). With
+`test_live_symbol_footprint` (the footprint tools; 9/9): 13/13 in 222 s. Offline 545 OK
+(was 533): new `tests/test_board_library.py` 12, added to `.github/workflows/tests.yml`.
+Decided 2026-11-15 by the run, not the owner: Altium's own Make PCB Library, not a copy of
+each footprint's primitives through the API, because the process run hidden worked from a
+script and copies every primitive kind and 3D body as the menu does, with less code to be
+wrong.
+Decided 2026-11-15 by the run, not the owner: the board goes to the bridge as
+`source_board`, not `board_path`, because `board_path` makes the bridge open and remember
+the board before the command runs, and the command could then not know it had to close it
+again.
+Decided 2026-11-15 by the run, not the owner: a name in `footprints` that is not a pattern of
+the board refuses the call with nothing made, and a library that does not agree with the
+board after the save fails the call with the file kept and named, because a library missing
+a footprint asked for, reported as success, is a wrong result.
+Decided 2026-11-15 by the run, not the owner: Altium's `<pattern>_<n>` footprints are kept,
+named with their pattern, and come with a pattern asked for, because each is the footprint
+of components on the board that differ from the first of that pattern.
 Fixed in the commit that moves it here.
 Local: on `ad25`, in the commit that moves it here; not yet in a build. Upstream: not yet
 decided.

@@ -455,6 +455,7 @@ begin
        (CommandName = 'create_pcb_footprint') or
        (CommandName = 'get_project_info') or
        (CommandName = 'get_installed_libraries') or
+       (CommandName = 'make_pcblib_from_board') or
        (CommandName = 'get_project_components') or
        (CommandName = 'get_erc_violations') or
        (CommandName = 'create_project') or
@@ -1906,6 +1907,319 @@ begin
         Result := ProjectSetupJSON(Project, Extra);
     finally
         Extra.Free;
+    end;
+end;
+
+// Whether a footprint Altium's Make PCB Library wrote is one of Wanted (upper
+// case names): its own name, or that name with the "_<n>" Altium adds to a
+// second, different footprint of one pattern (CR2012-0805_2)
+function FootprintWanted(Name: String; Wanted: TStringList): Boolean;
+var
+    U : String;
+    i : Integer;
+begin
+    U := UpperCase(Name);
+    Result := Wanted.IndexOf(U) >= 0;
+    if Result then Exit;
+    // The digits at the end, then the underscore before them (no short
+    // circuit is relied on: the index is checked before the character)
+    i := Length(U);
+    while i > 0 do
+    begin
+        if Pos(Copy(U, i, 1), '0123456789') = 0 then Break;
+        i := i - 1;
+    end;
+    if (i > 1) and (i < Length(U)) then
+        if Copy(U, i, 1) = '_' then
+            Result := Wanted.IndexOf(Copy(U, 1, i - 1)) >= 0;
+end;
+
+// The primitives of a library footprint, all kinds a footprint holds
+function LibFootprintPrimitives(C: IPCB_LibComponent): Integer;
+begin
+    Result := C.GetPrimitiveCount(MkSet(eArcObject, ePadObject, eViaObject, eTrackObject, eTextObject,
+        eFillObject, eRegionObject, eComponentBodyObject));
+end;
+
+// The open PCB libraries, by their normalised path
+procedure OpenPcbLibraries(Names: TStringList);
+var
+    i, j   : Integer;
+    Module : IServerModule;
+begin
+    Names.Clear;
+    for i := 0 to Client.Count - 1 do
+    begin
+        Module := Client.ServerModule[i];
+        if Module <> nil then
+            for j := 0 to Module.DocumentCount - 1 do
+                if UpperCase(Module.Documents[j].Kind) = 'PCBLIB' then
+                    Names.Add(NormalizedPath(Module.Documents[j].FileName));
+    end;
+end;
+
+// make_pcblib_from_board: Altium's own Make PCB Library (Design menu,
+// PCB:BuildPCBLibrary) run on the board at BoardPath, hidden and without
+// adding the library to the project, then the new library saved at LibPath and
+// closed. Wanted (upper case names), when not empty, keeps those footprints
+// only. The saved file is opened again and read back. The board is left as it
+// was found: opened and closed again when it was not open, its unsaved-changes
+// flag as before, the document that had focus focused again.
+function MakePcbLibFromBoard(BoardPath: String; LibPath: String; Wanted: TStringList): String;
+var
+    BoardDoc, LibDoc, Prev : IServerDocument;
+    Board       : IPCB_Board;
+    Lib         : IPCB_Library;
+    BIt         : IPCB_BoardIterator;
+    LIt         : IPCB_LibraryIterator;
+    Comp        : IPCB_Component;
+    LibComp     : IPCB_LibComponent;
+    Before      : TStringList;
+    After       : TStringList;
+    Patterns    : TStringList;
+    BoardItems  : TStringList;
+    MadeItems   : TStringList;
+    WrittenItems: TStringList;
+    Unknown     : TStringList;
+    Props       : TStringList;
+    Doomed      : TInterfaceList;
+    WasOpen     : Boolean;
+    WasModified : Boolean;
+    FlagCleared : Boolean;
+    NowModified : Boolean;
+    BoardName   : String;
+    PrevName    : String;
+    MadeName    : String;
+    Err         : String;
+    i           : Integer;
+begin
+    Result := '';
+    if FileExists(LibPath) then
+    begin
+        Result := 'ERROR: A file already exists at ' + LibPath + ': not overwritten';
+        Exit;
+    end;
+    if FindOpenDocument(LibPath) <> nil then
+    begin
+        Result := 'ERROR: A document of that path is already open in Altium: ' + LibPath;
+        Exit;
+    end;
+
+    PrevName := '';
+    if Client.CurrentView <> nil then
+        if Client.CurrentView.OwnerDocument <> nil then
+            PrevName := Client.CurrentView.OwnerDocument.FileName;
+
+    BoardDoc := FindOpenDocument(BoardPath);
+    WasOpen := BoardDoc <> nil;
+    if not WasOpen then
+    begin
+        if not FileExists(BoardPath) then
+        begin
+            Result := 'ERROR: Board not found: ' + BoardPath;
+            Exit;
+        end;
+        BoardDoc := Client.OpenDocument('PCB', BoardPath);
+        if BoardDoc = nil then
+        begin
+            Result := 'ERROR: Could not open the board ' + BoardPath;
+            Exit;
+        end;
+    end;
+    WasModified := DocumentModified(BoardDoc);
+    BoardName := BoardDoc.FileName;
+    FlagCleared := False;
+    NowModified := False;
+
+    Before := TStringList.Create;
+    After := TStringList.Create;
+    Patterns := TStringList.Create;
+    BoardItems := TStringList.Create;
+    MadeItems := TStringList.Create;
+    WrittenItems := TStringList.Create;
+    Unknown := TStringList.Create;
+    Props := TStringList.Create;
+    Doomed := TInterfaceList.Create;
+    LibDoc := nil;
+    Err := '';
+    try
+        Patterns.Sorted := True;
+        Patterns.Duplicates := dupIgnore;
+        Client.ShowDocument(BoardDoc);
+        Board := FocusedBoard(0);
+        if (Board = nil) or (NormalizedPath(Board.FileName) <> NormalizedPath(BoardDoc.FileName)) then
+            Err := 'Could not bring the board ' + BoardPath + ' to the front'
+        else
+        begin
+            // The board's components, each as pattern|pads
+            BIt := Board.BoardIterator_Create;
+            BIt.AddFilter_ObjectSet(MkSet(eComponentObject));
+            BIt.AddFilter_LayerSet(AllLayers);
+            BIt.AddFilter_Method(eProcessAll);
+            Comp := BIt.FirstPCBObject;
+            while Comp <> nil do
+            begin
+                BoardItems.Add('"' + JSONEscapeString(Comp.Pattern + '|' +
+                    IntToStr(Comp.GetPrimitiveCount(MkSet(ePadObject)))) + '"');
+                Patterns.Add(UpperCase(Comp.Pattern));
+                Comp := BIt.NextPCBObject;
+            end;
+            Board.BoardIterator_Destroy(BIt);
+
+            // A footprint asked for that is not on the board: nothing is made
+            for i := 0 to Wanted.Count - 1 do
+                if Patterns.IndexOf(Wanted[i]) < 0 then
+                    Unknown.Add(Wanted[i]);
+            if Unknown.Count > 0 then
+                Err := 'Not on the board: ' + Unknown.CommaText + '. Nothing was made.'
+            else if BoardItems.Count = 0 then
+                Err := 'The board has no components. Nothing was made.';
+        end;
+
+        if Err = '' then
+        begin
+            OpenPcbLibraries(Before);
+            ResetParameters;
+            AddStringParameter('RunHidden', 'True');
+            AddStringParameter('AddLibraryToProject', 'False');
+            RunProcess('PCB:BuildPCBLibrary');
+
+            // The library it made is the PCB library that was not open before
+            OpenPcbLibraries(After);
+            for i := 0 to After.Count - 1 do
+                if (LibDoc = nil) and (Before.IndexOf(After[i]) < 0) then
+                    LibDoc := FindOpenDocument(After[i]);
+            if LibDoc = nil then
+                Err := 'Altium''s Make PCB Library made no library from ' + BoardPath;
+        end;
+
+        if Err = '' then
+        begin
+            MadeName := LibDoc.FileName;
+            Lib := PCBServer.GetPCBLibraryByPath(MadeName);
+            if Lib = nil then
+                Err := 'Altium made the library ' + MadeName + ' but it cannot be read';
+        end;
+
+        if Err = '' then
+        begin
+            LIt := Lib.LibraryIterator_Create;
+            LIt.SetState_FilterAll;
+            LibComp := LIt.FirstPCBObject;
+            while LibComp <> nil do
+            begin
+                if (Wanted.Count > 0) and (not FootprintWanted(LibComp.Name, Wanted)) then
+                    Doomed.Add(LibComp)
+                else
+                    MadeItems.Add('"' + JSONEscapeString(LibComp.Name) + '"');
+                LibComp := LIt.NextPCBObject;
+            end;
+            Lib.LibraryIterator_Destroy(LIt);
+            for i := 0 to Doomed.Count - 1 do
+            begin
+                LibComp := Doomed[i];
+                Lib.RemoveComponent(LibComp);
+            end;
+            if MadeItems.Count = 0 then
+                Err := 'Altium''s library from the board holds no footprint to keep';
+        end;
+
+        if Err = '' then
+        begin
+            LibDoc.DoSafeChangeFileNameAndSave(LibPath, LibDoc.Kind);
+            // The first save of a new document renames it and may write nothing
+            if not FileExists(LibPath) then
+            begin
+                LibDoc.SetModified(True);
+                LibDoc.DoFileSave('');
+            end;
+            if not FileExists(LibPath) then
+                Err := 'Altium did not write ' + LibPath;
+        end;
+
+        // The library made is closed, saved or not
+        if LibDoc <> nil then
+        begin
+            LibDoc.SetModified(False);
+            Client.CloseDocument(LibDoc);
+            LibDoc := nil;
+        end;
+
+        // The saved file read back: opened again, each footprint counted
+        if Err = '' then
+        begin
+            LibDoc := Client.OpenDocument('PCBLIB', LibPath);
+            Lib := nil;
+            if LibDoc <> nil then
+                Lib := PCBServer.GetPCBLibraryByPath(LibDoc.FileName);
+            if Lib = nil then
+                Err := 'The library was saved at ' + LibPath + ' but Altium could not open it again'
+            else
+            begin
+                LIt := Lib.LibraryIterator_Create;
+                LIt.SetState_FilterAll;
+                LibComp := LIt.FirstPCBObject;
+                while LibComp <> nil do
+                begin
+                    WrittenItems.Add('"' + JSONEscapeString(LibComp.Name + '|' +
+                        IntToStr(LibComp.GetPrimitiveCount(MkSet(ePadObject))) + '|' +
+                        IntToStr(LibFootprintPrimitives(LibComp))) + '"');
+                    LibComp := LIt.NextPCBObject;
+                end;
+                Lib.LibraryIterator_Destroy(LIt);
+            end;
+            if LibDoc <> nil then
+            begin
+                LibDoc.SetModified(False);
+                Client.CloseDocument(LibDoc);
+            end;
+        end;
+    finally
+        // The board as it was found
+        if (not WasModified) and DocumentModified(BoardDoc) then
+        begin
+            BoardDoc.SetModified(False);
+            FlagCleared := True;
+        end;
+        NowModified := DocumentModified(BoardDoc);
+        if not WasOpen then
+        begin
+            BoardDoc.SetModified(False);
+            Client.CloseDocument(BoardDoc);
+            NowModified := False;
+        end;
+        if PrevName <> '' then
+        begin
+            Prev := FindOpenDocument(PrevName);
+            if Prev <> nil then
+                Client.ShowDocument(Prev);
+        end;
+
+        if Err <> '' then
+            Result := 'ERROR: ' + Err
+        else
+        begin
+            AddJSONProperty(Props, 'board', BoardName);
+            AddJSONBoolean(Props, 'board_was_open', WasOpen);
+            AddJSONBoolean(Props, 'board_modified', NowModified);
+            AddJSONBoolean(Props, 'board_flag_cleared', FlagCleared);
+            AddJSONProperty(Props, 'made_as', MadeName);
+            AddJSONProperty(Props, 'library_path', LibPath);
+            AddJSONInteger(Props, 'removed_by_filter', Doomed.Count);
+            Props.Add(BuildJSONArray(BoardItems, 'board_components'));
+            Props.Add(BuildJSONArray(MadeItems, 'made'));
+            Props.Add(BuildJSONArray(WrittenItems, 'written'));
+            Result := BuildJSONObject(Props);
+        end;
+        Before.Free;
+        After.Free;
+        Patterns.Free;
+        BoardItems.Free;
+        MadeItems.Free;
+        WrittenItems.Free;
+        Unknown.Free;
+        Props.Free;
+        Doomed.Free;
     end;
 end;
 

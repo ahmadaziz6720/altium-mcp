@@ -583,3 +583,7 @@ once midway (the client reconnected); same release, same resident.
 Altium; the largest `get_pcb_rules` 13k, `write_outjob` 11k and 10k, `run_drc` 9k). The
 reference project's `.PrjPcbStructure` was there before the session and was deleted (A5's
 usage).
+
+Sorted into A35 (1), A13 (2), A12 (6), Closed; A14 (4), Closed but its priority; A34 (e)
+(1, the resident project of an earlier build listed); A37 (3), A38 (5), A39 (7), new; A26
+(8), possibly met again.

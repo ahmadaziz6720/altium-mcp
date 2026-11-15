@@ -10,7 +10,7 @@ Three sections: **Open**, not yet fixed; **Waiting**, fixed and not yet settled 
 merged, a fix not yet run in a session); **Closed**, merged upstream, run and held, or
 decided against, with the record.
 
-**Open: A8, A11, A15, A23, A25 to A28, A31 to A34, A36.**
+**Open: A8, A11, A15, A23, A25 to A28, A31 to A34, A36 to A39.**
 
 A2, A7, A4 and A6 went out together in `build-20261112-120520` (owner, 2026-11-12), so one
 scenario test covers them; A3 and A8 were not waited for. That test ran and held for
@@ -33,7 +33,9 @@ A29 and A30 went out together in `build-20261115-114630` (owner, 2026-11-15): on
 test covers both. It ran, the second time from the start, and held for both (findings
 2026-11-15, first entry); what it left is A31, A32 and A34.
 A35, A13, A14 and A12 (group 4 of the run) went out together in `build-20261115-143551`
-(the run, 2026-11-15): one scenario test covers them.
+(the run, 2026-11-15): one scenario test covers them. It ran (stopped once by the usage limit
+and resumed) and held for A35, A13 and A12, and for A14 but its priority (findings
+2026-11-15, second entry); what it left is A37 to A39.
 
 A10 to A16 come from a review of the tools against a whole design flow (schematic and
 missing library parts, ERC; a board with its rules and layer stack; placement; routing,
@@ -291,8 +293,11 @@ unasked, and ending and restarting `X2.EXE` when Altium hangs.
 - [x] A12: committed
 - [x] group 4: offline and live tests, pushed, released (build: `build-20261115-143551`;
   519 offline, 63 live; Altium restarted before the live tests)
-- [ ] group 4: scenario test (session id: `982a2248-9a1b-4881-b5ee-2da83c636478`, started 2026-11-15), entry committed and
-  sorted, release page
+- [x] group 4: scenario test (session id: `982a2248-9a1b-4881-b5ee-2da83c636478`), entry
+  committed and sorted, release page; A35, A13 and A12 held and Closed, A14 Closed but its
+  priority (A38), A37 to A39 new (Open). Stopped once by the 5-hour usage limit after 67
+  turns and resumed with the same id (32 turns more). Then the run stopped after group 4 on
+  the owner's word of 2026-11-15, to go on in a new session from A15.
 - [ ] A15: committed (or left Open, why written into it)
 - [ ] A8: committed (or left Open, why written into it)
 - [ ] group 5: offline and live tests, pushed, released (build: …)
@@ -420,6 +425,10 @@ result the top-level `detached_from` is `""` while the nested one names the proj
 `sheet` gives the unsaved name (`Sheet1.SchDoc`) where `sheet_path` gives the file saved.
 Local: the flag put back as `add_project_document` does, one `detached_from`, and `sheet`
 the saved name. (2026-11-14, fifth entry, 3 and 6.) For the next run.
+Possibly met again (2026-11-15, second entry, 8): at the start of a session Altium had a
+project focused with its flag set and a `Sheet1.SchDoc` in it with no path (not open, not on
+disk), the file on disk unchanged; nothing in that session made it, and the source is not
+known (a new sheet taken into the focused project by an earlier call or live test).
 
 **A27. `build_schematic` with `footprint` on a symbol that has a current one gives two.**
 A part whose library symbol already has a current footprint, placed with `footprint`, gets
@@ -498,7 +507,10 @@ never; a guess, the board brought to view the first time a tool uses it), and af
 (c) `answer_altium_message`'s picture of a `MessageDlg` cuts its buttons at the bottom.
 (d) `run_altium_script` is not served by the resident, each call still a launch (its
 description still says `RunScriptFile`); A30 did not say whether that is meant: to
-decide, with A31 and A32. Local. For the next run.
+decide, with A31 and A32.
+(e) A resident project of an earlier build (another tag, no live form) stays listed in
+Altium's Projects panel (2026-11-15, second entry, 1): closing a resident could close its
+project too. Local. For the next run.
 
 **A36. A board open under its short (8.3) path is opened a second time.** A tool given a
 `board_path` in the short form (`C:\Users\ABCDEF~1\...`) while that board is open under it
@@ -509,6 +521,37 @@ opens its copies by the long path, as `test_live_project_setup` does. Local: com
 documents by one form of the path (both made long, or Altium's own name read back), and a
 live test that opens a board by its short path and then calls a tool with that path. For
 the next run.
+
+**A37. `set_pcb_layer_stackup`'s dry run leaves out the existing dielectric's changes.**
+The 4-layer preset's dry run on a 2-layer board listed in `would_change` only the outer
+coppers' thickness (1.4 to 1.378 mil); the call then reported `changed` 15: the existing
+core became the top prepreg (type, material, height 60 to 7.874 mil, constant 4.8 to 4.4)
+and the new layers' values were set. A dry run that understates what the call does to an
+existing layer. Local: `would_change` lists every value the call will write, the kept
+dielectrics' included, and the new layers' values under `would_add`; an offline test on that
+plan. (2026-11-15, second entry, 3.) For the next run.
+
+**A38. A rule priority set by the tools is not what `run_drc` uses until the board is
+reopened.** `create_pcb_rule`'s `priority` and `create_pcb_rules_preset` order the rules by
+adding at 1 and removing and adding again (A14); `get_pcb_rules`, the iterator's `Priority`
+and `FindDominantRuleForObject` all give the order asked, but the batch DRC in the same
+session checks by the order the rules were added, the last added winning: a via ring rule
+put at 2 by the preset gave 14 violations where the rule at 1 dominates every via, 0 after a
+save, close and reopen; a rule then made at the lowest priority gave 17 violations of it.
+Reported success with a wrong result for any check run before a reopen. Local: find the
+Altium call that refreshes the rule order (or what the rules editor does on OK), else the
+tool saves, closes and reopens the board, or refuses `priority` other than 1 and says so;
+a live test with a DRC after the move that fails today. Usage until then: save, close and
+reopen the board after setting a priority or a preset, before `run_drc`. (2026-11-15,
+second entry, 5.) For the next run.
+
+**A39. `write_outjob` and `set_pcb_layer_stackup` return more than a check needs.** Every
+`write_outjob` returns the whole read of the file, about 10k characters, 7k of them the
+Gerber's 55 plotted layers one by one (the preset plots every copper layer), an edit of two
+settings the same 10k; `set_pcb_layer_stackup` returns `requested` and `stack` both, 3 to 5k
+for a 2- or 4-layer board. Local: a summary (plotted layers as "every copper layer" plus the
+others by name; the stack only where it differs from what was asked) with the full read
+behind a flag. (2026-11-15, second entry, 7.) For the next run.
 
 ## Waiting
 
@@ -556,392 +599,6 @@ Scenario test of that build held (2026-11-12, third entry, 2): 38 rules, the sco
 `filter2` only on binary rules. The reply went from 9.3k to 8.5k characters only (about
 9 %): what is left is mostly the key names and indentation repeated on every rule.
 Waits for the upstream PR.
-
-**A35. A34 (a), the resident's tag differed between a release copy and a checkout.** The tag
-(`Resident.prepare`) hashed the form's `.pas` and `.dfm` as read from disk, and made the
-line ends CRLF only afterwards, when writing them. A release copy (`git archive`: LF) and a
-checkout (`core.autocrlf`: CRLF) at one commit therefore gave two tags (`0fd9980a5570` and
-`a4ea8490f7f3`), and on one Altium each closed the other's resident and started its own
-(2 s and one launch each time). The bundle (`script_bundle.bundle_text`) already splits
-and joins its units' lines and writes CRLF, and `project_units` reads the project file by
-regex, so neither differs by line ends: only the two templates did. (Found after A30's
-release, 2026-11-15.) Local.
-Fix: `server/resident.py`, `prepare`: every file's text (the bundle and the two templates)
-is made CRLF, as it is written, before the hash; the `%TAG%`/`%DIR%` fill comes after the
-tag is known, as before.
-Test before: `test_resident.PrepareTest.test_tag_is_the_same_for_lf_and_crlf_copies`
-(the form's templates and the bridge's units and project file, once with LF and once with
-CRLF line ends) failed on the old code: `AssertionError: 'ee2c90ff7ed6' != 'd19c84dbe662'`
-("LF and CRLF copies of one commit gave two tags"). After: it passes; offline 416 OK (was
-415). Live, `ALTIUM_LIVE=1` from this checkout in AD25: `test_live_resident` 5/5, and the
-other live modules (`windows`, `drc`, `layer_stackup`, `layout`, `pcb_rules`,
-`project_setup`, `symbol_footprint`, `unrouted`) 50/50, so 55 of 55 passed; the checkout's
-resident now has the release copy's tag, `0fd9980a5570`.
-Decided 2026-11-15 by the run, not the owner: this entry carries the code A35 and names
-A34 (a) in its title, because a code can head one item only (`board.py --check` rejects a
-second `A34` heading) and A34 stays Open for (b), (c), (d).
-Decided 2026-11-15 by the run, not the owner: the test builds its LF and CRLF trees from
-the shipped form templates in temporary folders, with `TEMPLATE_DIR` patched, because the
-real files' line ends depend on the clone's `core.autocrlf` and the test must not.
-Fixed in `a1d9606`. Local: on `ad25`, released in `build-20261115-143551`. Upstream: not yet
-decided.
-
-**A13. The layer stack can only be read.** `get_pcb_layer_stackup` reads it; nothing adds
-or removes layers or sets copper weight, dielectric thickness, material or constant. Local:
-a tool that sets the stack from a list top to bottom, as the read gives it, with presets
-for common fabrication stacks (2-layer 1.6 mm; 4-layer 1.6 mm with 7628 prepreg).
-Found 2026-11-15 by the run's probes in AD25 (`Board.LayerStack_V7`, method names read from
-Altium's SDK interface assembly): `FirstAvailableSignalLayer` / `FirstAvailableInternalPlane`
-give a free layer and `InsertInStackAbove(<copper layer>, <it>)` puts it in the stack directly
-above that layer, with a new dielectric between them (`InsertLayer` wants the old integer
-layer id and puts the layer above Bottom Layer); `RemoveFromStack(<layer>)` takes a copper
-layer out with the dielectric below it. A new dielectric may come with no material and a
-constant of 1e12 until set. `Name`, `CopperThickness`, `DielectricType` (0 none, 1 core,
-2 prepreg, 3 surface material), `DielectricMaterial`, `DielectricHeight` and
-`DielectricConstant` are set directly and are in the saved file. A layer removed while it
-holds a track leaves the track on a layer that is no longer in the stack. Altium does not
-mark the board modified for any of these. `UsedByPrims` stays True after a layer's last
-object is deleted. `Board.MasterLayerStack` (`SubstackCount`) tells a rigid-flex board.
-Fix: `set_pcb_layer_stackup(layers | preset, dry_run, board_path)`. `layers` is the stack
-top to bottom in the read's form (its `layers`, passed back as they are or edited): copper
-entries (`layer_name`, `layer_id`, `copper_type` Signal or Plane, `copper_thickness_mils`)
-and dielectric entries (`layer_name`, `dielectric_type`, `dielectric_material`,
-`dielectric_height_mils`, `dielectric_constant`); the read's `_um` keys taken when the mils
-are not given, and refused when both disagree; a key left out is left as the board has it;
-`layer_order` ignored; an unknown key, a value outside sane limits (a unit mistake) or a `|`
-or `;` in a name refused before Altium. The shape: the surface dielectrics, copper and one
-dielectric in turn, the surface dielectrics below. Top and bottom copper are Altium's Top and
-Bottom Layer; an inner entry keeps the board layer its `layer_id` names, or, without one, the
-board's next inner layer of its kind in order; the rest are new signal layers (planes where
-`copper_type` or an `Internal Plane` id says so); the board's inner layers no entry keeps are
-removed. The result: `requested`, `added` and `removed` copper layers, `changed` (values
-written), `board_modified`, `stack` (the read again) and `differences` from what was asked
-(`success` false when any); `dry_run` gives `would_add`, `would_remove`, `would_change` and
-runs Altium's check of the layers to remove. Presets (`server/layer_stack.py`, `PRESETS`;
-generic builds, approximate, not a fabricator's figures, as no fabricator's page was read):
-`2_layer_1.6mm`, 1 oz (35 um, 1.378 mil) copper on a 1.53 mm (60.2362 mil) FR-4 core, Dk
-4.6; `4_layer_1.6mm_7628`, 1 oz outer and 0.5 oz (17.5 um, 0.689 mil) inner signal layers,
-one 7628 ply of 0.2 mm (7.874 mil, Dk 4.4) under each outer layer and a 1.095 mm (43.1102 mil)
-FR-4 core (Dk 4.6), the common build of a 7628 4-layer board that fabricators such as JLCPCB
-offer something close to; both 1.6 mm of copper and dielectric, plus Altium's 0.4 mil solder
-masks (Solder Resist, Dk 3.5); no layer names set. Python side in `server/layer_stack.py`
-(checks, presets, the plan, the bridge records, the comparison), the tool in `main.py`; bridge
-command `set_layer_stack` (`SetLayerStack` in `pcb_utils.pas`): records `R|`, `A|`, then one
-`C|`/`D|` per layer of the stack after them, lengths in internal units, the constant x10000
-(no float text, as Altium's `FloatToStr` writes a decimal comma here). The read
-(`get_pcb_layer_stackup`) gives each copper entry a `copper_type` as well.
-Test before: `tests/test_live_set_layer_stackup.py` (`ALTIUM_LIVE=1`, copies of the 2-layer
-SpiritLevel-SL1 board and of the 4-layer WiFi board of the Mini PC example, closed unsaved):
-the 4-layer preset on the 2-layer board read back equal, after a save and reopen too, the new
-inner layers routable (a track lands on one) and Altium counting 4 signal layers; the 2-layer
-preset then refused while one inner layer holds that track (`layers_in_use`, 1 object, stack
-and flag unchanged) and, the track deleted, both inner layers removed and the 2-layer stack
-read back equal after a reopen; the read set back as it is changing nothing (`changed` 0, the
-board not modified); on the WiFi copy the 2-layer preset refused, dry run too, as both inner
-layers hold copper, then the read edited (a plane and a core added between the inner layers,
-the first core's material, constant and height changed), a dry run first changing nothing,
-read back equal and after a reopen, 5 copper layers of which 4 signal; a bad list refused
-before Altium. Before the tool all 4 errored: "AttributeError: module 'main' has no attribute
-'set_pcb_layer_stackup'". After: 4/4 pass in AD25; with `test_live_layer_stackup` (2, the read
-it changes) and `test_live_pcb_rules` (1, `pcb_utils.pas`) 7 of 7 live tests passed. Offline:
-37 new in `tests/test_layer_stack.py` (presets, checks, the plan, the records, the comparison,
-the tool with the bridge faked), added to `.github/workflows/tests.yml`; 453 tests pass
-(was 416). Altium was restarted once during the work (3.7 GB, the server's memory guard).
-Met on the way, not fixed here: a board open under its short (8.3) path is opened a second
-time by a tool given that path, as `long_path` gives the long form and `FocusBoardByPath` does
-not find the open document by it; the live test opens its copies by the long path, as
-`test_live_project_setup` does.
-Decided 2026-11-15 by the run, not the owner: removing a copper layer that holds objects, or a
-plane with a net, is refused with each such layer and its object count, nothing changed (dry
-run too), because `RemoveFromStack` leaves the objects on a layer outside the stack, which no
-read shows; removing them in the call would drop copper the caller did not name.
-Decided 2026-11-15 by the run, not the owner: one dielectric between two copper layers, the
-surface dielectrics neither added nor removed (as many as the board has, or none), existing
-inner layers never reordered, a board with two dielectrics in one gap or a rigid-flex board
-refused, because Altium adds and removes a copper layer with one dielectric beside it and the
-values are then set by place; adding a dielectric alone was not probed, and the smaller change
-covers the presets and a read set back.
-Decided 2026-11-15 by the run, not the owner: an inner entry without a `layer_id` keeps the
-board's next inner layer of its kind, because a preset set on a board of its own size must
-keep the board's layers and what is on them instead of removing and adding them.
-Decided 2026-11-15 by the run, not the owner: a value equal to the board's is not written, and
-the board is marked modified only when a layer or a value changed, because the read set back
-must leave the board as it was, as the item's "read back equal" asks.
-Decided 2026-11-15 by the run, not the owner: a layer in use is told by counting its objects
-with a board iterator, not by `UsedByPrims`, because that flag stayed True after the layer's
-only object was deleted and would refuse a removal that is safe.
-Decided 2026-11-15 by the run, not the owner: the read gives `copper_type` (Signal or Plane),
-because the set takes the read's form and a plane must come back a plane; the `layer_id` told
-it only by its wording.
-Fixed in `a389c2a`. Local: on `ad25`, released in `build-20261115-143551`. Upstream: not yet
-decided.
-
-**A14. `create_pcb_rule` covers seven rule kinds.** Clearance, width, hole size, routing
-via, solder and paste mask expansion, polygon connect. Not differential pairs, length or
-matched length, routing layers, plane connect, component clearance, silkscreen clearances
-or hole to hole; no preset that sets a fabricator's minimums at once; priority cannot be
-set (the tool's own note). Local: more kinds, differential pair and matched length first,
-and a capability preset.
-Cause: the tool's Pascal side (`CreatePCBRule` in `pcb_utils.pas`) made only those seven
-rule interfaces, and nothing tried priority beyond `Rule.Priority`.
-Found 2026-11-15 by the run's probes in AD25 (interface names read from Altium's SDK
-interface assembly, each tried in a sandbox script): the kinds are made by
-`PCBServer.PCBRuleFactory` with `eRule_DifferentialPairsRouting`
-(`IPCB_DifferentialPairsRoutingRule`: `MinGap`/`MaxGap`/`PreferedGap` and
-`MinWidth`/`MaxWidth`/`PreferedWidth` per layer, `MaxUncoupledLength`; its descriptor shows
-the smallest minimum and largest maximum over all layers), `eRule_MaxMinLength`
-(`MinLimit`, `MaxLimit`), `eRule_MatchedLengths` (`Tolerance`), `eRule_RoutingLayers`
-(`RoutingLayers(<layer>)`, every layer allowed by default; its descriptor names no layer),
-`eRule_PowerPlaneConnectStyle` (`PlaneConnectStyle`, `ReliefExpansion`,
-`ReliefConductorWidth`, `ReliefAirGap`, `ReliefEntries`), `eRule_ComponentClearance` (`Gap`,
-`VerticalGap`), `eRule_SilkToSolderMaskClearance` (`SilkToMaskGap`),
-`eRule_SilkToSilkClearance` (`SilkToSilkClearance`), `eRule_HoleToHoleClearance` (`Gap`),
-`eRule_MinimumAnnularRing` (`Minimum`) and `eRule_MinimumSolderMaskSliver`
-(`MinSolderMaskSliver`); every property is set directly and is in the saved file. Altium's
-board outline clearance rule has `GetState_Gap` and `GetClearance` only, no setter. Priority:
-the SDK gives `IPCB_Rule.Priority` a getter only, and `Rule.Priority := 2` in a script stops
-it with an exception; no board or server method orders rules. A rule removed and added again
-(`Board.RemovePCBObject`, `AddPCBObject`, the same object) goes to priority 1 of its kind and
-the others move down, its values kept; that sets any priority.
-Fix: eleven kinds more in `create_pcb_rule`, values in mils as before (`server/pcb_rules.py`,
-`RULE_KINDS`): `differential_pair` (`min_gap_mils`, `max_gap_mils`, `preferred_gap_mils`,
-`min_width_mils`, `max_width_mils`, `preferred_width_mils`, set on every signal layer as
-`width` is; optional `max_uncoupled_length_mils`), `length` (`min_mils`, `max_mils`),
-`matched_length` (`tolerance_mils`), `routing_layers` (`layers`, the board's signal layer
-names routing may use; its other signal layers are set not allowed; a name the board does not
-have refused in Altium before anything changes, with the board's signal layers), `plane_connect`
-(`connect_style` relief, direct or none; optional `expansion_mils`, `conductor_width_mils`,
-`air_gap_mils`, `entries` 2 or 4), `component_clearance` (`gap_mils`, optional
-`vertical_gap_mils`), `silk_to_solder_mask`, `silk_to_silk`, `hole_to_hole` and
-`solder_mask_sliver` (`gap_mils`), `annular_ring` (`min_mils`). Checks before Altium: min not
-above max and preferred between them for each trio, no negative value but a mask expansion's,
-no value past 100000 mils (a unit mistake), a number that is a number (not a bool, NaN or
-infinity), a layer name without `,`, `;`, `=` or `|`, none named twice. `priority` (1 the
-highest of its kind; 0 or none leaves the rule at 1, as before): refused past one more than
-the kind's other rules, in Altium before any change, with the range; the rule is added at 1
-and the rule at the asked priority is removed and added again, priority minus 1 times, in
-the same undo step, so the rules above it keep their order. Each call now reads the rule's
-values back from Altium (`read_back`, in the keys given, the layer names for
-`routing_layers`) and holds them against what was sent: a value stored otherwise, a per-layer
-value that differs between layers, or a priority not reached is listed in `differences`
-with `success` false. The warning of a rule scoped to everything now needs it at priority 1,
-and a one-scope kind's `scope2` no longer hides it. The result gives the rule's comment too.
-Fabricator preset: `create_pcb_rules_preset(preset, board_path, dry_run, replace,
-width_preferred_mils, width_max_mils)`, from `server/data/fab_presets/jlcpcb.json`: JLCPCB's
-PCB capabilities page (https://jlcpcb.com/capabilities/pcb-capabilities), read 2026-11-15 by
-a plain GET (the page shows no date of its own); each rule quotes its row and the page's text,
-its figures in mm as the page gives them. `jlcpcb_2layer_1oz`: clearance 0.10 mm and width
-minimum 0.10 mm ("0.10 / 0.10 mm (4 / 4 mil)"), hole size 0.15 to 6.3 mm, hole to hole 0.2 mm
-between vias (IsVia, IsVia) and 0.45 mm otherwise ("Pad Hole-to-Hole Spacing"), annular ring
-0.18 mm on pads ("absolute minimum") and 0.05 mm on vias (derived: half of the 0.1 mm by which
-the page says a via's diameter must exceed its hole), silk to solder mask 0.15 mm (IsPad, All;
-"Pad to Silkscreen"), solder mask sliver 0.10 mm (1 oz, green, red, yellow, blue, purple).
-`jlcpcb_multilayer_1oz`: the same with clearance and width 0.09 mm and the pad ring 0.15 mm.
-What the page gives and no rule sets is listed in the file and the result (`not_set`, with
-why): hole-to-track clearances, board edge clearance, the non-plated hole and ring minimums,
-silkscreen line width and text height, the 1:1 mask opening, the black and white mask bridge,
-and no silk-to-silk figure on the page. Rules are named `JLCPCB_2L_1oz_…` / `JLCPCB_ML_1oz_…`,
-their comment the page, the date and the row. The page gives a width minimum only: the width
-rule is made when `width_preferred_mils` and `width_max_mils` are given, else listed in
-`skipped`. A preset rule name already on the board refuses the whole call (unless `replace`);
-`dry_run` reads the board's rules only and gives the plan. The preset's data file is kept by
-git through a `!server/data/fab_presets/*.json` line in `.gitignore` (upstream ignores
-`*.json`).
-Test before: `tests/test_live_create_pcb_rule.py` (`ALTIUM_LIVE=1`, copies of the 2-layer
-SpiritLevel-SL1 example board, closed unsaved): each of the eleven kinds made, its properties
-read through a board iterator by the test's own script, its descriptor through
-`get_pcb_rules`, and the properties again after a save and reopen; a routing layer the board
-does not have refused, nothing added, the board unmodified; two clearance rules put at the
-lowest priority and at 2, the kind's order read back and after a reopen, a priority out of
-range refused with the order unchanged; the 2-layer JLCPCB preset by a dry run (nothing
-changed, width skipped) and then with a width, each rule's properties, comment and priority
-read back (above the board's catch-all or same-scope rule of its kind, below its narrower
-ones) and after a reopen, and a second call refused by name. Before the change all 3 failed:
-"unknown rule_type 'differential_pair'; one of: clearance, width, hole_size, routing_via,
-solder_mask_expansion, paste_mask_expansion, polygon_connect", "TypeError:
-create_pcb_rule() got an unexpected keyword argument 'priority'" and "AttributeError: module
-'main' has no attribute 'create_pcb_rules_preset'". After: 3/3 pass in AD25; with
-`test_live_pcb_rules` (1), `test_live_set_layer_stackup` (4, `pcb_utils.pas`) and
-`test_live_drc` (14, a user of `create_pcb_rule`) 22 of 22 live tests passed. Offline: 9 new in
-`tests/test_pcb_rules.py` (each kind's encoding and checks, the read-back and its
-comparison) and 22 in the new `tests/test_fab_presets.py` (the preset file: its page and
-date, each figure in its quoted text or its working given, every rule encoding; the
-priorities planned; the tool's priority and read-back and the preset tool with the bridge
-faked), added to `.github/workflows/tests.yml`; 484 tests pass (was 453).
-Decided 2026-11-15 by the run, not the owner: priority is set by removing and adding again
-the rules that stay above the new one, because the API gives no setter and that move keeps
-each rule's object and values; the result's read priority, checked against the one asked,
-says whether it held.
-Decided 2026-11-15 by the run, not the owner: a preset rule goes directly above the highest
-rule of its kind that it takes over (scoped to everything, or of its own scope), the lowest of
-its kind when there is none, because at priority 1 a rule scoped to everything would override
-every narrower rule the designer set, and below the board's catch-all it would never apply.
-Decided 2026-11-15 by the run, not the owner: the preset holds only rules whose every figure
-is the page's (or worked out from its text, the working written), so the width rule waits for
-the caller's preferred and largest width and no routing via style rule is made (the via hole
-and diameter minimums are held by the hole size and annular ring rules), because the page
-gives no preferred or largest value and a figure from memory is what the decision rules out.
-Decided 2026-11-15 by the run, not the owner: `annular_ring` and `solder_mask_sliver` were
-added beside the kinds the decision named, because the page's annular ring and mask bridge
-minimums are part of a fabricator's minimums and Altium checks them by those two rules.
-Decided 2026-11-15 by the run, not the owner: every call reads the values back and reports
-`success` false on a difference, because the descriptor of a routing layers rule names no
-layer and a differential pair's shows only the extremes over all layers, so it cannot show
-what was stored.
-Fixed in `4c8b5c0`. Local: on `ad25`, released in `build-20261115-143551`. Upstream: not yet
-decided.
-
-**A12. Output jobs can be run and read, not made.** `run_output_jobs` runs containers of
-an OutJob that exists and `get_outjob_settings` reads one from disk; nothing creates an
-OutJob or sets its outputs (Gerber layers and format, NC Drill, BOM, pick and place, output
-folder). Nor are outputs given in the form an assembly service asks for, e.g. JLCPCB's: a
-BOM of Comment, Designator, Footprint and the supplier part number; a placement list of
-Designator, Mid X, Mid Y, Layer, Rotation, with the per-footprint rotation corrections it
-needs; the Gerbers and drill files zipped. Local: a tool that writes an OutJob from a
-preset or edits the outputs of one, and a step that turns Altium's BOM and pick and place
-into a named service's columns.
-Cause: no tool wrote an OutJob (`get_outjob_settings` only parses one, `run_output_jobs` only
-runs one), and nothing turned Altium's BOM and pick and place into a service's form.
-Found 2026-11-15 by the run's probes in AD25 (OutJobs written by hand after Altium's own
-examples, Bluetooth Sentinel and Mini PC, run by `run_output_jobs` on a copy of the
-SpiritLevel-SL1 example): an OutJob written as plain INI text, added to the project, runs with
-the settings it holds. `GerberUnit` Metric/Imperial with `NumberOfDecimals` 4 gave
-`%FSLAX44Y44*%` `%MOMM*%`, Imperial 5 gave `%FSLAX25Y25*%` `%MOIN*%`; NC Drill `ZeroesMode`
-`KeepLeadingAndTrailingZeroes` gave `INCH` (2:5, both zeroes kept), `SuppressLeadingZeroes`
-gave `INCH,TZ`; `GenerateSeparatePlatedNonPlatedFiles` gave `-Plated` and `-NonPlated` files;
-`PlotBoardProfile=True` gave the board's shape as `.GM`; Mid Layer 1 and 2 and Internal Plane 1
-in `Plot.Set` gave no file on the 2-layer board (Altium plots only the layers in the stack);
-a BOM column named after a parameter no part has comes out empty; BOM `BatchMode` 0 to 6 wrote
-.csv, .txt, .xlsx, .html, .xml (+ .xsl), .xlsx and .pdf, and 7 put up "EOleException Unknown
-report mode: 7" and stopped the run until its OK was pressed (149 s); a GeneratedFiles
-container with `ReleaseManaged`=0 writes into `OutputBasePath`, relative to the project's
-folder or absolute, with `OutputPathOutputer` `[Output Type]` one subfolder per output type,
-empty none. Altium reloads an open OutJob it has not changed when the file changes on disk,
-a moment later: a run started before that used the old settings once (the first run of the
-test below: "the second run wrote to the new folder" false).
-Fix: `write_outjob(outjob_path, preset, gerber, nc_drill, bom, pick_place, output_folder,
-container, board_document, overwrite)` (`server/outjob_writer.py`, the tool in `main.py`; no
-Altium). A new file needs a preset; an existing one is edited line by line, every line not
-asked for kept as it was (and its encoding: ANSI, or UTF-8 with or without its mark); a preset
-over an existing file is refused unless `overwrite`. Each group goes into the first output of
-its kind (Gerber RS-274X, NC Drill, BOM_PartType, Pick Place), added from Altium's own record
-when there is none, and is connected to the container (named, or the file's first
-GeneratedFiles one, added when there is none; a Publish or Printer container refused).
-Settings: gerber `units` (mm, inch), `format` (mm 4:2 to 4:4, inch 2:3 to 2:5; a change of
-units needs its format), `zeroes`, `origin`, `layers` (names as the read gives them, `copper`
-for every copper layer), `board_profile`; nc_drill `units`, `format`, `zeroes`, `origin`,
-`separate_plated`; bom `format` (csv, txt, html, xml, xlsx, pdf), `columns`, `group_by` (the
-exported BOM not opened, no export dialog); pick_place `units` (mm, mil), `formats` (csv, txt);
-`output_folder` (not release managed, no subfolder per type, so the zip can be flat). Every
-check runs on a copy before the file is touched. The file is then read back by
-`outjob_parser.parse_outjob` and held against what was asked (`differences`, `success` false
-when any); the result gives the read (`settings`). `get_outjob_settings` gives a BOM's `bom`
-(file format, columns, grouping, sort, whether it opens the export). `run_output_jobs` closes
-and opens again an OutJob Altium has open with no unsaved change, so the run uses the file as
-saved (`outjob_reloaded`); one with unsaved changes is run as Altium has it, not closed, and
-the result says so (`outjob_unsaved_changes`, `note`); the flag is read through `BoolToStr`,
-as `DocumentModified` says (read directly it is always False in the bridge, which would have
-closed an OutJob with unsaved changes and dropped them).
-Preset `fab_jlcpcb` (`server/data/output_presets/jlcpcb.json`, kept by git through
-`!server/data/output_presets/*.json` in `.gitignore`), from JLCPCB's pages read 2026-11-15 by
-a plain GET each, each setting quoting its page: "How to Generate Gerber Files in Altium
-Designer 26" (https://jlcpcb.com/help/article/how-to-export-altium-pcb-to-gerber-files, "Last
-updated on Nov 10, 2026", made with AD 26.1.1, its dialogs unchanged in 24 and 25 by the page):
-Gerber "Units: Millimeters", "Decimal: 0.0001 mm (a 4:4 coordinate format ...)", "Suppress
-leading zeroes", the layers Board Outline (.GM), Top/Bottom Layer, Overlay, Solder and Paste,
-one outline only; NC Drill "Units: Inches", "Format: 2:5", "Keep leading and trailing
-zeroes", "Reference to absolute origin", plated and non-plated holes in separate files; the
-zip .zip and flat. "How to Generate BOM and Pick and Place Files in Altium Designer"
-(https://jlcpcb.com/help/article/how-to-generate-bill-of-materials-and-centroid-file-from-altium,
-"Last updated on Sep 09, 2026"): the BOM in CSV, Comment, Designator, Footprint, the LCSC part
-number last, from "a new parameter named LCSC Part #". "Bill of Materials for PCB Assembly"
-(https://jlcpcb.com/help/article/bill-of-materials-for-pcb-assembly, Sep 09, 2026): Comment,
-Designator, Footprint. "Pick & Place File for PCB Assembly"
-(https://jlcpcb.com/help/article/pick-place-file-for-pcb-assembly, Sep 09, 2026): Designator,
-Mid X/Mid Y "Required units: Metric(mm)", Layer "Top / Bottom", Rotation "Positive values are
-counter clockwise". Container "JLCPCB Outputs", folder "JLCPCB". The first URL the brief named
-(`how-to-generate-gerber-and-drill-files-in-altium-designer`) gave 404; the pages above were
-found by a search of jlcpcb.com.
-Offline step: `make_assembly_files(service, bom_path, pick_place_path, gerber_dir, out_dir,
-part_number_parameter, rotations_path, name)` (`server/assembly_files.py`; no Altium), service
-`jlcpcb` from the same file: `<name>_JLCPCB_BOM.csv` (Comment, Designator, Footprint, LCSC Part
-#, one row per row of Altium's BOM; the part number from the column named by
-`part_number_parameter`, default "LCSC Part #"; a missing column refused, naming the columns
-the file has), `<name>_JLCPCB_CPL.csv` (Designator, Mid X, Mid Y in mm with 4 decimals, from
-Altium's Center-X/Y in mm or mil, Layer Top or Bottom, Rotation corrected), and
-`<name>_JLCPCB_Gerber.zip`, flat, of gerber_dir's own files whose content is a Gerber (a `%FS`
-statement) or an Excellon file (starts with `M48`); Altium's reports beside them are listed in
-`not_zipped`. The result names the parts with no part number, the rotations applied (the table
-row each), and the designators in only one of the two files. The rotation table
-`server/data/output_presets/jlcpcb_rotations.csv` (footprint name or `*`/`?` pattern, degrees
-added, Top/Bottom or both, note; `#` lines are comments; the first row that matches is used) is
-empty, for the owner to fill.
-Test before: `tests/test_live_outjob_writer.py` (`ALTIUM_LIVE=1`, a copy of the SpiritLevel-SL1
-example project, closed unsaved): the preset written, read back by `get_outjob_settings`
-(Gerber Metric 4 Absolute, suppressed leading zeroes, board profile, every copper layer, no
-mechanical or keep-out layer; NC Drill Imperial 2:5, zeroes kept, absolute, plated apart; BOM
-csv with the four columns; pick and place mm CSV; the container's folder, not release managed,
-not added to the project), a preset over it refused and the file unchanged, added to the
-project and run: the .GTL `%FSLAX44Y44*%` `%MOMM*%`, the nine layers' files and no .GM1 or .GKO,
-the plated and non-plated drill files `;FILE_FORMAT=2:5` and `INCH`, the BOM's header, the pick
-and place in mm; then, the OutJob open in Altium, edited (Gerber inch 2:5, pick and place mil,
-folder "JLCPCB inch"), read back, run again: the new folder, `%FSLAX25Y25*%` `%MOIN*%`, Center-X
-in mil, `outjob_reloaded` true; marked modified in Altium and run: `outjob_unsaved_changes`
-true, not reopened; last the offline step on Altium's files with a one-row rotation table: the
-BOM and CPL columns and row counts, R10 (CR2012-0805) turned by 90, Mid X equal to Altium's
-Center-X, the zip flat with the nine Gerbers and the drill files and without the reports, the
-designators in one file only as the files give them, and the mil file giving the same mm within
-0.001. Before the tools it errored: "AttributeError: module 'main' has no attribute
-'write_outjob'". On the old `run_output_jobs` script it fails at "None is not False" (no
-`outjob_reloaded`).
-After: 1/1 passes in AD25 (run twice in its final form); with `test_live_project_setup` (9, the other
-functions of `other_utils.pas`) and `test_live_resident` (5, the bridge's bundle changed) 15 of
-15 live tests passed, on an Altium restarted by the run (the server's memory guard stopped the
-first try at 3.7 GB). Offline: 20 new in `tests/test_outjob_writer.py` (layer IDs both ways,
-each setting's keys and checks, the preset and its pages, an Altium file edited with one line
-changed, an output and a container added and connected, a refused request changing nothing,
-the read-back comparison, the tool's refusals and encoding), 14 in `tests/test_assembly_files.py`
-(Altium's real BOM and pick and place in mm and mil from this test's run, as fixtures in
-`tests/fixtures/`, their path line made neutral; the rotation table; the files, the zip, the
-refusals) and 1 in `tests/test_outjob_parser.py` (the BOM summary), the two new modules added to
-`.github/workflows/tests.yml`; 519 tests pass (was 484).
-Decided 2026-11-15 by the run, not the owner: the Gerber origin is absolute, because the page
-gives none for the Gerbers and gives "Reference to absolute origin" for the drill files, and the
-two must line up.
-Decided 2026-11-15 by the run, not the owner: the preset plots every copper layer Altium has
-(Top, Mid Layer 1 to 30, Internal Plane 1 to 16, Bottom), because Altium writes a file only for
-those in the board's stack (probed), so a 4- or 6-layer board gets its inner layers without the
-preset knowing the board, where a fixed 2-layer list would drop them silently; the read lists
-all 48 as the file holds them.
-Decided 2026-11-15 by the run, not the owner: the board profile (`PlotBoardProfile`, written as
-.GM) is the preset's one outline, no mechanical layer, because the page names Board Outline
-(.GM) the standard and asks for one outline layer, and which mechanical layer holds a board's
-outline differs from board to board.
-Decided 2026-11-15 by the run, not the owner: the BOM's part number column and its default
-parameter are "LCSC Part #", because that is the parameter the Altium page tells to add and its
-last column; another name is given by `part_number_parameter` (and the BOM's `columns`).
-Decided 2026-11-15 by the run, not the owner: the BOM's grouping is Comment, Footprint and LCSC
-Part #, one row per part with its designators together, because the pages give no grouping and
-show rows of several designators; Mid X and Mid Y are plain numbers in mm, because the page names
-the unit, not a suffix; the aperture tolerance stays Altium's 50 (0.000127 mm), which Altium
-shows as the page's 0.00013 mm.
-Decided 2026-11-15 by the run, not the owner: BOM `BatchMode` 2 (also .xlsx) is not offered and 7
-and up are refused, because 2 and 5 wrote the same kind of file with no way told apart and 7 put
-up an error that stopped the run.
-Decided 2026-11-15 by the run, not the owner: `run_output_jobs` closes and opens again an open
-OutJob with no unsaved change, because Altium's own reload of a changed file comes a moment later
-and a run before it used the old settings once; it costs a close and an open, and an OutJob with
-unsaved changes is left as it is and named in the result. The test shows the reload and the
-unsaved case; it does not fail reliably on the old script by its effect (after a 3 s pause Altium
-had reloaded the file itself, three runs of three), only by the missing flag.
-Decided 2026-11-15 by the run, not the owner: a rotation row adds its degrees as given on the
-side it names (both when none), because the pages read give no correction and no rule for the
-bottom side, and the owner fills the table from what JLCPCB's review shows.
-Decided 2026-11-15 by the run, not the owner: `write_outjob` does not add the file to the
-project; the caller does it with `add_project_document`, because that tool already does it and
-checks it, and `write_outjob` then needs no Altium.
-Fixed in `cc1015d`. Local: on `ad25`, released in `build-20261115-143551`. Upstream: not yet
-decided.
 
 ## Closed
 
@@ -1863,3 +1520,416 @@ tools reported the design project, not the resident's. What is left: A34 (a), (b
 call and after a pressed button; `run_altium_script` still a launch) and A31 (the
 resident's start and that launch kept Altium in front 1.5 to 2.9 s with no foreground
 event).
+
+**A35. A34 (a), the resident's tag differed between a release copy and a checkout.** The tag
+(`Resident.prepare`) hashed the form's `.pas` and `.dfm` as read from disk, and made the
+line ends CRLF only afterwards, when writing them. A release copy (`git archive`: LF) and a
+checkout (`core.autocrlf`: CRLF) at one commit therefore gave two tags (`0fd9980a5570` and
+`a4ea8490f7f3`), and on one Altium each closed the other's resident and started its own
+(2 s and one launch each time). The bundle (`script_bundle.bundle_text`) already splits
+and joins its units' lines and writes CRLF, and `project_units` reads the project file by
+regex, so neither differs by line ends: only the two templates did. (Found after A30's
+release, 2026-11-15.) Local.
+Fix: `server/resident.py`, `prepare`: every file's text (the bundle and the two templates)
+is made CRLF, as it is written, before the hash; the `%TAG%`/`%DIR%` fill comes after the
+tag is known, as before.
+Test before: `test_resident.PrepareTest.test_tag_is_the_same_for_lf_and_crlf_copies`
+(the form's templates and the bridge's units and project file, once with LF and once with
+CRLF line ends) failed on the old code: `AssertionError: 'ee2c90ff7ed6' != 'd19c84dbe662'`
+("LF and CRLF copies of one commit gave two tags"). After: it passes; offline 416 OK (was
+415). Live, `ALTIUM_LIVE=1` from this checkout in AD25: `test_live_resident` 5/5, and the
+other live modules (`windows`, `drc`, `layer_stackup`, `layout`, `pcb_rules`,
+`project_setup`, `symbol_footprint`, `unrouted`) 50/50, so 55 of 55 passed; the checkout's
+resident now has the release copy's tag, `0fd9980a5570`.
+Decided 2026-11-15 by the run, not the owner: this entry carries the code A35 and names
+A34 (a) in its title, because a code can head one item only (`board.py --check` rejects a
+second `A34` heading) and A34 stays Open for (b), (c), (d).
+Decided 2026-11-15 by the run, not the owner: the test builds its LF and CRLF trees from
+the shipped form templates in temporary folders, with `TEMPLATE_DIR` patched, because the
+real files' line ends depend on the clone's `core.autocrlf` and the test must not.
+Fixed in `a1d9606`. Local: on `ad25`, released in `build-20261115-143551`. Upstream: not yet
+decided.
+Closed: the scenario test of that build held (2026-11-15, second entry, 1): the
+release's `get_server_status` gave the tag of the resident the checkout's live tests had
+left, `this_build` true, and its first call was taken by it with no start and no launch;
+`Resident.prepare` on the checkout, the release copy and an LF copy of it gave one tag. A
+resident project of an earlier build still listed in Altium's Projects panel went to A34
+(e).
+
+**A13. The layer stack can only be read.** `get_pcb_layer_stackup` reads it; nothing adds
+or removes layers or sets copper weight, dielectric thickness, material or constant. Local:
+a tool that sets the stack from a list top to bottom, as the read gives it, with presets
+for common fabrication stacks (2-layer 1.6 mm; 4-layer 1.6 mm with 7628 prepreg).
+Found 2026-11-15 by the run's probes in AD25 (`Board.LayerStack_V7`, method names read from
+Altium's SDK interface assembly): `FirstAvailableSignalLayer` / `FirstAvailableInternalPlane`
+give a free layer and `InsertInStackAbove(<copper layer>, <it>)` puts it in the stack directly
+above that layer, with a new dielectric between them (`InsertLayer` wants the old integer
+layer id and puts the layer above Bottom Layer); `RemoveFromStack(<layer>)` takes a copper
+layer out with the dielectric below it. A new dielectric may come with no material and a
+constant of 1e12 until set. `Name`, `CopperThickness`, `DielectricType` (0 none, 1 core,
+2 prepreg, 3 surface material), `DielectricMaterial`, `DielectricHeight` and
+`DielectricConstant` are set directly and are in the saved file. A layer removed while it
+holds a track leaves the track on a layer that is no longer in the stack. Altium does not
+mark the board modified for any of these. `UsedByPrims` stays True after a layer's last
+object is deleted. `Board.MasterLayerStack` (`SubstackCount`) tells a rigid-flex board.
+Fix: `set_pcb_layer_stackup(layers | preset, dry_run, board_path)`. `layers` is the stack
+top to bottom in the read's form (its `layers`, passed back as they are or edited): copper
+entries (`layer_name`, `layer_id`, `copper_type` Signal or Plane, `copper_thickness_mils`)
+and dielectric entries (`layer_name`, `dielectric_type`, `dielectric_material`,
+`dielectric_height_mils`, `dielectric_constant`); the read's `_um` keys taken when the mils
+are not given, and refused when both disagree; a key left out is left as the board has it;
+`layer_order` ignored; an unknown key, a value outside sane limits (a unit mistake) or a `|`
+or `;` in a name refused before Altium. The shape: the surface dielectrics, copper and one
+dielectric in turn, the surface dielectrics below. Top and bottom copper are Altium's Top and
+Bottom Layer; an inner entry keeps the board layer its `layer_id` names, or, without one, the
+board's next inner layer of its kind in order; the rest are new signal layers (planes where
+`copper_type` or an `Internal Plane` id says so); the board's inner layers no entry keeps are
+removed. The result: `requested`, `added` and `removed` copper layers, `changed` (values
+written), `board_modified`, `stack` (the read again) and `differences` from what was asked
+(`success` false when any); `dry_run` gives `would_add`, `would_remove`, `would_change` and
+runs Altium's check of the layers to remove. Presets (`server/layer_stack.py`, `PRESETS`;
+generic builds, approximate, not a fabricator's figures, as no fabricator's page was read):
+`2_layer_1.6mm`, 1 oz (35 um, 1.378 mil) copper on a 1.53 mm (60.2362 mil) FR-4 core, Dk
+4.6; `4_layer_1.6mm_7628`, 1 oz outer and 0.5 oz (17.5 um, 0.689 mil) inner signal layers,
+one 7628 ply of 0.2 mm (7.874 mil, Dk 4.4) under each outer layer and a 1.095 mm (43.1102 mil)
+FR-4 core (Dk 4.6), the common build of a 7628 4-layer board that fabricators such as JLCPCB
+offer something close to; both 1.6 mm of copper and dielectric, plus Altium's 0.4 mil solder
+masks (Solder Resist, Dk 3.5); no layer names set. Python side in `server/layer_stack.py`
+(checks, presets, the plan, the bridge records, the comparison), the tool in `main.py`; bridge
+command `set_layer_stack` (`SetLayerStack` in `pcb_utils.pas`): records `R|`, `A|`, then one
+`C|`/`D|` per layer of the stack after them, lengths in internal units, the constant x10000
+(no float text, as Altium's `FloatToStr` writes a decimal comma here). The read
+(`get_pcb_layer_stackup`) gives each copper entry a `copper_type` as well.
+Test before: `tests/test_live_set_layer_stackup.py` (`ALTIUM_LIVE=1`, copies of the 2-layer
+SpiritLevel-SL1 board and of the 4-layer WiFi board of the Mini PC example, closed unsaved):
+the 4-layer preset on the 2-layer board read back equal, after a save and reopen too, the new
+inner layers routable (a track lands on one) and Altium counting 4 signal layers; the 2-layer
+preset then refused while one inner layer holds that track (`layers_in_use`, 1 object, stack
+and flag unchanged) and, the track deleted, both inner layers removed and the 2-layer stack
+read back equal after a reopen; the read set back as it is changing nothing (`changed` 0, the
+board not modified); on the WiFi copy the 2-layer preset refused, dry run too, as both inner
+layers hold copper, then the read edited (a plane and a core added between the inner layers,
+the first core's material, constant and height changed), a dry run first changing nothing,
+read back equal and after a reopen, 5 copper layers of which 4 signal; a bad list refused
+before Altium. Before the tool all 4 errored: "AttributeError: module 'main' has no attribute
+'set_pcb_layer_stackup'". After: 4/4 pass in AD25; with `test_live_layer_stackup` (2, the read
+it changes) and `test_live_pcb_rules` (1, `pcb_utils.pas`) 7 of 7 live tests passed. Offline:
+37 new in `tests/test_layer_stack.py` (presets, checks, the plan, the records, the comparison,
+the tool with the bridge faked), added to `.github/workflows/tests.yml`; 453 tests pass
+(was 416). Altium was restarted once during the work (3.7 GB, the server's memory guard).
+Met on the way, not fixed here: a board open under its short (8.3) path is opened a second
+time by a tool given that path, as `long_path` gives the long form and `FocusBoardByPath` does
+not find the open document by it; the live test opens its copies by the long path, as
+`test_live_project_setup` does.
+Decided 2026-11-15 by the run, not the owner: removing a copper layer that holds objects, or a
+plane with a net, is refused with each such layer and its object count, nothing changed (dry
+run too), because `RemoveFromStack` leaves the objects on a layer outside the stack, which no
+read shows; removing them in the call would drop copper the caller did not name.
+Decided 2026-11-15 by the run, not the owner: one dielectric between two copper layers, the
+surface dielectrics neither added nor removed (as many as the board has, or none), existing
+inner layers never reordered, a board with two dielectrics in one gap or a rigid-flex board
+refused, because Altium adds and removes a copper layer with one dielectric beside it and the
+values are then set by place; adding a dielectric alone was not probed, and the smaller change
+covers the presets and a read set back.
+Decided 2026-11-15 by the run, not the owner: an inner entry without a `layer_id` keeps the
+board's next inner layer of its kind, because a preset set on a board of its own size must
+keep the board's layers and what is on them instead of removing and adding them.
+Decided 2026-11-15 by the run, not the owner: a value equal to the board's is not written, and
+the board is marked modified only when a layer or a value changed, because the read set back
+must leave the board as it was, as the item's "read back equal" asks.
+Decided 2026-11-15 by the run, not the owner: a layer in use is told by counting its objects
+with a board iterator, not by `UsedByPrims`, because that flag stayed True after the layer's
+only object was deleted and would refuse a removal that is safe.
+Decided 2026-11-15 by the run, not the owner: the read gives `copper_type` (Signal or Plane),
+because the set takes the read's form and a plane must come back a plane; the `layer_id` told
+it only by its wording.
+Fixed in `a389c2a`. Local: on `ad25`, released in `build-20261115-143551`. Upstream: not yet
+decided.
+Closed: the scenario test of that build held (2026-11-15, second entry, 2): the read
+set back changed nothing; the 4-layer preset read back equal, after a save and reopen too,
+a track on a new inner layer kept; the 2-layer preset refused while that layer held it, then
+removed both inner layers once it was deleted; bad lists refused before Altium. The dry
+run's `would_change` leaving out the existing dielectric's changes (same entry, 3) is A37.
+
+**A14. `create_pcb_rule` covers seven rule kinds.** Clearance, width, hole size, routing
+via, solder and paste mask expansion, polygon connect. Not differential pairs, length or
+matched length, routing layers, plane connect, component clearance, silkscreen clearances
+or hole to hole; no preset that sets a fabricator's minimums at once; priority cannot be
+set (the tool's own note). Local: more kinds, differential pair and matched length first,
+and a capability preset.
+Cause: the tool's Pascal side (`CreatePCBRule` in `pcb_utils.pas`) made only those seven
+rule interfaces, and nothing tried priority beyond `Rule.Priority`.
+Found 2026-11-15 by the run's probes in AD25 (interface names read from Altium's SDK
+interface assembly, each tried in a sandbox script): the kinds are made by
+`PCBServer.PCBRuleFactory` with `eRule_DifferentialPairsRouting`
+(`IPCB_DifferentialPairsRoutingRule`: `MinGap`/`MaxGap`/`PreferedGap` and
+`MinWidth`/`MaxWidth`/`PreferedWidth` per layer, `MaxUncoupledLength`; its descriptor shows
+the smallest minimum and largest maximum over all layers), `eRule_MaxMinLength`
+(`MinLimit`, `MaxLimit`), `eRule_MatchedLengths` (`Tolerance`), `eRule_RoutingLayers`
+(`RoutingLayers(<layer>)`, every layer allowed by default; its descriptor names no layer),
+`eRule_PowerPlaneConnectStyle` (`PlaneConnectStyle`, `ReliefExpansion`,
+`ReliefConductorWidth`, `ReliefAirGap`, `ReliefEntries`), `eRule_ComponentClearance` (`Gap`,
+`VerticalGap`), `eRule_SilkToSolderMaskClearance` (`SilkToMaskGap`),
+`eRule_SilkToSilkClearance` (`SilkToSilkClearance`), `eRule_HoleToHoleClearance` (`Gap`),
+`eRule_MinimumAnnularRing` (`Minimum`) and `eRule_MinimumSolderMaskSliver`
+(`MinSolderMaskSliver`); every property is set directly and is in the saved file. Altium's
+board outline clearance rule has `GetState_Gap` and `GetClearance` only, no setter. Priority:
+the SDK gives `IPCB_Rule.Priority` a getter only, and `Rule.Priority := 2` in a script stops
+it with an exception; no board or server method orders rules. A rule removed and added again
+(`Board.RemovePCBObject`, `AddPCBObject`, the same object) goes to priority 1 of its kind and
+the others move down, its values kept; that sets any priority.
+Fix: eleven kinds more in `create_pcb_rule`, values in mils as before (`server/pcb_rules.py`,
+`RULE_KINDS`): `differential_pair` (`min_gap_mils`, `max_gap_mils`, `preferred_gap_mils`,
+`min_width_mils`, `max_width_mils`, `preferred_width_mils`, set on every signal layer as
+`width` is; optional `max_uncoupled_length_mils`), `length` (`min_mils`, `max_mils`),
+`matched_length` (`tolerance_mils`), `routing_layers` (`layers`, the board's signal layer
+names routing may use; its other signal layers are set not allowed; a name the board does not
+have refused in Altium before anything changes, with the board's signal layers), `plane_connect`
+(`connect_style` relief, direct or none; optional `expansion_mils`, `conductor_width_mils`,
+`air_gap_mils`, `entries` 2 or 4), `component_clearance` (`gap_mils`, optional
+`vertical_gap_mils`), `silk_to_solder_mask`, `silk_to_silk`, `hole_to_hole` and
+`solder_mask_sliver` (`gap_mils`), `annular_ring` (`min_mils`). Checks before Altium: min not
+above max and preferred between them for each trio, no negative value but a mask expansion's,
+no value past 100000 mils (a unit mistake), a number that is a number (not a bool, NaN or
+infinity), a layer name without `,`, `;`, `=` or `|`, none named twice. `priority` (1 the
+highest of its kind; 0 or none leaves the rule at 1, as before): refused past one more than
+the kind's other rules, in Altium before any change, with the range; the rule is added at 1
+and the rule at the asked priority is removed and added again, priority minus 1 times, in
+the same undo step, so the rules above it keep their order. Each call now reads the rule's
+values back from Altium (`read_back`, in the keys given, the layer names for
+`routing_layers`) and holds them against what was sent: a value stored otherwise, a per-layer
+value that differs between layers, or a priority not reached is listed in `differences`
+with `success` false. The warning of a rule scoped to everything now needs it at priority 1,
+and a one-scope kind's `scope2` no longer hides it. The result gives the rule's comment too.
+Fabricator preset: `create_pcb_rules_preset(preset, board_path, dry_run, replace,
+width_preferred_mils, width_max_mils)`, from `server/data/fab_presets/jlcpcb.json`: JLCPCB's
+PCB capabilities page (https://jlcpcb.com/capabilities/pcb-capabilities), read 2026-11-15 by
+a plain GET (the page shows no date of its own); each rule quotes its row and the page's text,
+its figures in mm as the page gives them. `jlcpcb_2layer_1oz`: clearance 0.10 mm and width
+minimum 0.10 mm ("0.10 / 0.10 mm (4 / 4 mil)"), hole size 0.15 to 6.3 mm, hole to hole 0.2 mm
+between vias (IsVia, IsVia) and 0.45 mm otherwise ("Pad Hole-to-Hole Spacing"), annular ring
+0.18 mm on pads ("absolute minimum") and 0.05 mm on vias (derived: half of the 0.1 mm by which
+the page says a via's diameter must exceed its hole), silk to solder mask 0.15 mm (IsPad, All;
+"Pad to Silkscreen"), solder mask sliver 0.10 mm (1 oz, green, red, yellow, blue, purple).
+`jlcpcb_multilayer_1oz`: the same with clearance and width 0.09 mm and the pad ring 0.15 mm.
+What the page gives and no rule sets is listed in the file and the result (`not_set`, with
+why): hole-to-track clearances, board edge clearance, the non-plated hole and ring minimums,
+silkscreen line width and text height, the 1:1 mask opening, the black and white mask bridge,
+and no silk-to-silk figure on the page. Rules are named `JLCPCB_2L_1oz_…` / `JLCPCB_ML_1oz_…`,
+their comment the page, the date and the row. The page gives a width minimum only: the width
+rule is made when `width_preferred_mils` and `width_max_mils` are given, else listed in
+`skipped`. A preset rule name already on the board refuses the whole call (unless `replace`);
+`dry_run` reads the board's rules only and gives the plan. The preset's data file is kept by
+git through a `!server/data/fab_presets/*.json` line in `.gitignore` (upstream ignores
+`*.json`).
+Test before: `tests/test_live_create_pcb_rule.py` (`ALTIUM_LIVE=1`, copies of the 2-layer
+SpiritLevel-SL1 example board, closed unsaved): each of the eleven kinds made, its properties
+read through a board iterator by the test's own script, its descriptor through
+`get_pcb_rules`, and the properties again after a save and reopen; a routing layer the board
+does not have refused, nothing added, the board unmodified; two clearance rules put at the
+lowest priority and at 2, the kind's order read back and after a reopen, a priority out of
+range refused with the order unchanged; the 2-layer JLCPCB preset by a dry run (nothing
+changed, width skipped) and then with a width, each rule's properties, comment and priority
+read back (above the board's catch-all or same-scope rule of its kind, below its narrower
+ones) and after a reopen, and a second call refused by name. Before the change all 3 failed:
+"unknown rule_type 'differential_pair'; one of: clearance, width, hole_size, routing_via,
+solder_mask_expansion, paste_mask_expansion, polygon_connect", "TypeError:
+create_pcb_rule() got an unexpected keyword argument 'priority'" and "AttributeError: module
+'main' has no attribute 'create_pcb_rules_preset'". After: 3/3 pass in AD25; with
+`test_live_pcb_rules` (1), `test_live_set_layer_stackup` (4, `pcb_utils.pas`) and
+`test_live_drc` (14, a user of `create_pcb_rule`) 22 of 22 live tests passed. Offline: 9 new in
+`tests/test_pcb_rules.py` (each kind's encoding and checks, the read-back and its
+comparison) and 22 in the new `tests/test_fab_presets.py` (the preset file: its page and
+date, each figure in its quoted text or its working given, every rule encoding; the
+priorities planned; the tool's priority and read-back and the preset tool with the bridge
+faked), added to `.github/workflows/tests.yml`; 484 tests pass (was 453).
+Decided 2026-11-15 by the run, not the owner: priority is set by removing and adding again
+the rules that stay above the new one, because the API gives no setter and that move keeps
+each rule's object and values; the result's read priority, checked against the one asked,
+says whether it held.
+Decided 2026-11-15 by the run, not the owner: a preset rule goes directly above the highest
+rule of its kind that it takes over (scoped to everything, or of its own scope), the lowest of
+its kind when there is none, because at priority 1 a rule scoped to everything would override
+every narrower rule the designer set, and below the board's catch-all it would never apply.
+Decided 2026-11-15 by the run, not the owner: the preset holds only rules whose every figure
+is the page's (or worked out from its text, the working written), so the width rule waits for
+the caller's preferred and largest width and no routing via style rule is made (the via hole
+and diameter minimums are held by the hole size and annular ring rules), because the page
+gives no preferred or largest value and a figure from memory is what the decision rules out.
+Decided 2026-11-15 by the run, not the owner: `annular_ring` and `solder_mask_sliver` were
+added beside the kinds the decision named, because the page's annular ring and mask bridge
+minimums are part of a fabricator's minimums and Altium checks them by those two rules.
+Decided 2026-11-15 by the run, not the owner: every call reads the values back and reports
+`success` false on a difference, because the descriptor of a routing layers rule names no
+layer and a differential pair's shows only the extremes over all layers, so it cannot show
+what was stored.
+Fixed in `4c8b5c0`. Local: on `ad25`, released in `build-20261115-143551`. Upstream: not yet
+decided.
+Closed for the kinds, the read-back and the preset: the scenario test of that build
+held (2026-11-15, second entry, 4): the eleven kinds made and read back equal, after a
+reopen too; refusals named; `create_pcb_rules_preset("jlcpcb_2layer_1oz")` made 9 rules at
+the priorities planned, a second call refused. Not held for `priority` (same entry, 5): the
+property reads right, but `run_drc` in the same session checks by the order the rules were
+added until the board is reopened; that is A38, Open.
+Decided 2026-11-15 by the run, not the owner: A14 Closed for what held and the priority's
+fault made A38, because the kinds and the preset are used as they are, and A38 names the
+one thing that does not hold with its workaround.
+
+**A12. Output jobs can be run and read, not made.** `run_output_jobs` runs containers of
+an OutJob that exists and `get_outjob_settings` reads one from disk; nothing creates an
+OutJob or sets its outputs (Gerber layers and format, NC Drill, BOM, pick and place, output
+folder). Nor are outputs given in the form an assembly service asks for, e.g. JLCPCB's: a
+BOM of Comment, Designator, Footprint and the supplier part number; a placement list of
+Designator, Mid X, Mid Y, Layer, Rotation, with the per-footprint rotation corrections it
+needs; the Gerbers and drill files zipped. Local: a tool that writes an OutJob from a
+preset or edits the outputs of one, and a step that turns Altium's BOM and pick and place
+into a named service's columns.
+Cause: no tool wrote an OutJob (`get_outjob_settings` only parses one, `run_output_jobs` only
+runs one), and nothing turned Altium's BOM and pick and place into a service's form.
+Found 2026-11-15 by the run's probes in AD25 (OutJobs written by hand after Altium's own
+examples, Bluetooth Sentinel and Mini PC, run by `run_output_jobs` on a copy of the
+SpiritLevel-SL1 example): an OutJob written as plain INI text, added to the project, runs with
+the settings it holds. `GerberUnit` Metric/Imperial with `NumberOfDecimals` 4 gave
+`%FSLAX44Y44*%` `%MOMM*%`, Imperial 5 gave `%FSLAX25Y25*%` `%MOIN*%`; NC Drill `ZeroesMode`
+`KeepLeadingAndTrailingZeroes` gave `INCH` (2:5, both zeroes kept), `SuppressLeadingZeroes`
+gave `INCH,TZ`; `GenerateSeparatePlatedNonPlatedFiles` gave `-Plated` and `-NonPlated` files;
+`PlotBoardProfile=True` gave the board's shape as `.GM`; Mid Layer 1 and 2 and Internal Plane 1
+in `Plot.Set` gave no file on the 2-layer board (Altium plots only the layers in the stack);
+a BOM column named after a parameter no part has comes out empty; BOM `BatchMode` 0 to 6 wrote
+.csv, .txt, .xlsx, .html, .xml (+ .xsl), .xlsx and .pdf, and 7 put up "EOleException Unknown
+report mode: 7" and stopped the run until its OK was pressed (149 s); a GeneratedFiles
+container with `ReleaseManaged`=0 writes into `OutputBasePath`, relative to the project's
+folder or absolute, with `OutputPathOutputer` `[Output Type]` one subfolder per output type,
+empty none. Altium reloads an open OutJob it has not changed when the file changes on disk,
+a moment later: a run started before that used the old settings once (the first run of the
+test below: "the second run wrote to the new folder" false).
+Fix: `write_outjob(outjob_path, preset, gerber, nc_drill, bom, pick_place, output_folder,
+container, board_document, overwrite)` (`server/outjob_writer.py`, the tool in `main.py`; no
+Altium). A new file needs a preset; an existing one is edited line by line, every line not
+asked for kept as it was (and its encoding: ANSI, or UTF-8 with or without its mark); a preset
+over an existing file is refused unless `overwrite`. Each group goes into the first output of
+its kind (Gerber RS-274X, NC Drill, BOM_PartType, Pick Place), added from Altium's own record
+when there is none, and is connected to the container (named, or the file's first
+GeneratedFiles one, added when there is none; a Publish or Printer container refused).
+Settings: gerber `units` (mm, inch), `format` (mm 4:2 to 4:4, inch 2:3 to 2:5; a change of
+units needs its format), `zeroes`, `origin`, `layers` (names as the read gives them, `copper`
+for every copper layer), `board_profile`; nc_drill `units`, `format`, `zeroes`, `origin`,
+`separate_plated`; bom `format` (csv, txt, html, xml, xlsx, pdf), `columns`, `group_by` (the
+exported BOM not opened, no export dialog); pick_place `units` (mm, mil), `formats` (csv, txt);
+`output_folder` (not release managed, no subfolder per type, so the zip can be flat). Every
+check runs on a copy before the file is touched. The file is then read back by
+`outjob_parser.parse_outjob` and held against what was asked (`differences`, `success` false
+when any); the result gives the read (`settings`). `get_outjob_settings` gives a BOM's `bom`
+(file format, columns, grouping, sort, whether it opens the export). `run_output_jobs` closes
+and opens again an OutJob Altium has open with no unsaved change, so the run uses the file as
+saved (`outjob_reloaded`); one with unsaved changes is run as Altium has it, not closed, and
+the result says so (`outjob_unsaved_changes`, `note`); the flag is read through `BoolToStr`,
+as `DocumentModified` says (read directly it is always False in the bridge, which would have
+closed an OutJob with unsaved changes and dropped them).
+Preset `fab_jlcpcb` (`server/data/output_presets/jlcpcb.json`, kept by git through
+`!server/data/output_presets/*.json` in `.gitignore`), from JLCPCB's pages read 2026-11-15 by
+a plain GET each, each setting quoting its page: "How to Generate Gerber Files in Altium
+Designer 26" (https://jlcpcb.com/help/article/how-to-export-altium-pcb-to-gerber-files, "Last
+updated on Nov 10, 2026", made with AD 26.1.1, its dialogs unchanged in 24 and 25 by the page):
+Gerber "Units: Millimeters", "Decimal: 0.0001 mm (a 4:4 coordinate format ...)", "Suppress
+leading zeroes", the layers Board Outline (.GM), Top/Bottom Layer, Overlay, Solder and Paste,
+one outline only; NC Drill "Units: Inches", "Format: 2:5", "Keep leading and trailing
+zeroes", "Reference to absolute origin", plated and non-plated holes in separate files; the
+zip .zip and flat. "How to Generate BOM and Pick and Place Files in Altium Designer"
+(https://jlcpcb.com/help/article/how-to-generate-bill-of-materials-and-centroid-file-from-altium,
+"Last updated on Sep 09, 2026"): the BOM in CSV, Comment, Designator, Footprint, the LCSC part
+number last, from "a new parameter named LCSC Part #". "Bill of Materials for PCB Assembly"
+(https://jlcpcb.com/help/article/bill-of-materials-for-pcb-assembly, Sep 09, 2026): Comment,
+Designator, Footprint. "Pick & Place File for PCB Assembly"
+(https://jlcpcb.com/help/article/pick-place-file-for-pcb-assembly, Sep 09, 2026): Designator,
+Mid X/Mid Y "Required units: Metric(mm)", Layer "Top / Bottom", Rotation "Positive values are
+counter clockwise". Container "JLCPCB Outputs", folder "JLCPCB". The first URL the brief named
+(`how-to-generate-gerber-and-drill-files-in-altium-designer`) gave 404; the pages above were
+found by a search of jlcpcb.com.
+Offline step: `make_assembly_files(service, bom_path, pick_place_path, gerber_dir, out_dir,
+part_number_parameter, rotations_path, name)` (`server/assembly_files.py`; no Altium), service
+`jlcpcb` from the same file: `<name>_JLCPCB_BOM.csv` (Comment, Designator, Footprint, LCSC Part
+#, one row per row of Altium's BOM; the part number from the column named by
+`part_number_parameter`, default "LCSC Part #"; a missing column refused, naming the columns
+the file has), `<name>_JLCPCB_CPL.csv` (Designator, Mid X, Mid Y in mm with 4 decimals, from
+Altium's Center-X/Y in mm or mil, Layer Top or Bottom, Rotation corrected), and
+`<name>_JLCPCB_Gerber.zip`, flat, of gerber_dir's own files whose content is a Gerber (a `%FS`
+statement) or an Excellon file (starts with `M48`); Altium's reports beside them are listed in
+`not_zipped`. The result names the parts with no part number, the rotations applied (the table
+row each), and the designators in only one of the two files. The rotation table
+`server/data/output_presets/jlcpcb_rotations.csv` (footprint name or `*`/`?` pattern, degrees
+added, Top/Bottom or both, note; `#` lines are comments; the first row that matches is used) is
+empty, for the owner to fill.
+Test before: `tests/test_live_outjob_writer.py` (`ALTIUM_LIVE=1`, a copy of the SpiritLevel-SL1
+example project, closed unsaved): the preset written, read back by `get_outjob_settings`
+(Gerber Metric 4 Absolute, suppressed leading zeroes, board profile, every copper layer, no
+mechanical or keep-out layer; NC Drill Imperial 2:5, zeroes kept, absolute, plated apart; BOM
+csv with the four columns; pick and place mm CSV; the container's folder, not release managed,
+not added to the project), a preset over it refused and the file unchanged, added to the
+project and run: the .GTL `%FSLAX44Y44*%` `%MOMM*%`, the nine layers' files and no .GM1 or .GKO,
+the plated and non-plated drill files `;FILE_FORMAT=2:5` and `INCH`, the BOM's header, the pick
+and place in mm; then, the OutJob open in Altium, edited (Gerber inch 2:5, pick and place mil,
+folder "JLCPCB inch"), read back, run again: the new folder, `%FSLAX25Y25*%` `%MOIN*%`, Center-X
+in mil, `outjob_reloaded` true; marked modified in Altium and run: `outjob_unsaved_changes`
+true, not reopened; last the offline step on Altium's files with a one-row rotation table: the
+BOM and CPL columns and row counts, R10 (CR2012-0805) turned by 90, Mid X equal to Altium's
+Center-X, the zip flat with the nine Gerbers and the drill files and without the reports, the
+designators in one file only as the files give them, and the mil file giving the same mm within
+0.001. Before the tools it errored: "AttributeError: module 'main' has no attribute
+'write_outjob'". On the old `run_output_jobs` script it fails at "None is not False" (no
+`outjob_reloaded`).
+After: 1/1 passes in AD25 (run twice in its final form); with `test_live_project_setup` (9, the other
+functions of `other_utils.pas`) and `test_live_resident` (5, the bridge's bundle changed) 15 of
+15 live tests passed, on an Altium restarted by the run (the server's memory guard stopped the
+first try at 3.7 GB). Offline: 20 new in `tests/test_outjob_writer.py` (layer IDs both ways,
+each setting's keys and checks, the preset and its pages, an Altium file edited with one line
+changed, an output and a container added and connected, a refused request changing nothing,
+the read-back comparison, the tool's refusals and encoding), 14 in `tests/test_assembly_files.py`
+(Altium's real BOM and pick and place in mm and mil from this test's run, as fixtures in
+`tests/fixtures/`, their path line made neutral; the rotation table; the files, the zip, the
+refusals) and 1 in `tests/test_outjob_parser.py` (the BOM summary), the two new modules added to
+`.github/workflows/tests.yml`; 519 tests pass (was 484).
+Decided 2026-11-15 by the run, not the owner: the Gerber origin is absolute, because the page
+gives none for the Gerbers and gives "Reference to absolute origin" for the drill files, and the
+two must line up.
+Decided 2026-11-15 by the run, not the owner: the preset plots every copper layer Altium has
+(Top, Mid Layer 1 to 30, Internal Plane 1 to 16, Bottom), because Altium writes a file only for
+those in the board's stack (probed), so a 4- or 6-layer board gets its inner layers without the
+preset knowing the board, where a fixed 2-layer list would drop them silently; the read lists
+all 48 as the file holds them.
+Decided 2026-11-15 by the run, not the owner: the board profile (`PlotBoardProfile`, written as
+.GM) is the preset's one outline, no mechanical layer, because the page names Board Outline
+(.GM) the standard and asks for one outline layer, and which mechanical layer holds a board's
+outline differs from board to board.
+Decided 2026-11-15 by the run, not the owner: the BOM's part number column and its default
+parameter are "LCSC Part #", because that is the parameter the Altium page tells to add and its
+last column; another name is given by `part_number_parameter` (and the BOM's `columns`).
+Decided 2026-11-15 by the run, not the owner: the BOM's grouping is Comment, Footprint and LCSC
+Part #, one row per part with its designators together, because the pages give no grouping and
+show rows of several designators; Mid X and Mid Y are plain numbers in mm, because the page names
+the unit, not a suffix; the aperture tolerance stays Altium's 50 (0.000127 mm), which Altium
+shows as the page's 0.00013 mm.
+Decided 2026-11-15 by the run, not the owner: BOM `BatchMode` 2 (also .xlsx) is not offered and 7
+and up are refused, because 2 and 5 wrote the same kind of file with no way told apart and 7 put
+up an error that stopped the run.
+Decided 2026-11-15 by the run, not the owner: `run_output_jobs` closes and opens again an open
+OutJob with no unsaved change, because Altium's own reload of a changed file comes a moment later
+and a run before it used the old settings once; it costs a close and an open, and an OutJob with
+unsaved changes is left as it is and named in the result. The test shows the reload and the
+unsaved case; it does not fail reliably on the old script by its effect (after a 3 s pause Altium
+had reloaded the file itself, three runs of three), only by the missing flag.
+Decided 2026-11-15 by the run, not the owner: a rotation row adds its degrees as given on the
+side it names (both when none), because the pages read give no correction and no rule for the
+bottom side, and the owner fills the table from what JLCPCB's review shows.
+Decided 2026-11-15 by the run, not the owner: `write_outjob` does not add the file to the
+project; the caller does it with `add_project_document`, because that tool already does it and
+checks it, and `write_outjob` then needs no Altium.
+Fixed in `cc1015d`. Local: on `ad25`, released in `build-20261115-143551`. Upstream: not yet
+decided.
+Closed: the scenario test of that build held (2026-11-15, second entry, 6):
+`write_outjob(preset="fab_jlcpcb")` added to the project and run gave nine Gerbers (mm,
+`.GM` outline), the drill file (2:5 inch), the BOM with the LCSC column and the pick and
+place in mm; the OutJob edited (Gerber inch, pick and place mil) while open was reloaded
+(`outjob_reloaded` true); `make_assembly_files` gave the same Mid X/Y from the mil file as
+from the mm file, applied a two-row rotation table and zipped flat; refusals named. The size
+of its result (same entry, 7) is A39.

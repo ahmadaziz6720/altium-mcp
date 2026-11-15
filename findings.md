@@ -432,3 +432,64 @@ appeared on closing and was deleted. 22 calls, 0 errors, 15k characters (8
 
 Sorted into A22 (1), Closed; A31, new (2, 3); A24 (4), Closed, its small point into A29;
 A32, new (5, 6); A33, new (7).
+
+**2026-11-15: scenario test of a release serving calls from a resident bridge and answering Altium's messages (A30, A29), with the read and edit scenarios on a small 2-layer board**
+
+Release `bin\0.7.0-20261115-114630` (build line `0.7.0-ad25-20261115-114630 f1b1559`), Altium
+just started (it reopened the last project by itself). A window of another process in front,
+every foreground change logged by a WinEvent hook plus a 20 ms poll, as in the A22 test. The
+read and edit scenarios (move a part, placement check, delete and route a track, DRC, a via,
+silkscreen check) ran on a copy of the project; the copy was closed unsaved.
+
+1. A30, held. The first call started the resident ("none of this build is running", taken in
+   2.92 s), and every bridge request after it, 26 of them (24 tool calls), was taken by it in 0.015 to 0.14 s,
+   no launch (`get_server_status`: `last_call.mode` `resident`, one form `this_build`
+   `alive`). Results the same as before on every tool used: project and board summary, layout
+   of an area, `run_drc` filtered by rule and by net (`ran` true, the counts as before,
+   report deleted, project left unmodified), component data, `move_components` there and
+   back, `check_placement` (4 overlaps, then 1 clearance), `delete_pcb_objects` (dry run and
+   real), `get_unrouted_connections` (1 connection = the DRC's), `route_track`, `place_vias`,
+   `check_silkscreen`. The form is off-screen with `WS_EX_TOOLWINDOW` and without
+   `WS_EX_APPWINDOW`. It outlived a `run_altium_script` recovery (3 attempts, two
+   `-REditScript:Stop`) and a message answered by hand, and served the next call. The focused
+   design project is the one the tools report, not the resident's script project (which shows
+   in Altium's Projects panel).
+2. A30, partly: Altium still came in front during calls the resident served, each time given
+   back by A22's guard. (a) The start: the main window about 1.5 s, seen by the poll only (no
+   foreground event, A31), then the resident form itself took the foreground once (5 ms).
+   (b) The first `get_board_summary` after the start: the main window 25 ms; the same call
+   again: never. Guess: the board is shown (brought to view) the first time a tool uses it.
+   (c) Each `run_drc`: the Design Rule Checker dialog, then the main window, 24 ms each, as the
+   tool says. (d) After `answer_altium_message` pressed a button: the resident form, then the
+   main window, about 10 ms (closing the modal hands activation to the next window of
+   Altium's, the form first). Small next to the 2 s per call before; (a) and (d) are new with
+   the form.
+3. `run_altium_script` is not served by the resident: each call is still a launch. A script
+   that closes one project and opens another kept Altium in front 2.9 s, the closing script
+   1.6 s, both with no foreground event (poll only): A31 met again, and A30's gain does not
+   reach this tool. Not said in A30 whether that is meant; the tool's description still says
+   `RunScriptFile`.
+4. A32 met again, unchanged: `run_altium_script` with a `MessageDlg` (Yes/No) and
+   `timeout_seconds=4` returned after about 55 s "no result after 4 s", "The debugger has been
+   stopped, so it is no longer running", `executor_wedged` true, `recovered` false (3
+   attempts), the message not named; its probes raised six "Information" (busy) boxes, and
+   the guard gave the foreground back 20 times in the call. The message stayed open.
+5. A29, held. `answer_altium_message()` listed the open message: title "Confirm", class
+   `#32770`, buttons Yes and No, a picture showing its text (the picture cuts the buttons at
+   the bottom; `text` empty, as it cannot be read). With the message open, `get_board_summary`
+   was refused in 0.3 s, no request written, naming the message, its picture and
+   `answer_altium_message`; the refusal reused the listing's picture (one picture per window,
+   A29's small point held). `button="Cancel"`: "'Confirm' has no button 'Cancel': its buttons
+   are Yes, No. Nothing was pressed." (`success` false, the message still open).
+   `button="No"`: `success` true, the window gone, the next `get_board_summary` taken by the
+   resident in 0.031 s with the guarded window still in front.
+6. Small, A29 with A32: answering the message a `run_altium_script` of this server left open
+   gave `outcome` "no_command_waiting" with the note "No call of this server was waiting on it
+   (it may be a script of the user's own, another session's command, or one from before this
+   server started)". It was this server's script, whose call had already ended with "no
+   result"; the script's own answer (its `ResultText`) is read by no one. The note could say
+   so when the window belongs to a sandbox run of this server.
+
+41 calls, 0 errors, 35k characters (3 `run_altium_script`: opening, closing, the message; 11
+`get_server_status`). The reference project's `.PrjPcbStructure` appeared again on closing and
+was deleted (A5's usage).

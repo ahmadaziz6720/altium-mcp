@@ -432,10 +432,12 @@ var
     i : Integer;
     Kind, Name, Scope1, Scope2, Comment, ValueText : String;
     Replace : Boolean;
+    Priority : Integer;
     Values  : TStringList;
 begin
     Kind := ''; Name := ''; Scope1 := 'All'; Scope2 := 'All'; Comment := ''; ValueText := '';
     Replace := False;
+    Priority := 0;
     for i := 0 to RequestData.Count - 1 do
     begin
         if Pos('"rule_kind"', RequestData[i]) > 0 then Kind := JSONLineValue(RequestData[i])
@@ -444,7 +446,8 @@ begin
         else if Pos('"scope2"', RequestData[i]) > 0 then Scope2 := JSONLineValue(RequestData[i])
         else if Pos('"comment"', RequestData[i]) > 0 then Comment := JSONLineValue(RequestData[i])
         else if Pos('"values"', RequestData[i]) > 0 then ValueText := JSONLineValue(RequestData[i])
-        else if Pos('"replace"', RequestData[i]) > 0 then Replace := Pos('true', RequestData[i]) > 0;
+        else if Pos('"replace"', RequestData[i]) > 0 then Replace := Pos('true', RequestData[i]) > 0
+        else if Pos('"priority"', RequestData[i]) > 0 then Priority := StrToIntDef(JSONLineValue(RequestData[i]), 0);
     end;
     if (Kind = '') or (Name = '') then
     begin
@@ -454,7 +457,7 @@ begin
     Values := TStringList.Create;
     try
         Values.Text := StringReplace(ValueText, ';', #13#10, REPLACEALL);
-        Result := CreatePCBRule(Kind, Name, Scope1, Scope2, Comment, Values, Replace);
+        Result := CreatePCBRule(Kind, Name, Scope1, Scope2, Comment, Values, Replace, Priority);
     finally
         Values.Free;
     end;

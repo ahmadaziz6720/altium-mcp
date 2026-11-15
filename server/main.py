@@ -6285,10 +6285,56 @@ async def get_pcb_layer_stackup(ctx: Context) -> str:
     logger.info(f"Retrieved PCB layer stackup data")
     return json.dumps(stackup_data, indent=2)
 
+async def _create_rule(rule_type: str, name: str, values: dict, scope1: str, scope2: str, comment: str,
+                       replace: bool, board_path: str, priority: int) -> dict:
+    """create_pcb_rule's work, its result as a dict: checked, sent, read back."""
+    import pcb_rules
+
+    encoded, error = pcb_rules.encode_values(rule_type, values)
+    if error:
+        return {"success": False, "error": error}
+    if not str(name).strip():
+        return {"success": False, "error": "name is empty"}
+    if isinstance(priority, bool) or not isinstance(priority, int) or priority < 0:
+        return {"success": False, "error": "priority is a whole number: 1 is the highest of its kind, "
+                                           "0 or none leaves the rule at 1"}
+    logger.info(f"Creating {rule_type} rule {name}")
+    response = await altium_bridge.execute_command("create_pcb_rule", {
+        "rule_kind": rule_type, "rule_name": name.strip(), "scope1": scope1 or "All",
+        "scope2": scope2 or "All", "comment": comment, "values": encoded,
+        "replace": bool(replace), "priority": priority, "board_path": board_path})
+    if not response.get("success", False):
+        return {"success": False, "error": f"Failed to create the rule: {response.get('error', 'unknown error')}"}
+    result = response.get("result", {})
+    if isinstance(result, str):
+        try:
+            result = json.loads(result)
+        except ValueError:
+            return {"success": False, "error": f"Unexpected answer from Altium: {result[:300]}"}
+    raw = result.pop("read_back", "")
+    result["read_back"] = pcb_rules.decode_values(rule_type, raw)
+    differences = pcb_rules.compare_values(rule_type, encoded, raw)
+    if differences:
+        result["success"] = False
+        result["differences"] = differences
+        result["error"] = "Altium stored other values than those sent: " + "; ".join(differences)
+    if priority > 1 and result.get("priority") != priority:
+        result["success"] = False
+        result.setdefault("differences", []).append(f"priority: asked {priority}, Altium has {result.get('priority')}")
+        result["error"] = "The rule is not at the priority asked: " + "; ".join(result["differences"])
+    others = result.get("other_rules_of_kind", 0)
+    if (others and result.get("priority") == 1 and (scope1 or "All").strip().lower() == "all"
+            and (rule_type not in pcb_rules.BINARY_KINDS or (scope2 or "All").strip().lower() == "all")):
+        result["warning"] = (f"This rule applies to everything at priority 1, so it now overrides the "
+                             f"{others} other {rule_type} rule(s) on the board. Narrow its scope, give it a "
+                             f"lower priority, or move it down in Altium's rules editor if that is not intended.")
+    return result
+
+
 @_tool()
 async def create_pcb_rule(ctx: Context, rule_type: str, name: str, values: dict,
                           scope1: str = "All", scope2: str = "All", comment: str = "",
-                          replace: bool = False, board_path: str = "") -> str:
+                          replace: bool = False, board_path: str = "", priority: int = 0) -> str:
     """
     Add a design rule to a PCB.
 
@@ -6303,18 +6349,40 @@ async def create_pcb_rule(ctx: Context, rule_type: str, name: str, values: dict,
       polygon_connect        connect_style ("relief", "direct", "none"), and
                              optionally conductor_width_mils, air_gap_mils,
                              entries (2 or 4)
+      differential_pair      min/max/preferred_gap_mils and
+                             min/max/preferred_width_mils (all signal layers),
+                             optionally max_uncoupled_length_mils; scope e.g.
+                             "InDifferentialPairClass('All')"
+      length                 min_mils, max_mils (a net's routed length)
+      matched_length         tolerance_mils
+      routing_layers         layers: the signal layer names routing may use,
+                             e.g. ["Top Layer"]; the board's others are not
+      plane_connect          connect_style ("relief", "direct", "none"), and
+                             optionally expansion_mils, conductor_width_mils,
+                             air_gap_mils, entries (2 or 4)
+      component_clearance    gap_mils (horizontal), optionally vertical_gap_mils
+      silk_to_solder_mask    gap_mils (between scope1 and scope2)
+      silk_to_silk           gap_mils
+      hole_to_hole           gap_mils
+      annular_ring           min_mils
+      solder_mask_sliver     gap_mils
 
     Scopes are Altium query expressions, e.g. "All", "InNet('GND')",
     "InNetClass('Power')", "IsVia", "HasFootprint('0402')". A one-scope
-    rule (width, hole size, via, mask, ...) uses scope1 only.
+    rule (width, hole size, via, mask, length, ...) uses scope1 only; the
+    two-scope kinds are clearance, component_clearance, the silkscreen
+    clearances, hole_to_hole and solder_mask_sliver.
 
-    PRIORITY: Altium makes a rule added this way priority 1, the highest
-    of its kind, and moves the others down; a script cannot set priority.
-    So a new rule wins wherever its scope applies. Give it a narrow scope
-    (a net, class or object kind), or reorder priorities in Altium's PCB
-    Rules and Constraints Editor afterwards. get_pcb_rules lists all rules
-    with their priorities. Check the result's "descriptor": it is what
-    Altium stored.
+    PRIORITY: 1 is the highest of its kind, and the dominant rule where
+    several apply. Without priority (or 0) the rule becomes priority 1 and
+    the others move down, so it wins wherever its scope applies. Give it a
+    narrow scope or a lower priority (up to one more than the kind's other
+    rules; a number past that is refused); the rules above it keep their
+    order. get_pcb_rules lists all rules with their priorities.
+
+    The rule's values are read back from Altium ("read_back", in the keys
+    given); a value Altium stored differently is listed in "differences"
+    and the call reports success false.
 
     Args:
         rule_type (str): One of the kinds above.
@@ -6327,39 +6395,137 @@ async def create_pcb_rule(ctx: Context, rule_type: str, name: str, values: dict,
             of refusing.
         board_path (str): Full path of the .PcbDoc; empty for the focused
             board, or the one the PCB tools last used.
+        priority (int): The rule's priority among its kind, 1 the highest;
+            0 for 1.
 
     Returns:
-        str: JSON with the rule's name, descriptor, scopes, priority and
-             whether it replaced an existing rule.
+        str: JSON with the rule's name, descriptor (what Altium stored),
+             scopes, priority, read_back, comment and whether it replaced an
+             existing rule.
     """
-    import pcb_rules
-
-    board_path = long_path(board_path)
-    encoded, error = pcb_rules.encode_values(rule_type, values)
-    if error:
-        return json.dumps({"success": False, "error": error})
-    if not name.strip():
-        return json.dumps({"success": False, "error": "name is empty"})
-    logger.info(f"Creating {rule_type} rule {name}")
-    response = await altium_bridge.execute_command("create_pcb_rule", {
-        "rule_kind": rule_type, "rule_name": name.strip(), "scope1": scope1 or "All",
-        "scope2": scope2 or "All", "comment": comment, "values": encoded,
-        "replace": bool(replace), "board_path": board_path})
-    if not response.get("success", False):
-        return json.dumps({"success": False,
-                           "error": f"Failed to create the rule: {response.get('error', 'unknown error')}"})
-    result = response.get("result", {})
-    if isinstance(result, str):
-        return result
-    others = result.get("other_rules_of_kind", 0)
-    if others and (scope1 or "All").strip().lower() == "all" and (scope2 or "All").strip().lower() == "all":
-        result["warning"] = (f"This rule applies to everything at priority 1, so it now overrides the "
-                             f"{others} other {rule_type} rule(s) on the board. Narrow its scope or "
-                             f"move it down in Altium's rules editor if that is not intended.")
+    result = await _create_rule(rule_type, name, values, scope1, scope2, comment, replace,
+                                long_path(board_path), priority)
     return json.dumps(result, indent=2)
 
 # Changes the design: a timeout leaves its outcome unknown, so no blind retry
 MUTATING_COMMANDS.add("create_pcb_rule")
+
+
+@_tool()
+async def create_pcb_rules_preset(ctx: Context, preset: str, board_path: str = "", dry_run: bool = False,
+                                  replace: bool = False, width_preferred_mils: float = None,
+                                  width_max_mils: float = None) -> str:
+    """
+    Set a fabricator's minimums on a PCB at once, as design rules.
+
+    A preset is a data file in server/data/fab_presets that names the
+    fabricator's capabilities page it was read from and the date it was
+    read; each rule's figures are that page's, quoted with the row they
+    come from. Presets: "jlcpcb_2layer_1oz" and "jlcpcb_multilayer_1oz"
+    (JLCPCB, 1 oz copper, standard drills, green or other non-black mask).
+    An unknown preset name lists those there are. Read the page again
+    before relying on a preset: a fabricator changes its figures.
+
+    Each rule is named after the preset (e.g. JLCPCB_2L_1oz_Clearance), its
+    comment names the page, the date and the row, and it goes in directly
+    above the board's rule of its kind that it takes over (one scoped to
+    everything, or one of the same scope), so a narrower rule the board has
+    still wins where it applies. Its priority is in the result.
+
+    The page gives a width rule's minimum only: the width rule is made when
+    width_preferred_mils and width_max_mils are given (the router's width
+    and the largest allowed, your design's choice), and listed in "skipped"
+    otherwise. What the page gives that no rule here sets is in "not_set",
+    with why.
+
+    Nothing is changed when a preset rule's name is already on the board
+    (unless replace) or a value is refused. dry_run gives the rules, their
+    values and priorities, and changes nothing.
+
+    Args:
+        preset (str): The preset's name.
+        board_path (str): Full path of the .PcbDoc; empty for the focused
+            board, or the one the PCB tools last used.
+        dry_run (bool): Plan only.
+        replace (bool): Replace a rule of a preset rule's name.
+        width_preferred_mils (float): The width rule's preferred width.
+        width_max_mils (float): The width rule's largest width.
+
+    Returns:
+        str: JSON with the preset, its source page and date read, "rules"
+             (name, rule_type, scopes, values in mils, priority, the page's
+             row and text, and when made: descriptor and read_back),
+             "skipped" and "not_set".
+    """
+    import pcb_rules
+
+    board_path = long_path(board_path)
+    presets = pcb_rules.load_presets()
+    build = presets.get(preset)
+    if build is None:
+        return json.dumps({"success": False, "error": f"unknown preset '{preset}'; one of: "
+                           f"{', '.join(presets) or '(none: server/data/fab_presets is empty)'}"})
+    out = {"success": True, "preset": preset, "fabricator": build["fabricator"], "source": build["source"],
+           "read": build["read"], "description": build.get("description", ""), "dry_run": bool(dry_run),
+           "rules": [], "skipped": [], "not_set": build.get("not_set", [])}
+
+    plan = []
+    for rule in build["rules"]:
+        values = pcb_rules.preset_rule_values(rule)
+        if rule["rule_type"] == "width":
+            if width_preferred_mils is None or width_max_mils is None:
+                out["skipped"].append({"name": rule["name"], "rule_type": "width",
+                                       "why": "the page gives the minimum width only: pass width_preferred_mils "
+                                              "and width_max_mils to make it"})
+                continue
+            values.update(preferred_mils=width_preferred_mils, max_mils=width_max_mils)
+        encoded, error = pcb_rules.encode_values(rule["rule_type"], values)
+        if error:
+            return json.dumps({"success": False, "error": f"{rule['name']}: {error}"})
+        comment = (f"{build['fabricator']} {build['source']} read {build['read']}: "
+                   f"{rule['page_row']}: {rule['page_text']}")
+        if rule.get("derived"):
+            comment += f" (derived: {rule['derived']})"
+        plan.append({"name": rule["name"], "rule_type": rule["rule_type"], "scope1": rule.get("scope1", "All"),
+                     "scope2": rule.get("scope2", "All"),
+                     "values": {k: round(v, 4) for k, v in values.items()},
+                     "page_row": rule["page_row"], "page_text": rule["page_text"],
+                     "derived": rule.get("derived", ""), "comment": comment, "_values": values})
+
+    # The board's rules: names taken, and where each new rule goes
+    response = await altium_bridge.execute_command("get_pcb_rules", {"board_path": board_path})
+    if not response.get("success", False):
+        return json.dumps({"success": False, "error": f"Failed to read the board's rules: "
+                                                      f"{response.get('error', 'unknown error')}"})
+    existing = response.get("result", [])
+    if not isinstance(existing, list):
+        existing = []
+    taken = sorted(r.get("name", "") for r in existing
+                   if str(r.get("name", "")).lower() in {p["name"].lower() for p in plan})
+    if taken and not replace:
+        return json.dumps({"success": False, "error": f"The board already has rules of this preset's names: "
+                           f"{', '.join(taken)}. Pass replace=true to replace them"})
+    for entry, priority in zip(plan, pcb_rules.plan_priorities(existing, plan, replace)):
+        entry["priority"] = priority
+
+    for entry in plan:
+        values = entry.pop("_values")
+        if dry_run:
+            out["rules"].append(entry)
+            continue
+        made = await _create_rule(entry["rule_type"], entry["name"], values, entry["scope1"], entry["scope2"],
+                                  entry["comment"], replace, board_path, entry["priority"])
+        entry.update({k: made[k] for k in ("descriptor", "read_back", "differences", "error") if k in made})
+        if made.get("priority") is not None:
+            entry["priority"] = made["priority"]
+        out["rules"].append(entry)
+        if not made.get("success"):
+            out["success"] = False
+            out["error"] = (f"{entry['name']} failed: {made.get('error', 'unknown error')}; the rules before it "
+                            f"in 'rules' were made")
+            break
+    return json.dumps(out, indent=2)
+
 
 
 def _stack_records(text) -> dict:

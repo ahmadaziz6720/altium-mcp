@@ -10,7 +10,7 @@ Three sections: **Open**, not yet fixed; **Waiting**, fixed and not yet settled 
 merged, a fix not yet run in a session); **Closed**, merged upstream, run and held, or
 decided against, with the record.
 
-**Open: A8, A11, A12, A14, A15, A23, A25 to A28, A31 to A34, A36.**
+**Open: A8, A11, A12, A15, A23, A25 to A28, A31 to A34, A36.**
 
 A2, A7, A4 and A6 went out together in `build-20261112-120520` (owner, 2026-11-12), so one
 scenario test covers them; A3 and A8 were not waited for. That test ran and held for
@@ -285,7 +285,7 @@ unasked, and ending and restarting `X2.EXE` when Altium hangs.
   commits (the entry, the sort) are not pushed: they go out with the next push of `ad25`.
 - [x] A34 (a): committed (as A35 in Waiting; Altium started by the run and left running)
 - [x] A13: committed (A36 new from it, Open)
-- [ ] A14: committed (or left Open, why written into it)
+- [x] A14: committed (priority by remove and re-add; JLCPCB preset read 2026-11-15)
 - [ ] A12: committed (or left Open, why written into it)
 - [ ] group 4: offline and live tests, pushed, released (build: …)
 - [ ] group 4: scenario test (session id: …), entry committed and sorted, release page
@@ -382,13 +382,6 @@ Designator, Mid X, Mid Y, Layer, Rotation, with the per-footprint rotation corre
 needs; the Gerbers and drill files zipped. Local: a tool that writes an OutJob from a
 preset or edits the outputs of one, and a step that turns Altium's BOM and pick and place
 into a named service's columns.
-
-**A14. `create_pcb_rule` covers seven rule kinds.** Clearance, width, hole size, routing
-via, solder and paste mask expansion, polygon connect. Not differential pairs, length or
-matched length, routing layers, plane connect, component clearance, silkscreen clearances
-or hole to hole; no preset that sets a fabricator's minimums at once; priority cannot be
-set (the tool's own note). Local: more kinds, differential pair and matched length first,
-and a capability preset.
 
 **A15. Parts come from local `.SchLib` and `.PcbLib` files only.** `build_schematic` and
 `edit_schematic`'s `place_component` need a `.SchLib` path (`.IntLib` is not supported); a
@@ -686,6 +679,121 @@ only object was deleted and would refuse a removal that is safe.
 Decided 2026-11-15 by the run, not the owner: the read gives `copper_type` (Signal or Plane),
 because the set takes the read's form and a plane must come back a plane; the `layer_id` told
 it only by its wording.
+Fixed in the commit that moves it here. Local: on `ad25`, in the commit that moves it here;
+not yet in a build. Upstream: not yet decided.
+
+**A14. `create_pcb_rule` covers seven rule kinds.** Clearance, width, hole size, routing
+via, solder and paste mask expansion, polygon connect. Not differential pairs, length or
+matched length, routing layers, plane connect, component clearance, silkscreen clearances
+or hole to hole; no preset that sets a fabricator's minimums at once; priority cannot be
+set (the tool's own note). Local: more kinds, differential pair and matched length first,
+and a capability preset.
+Cause: the tool's Pascal side (`CreatePCBRule` in `pcb_utils.pas`) made only those seven
+rule interfaces, and nothing tried priority beyond `Rule.Priority`.
+Found 2026-11-15 by the run's probes in AD25 (interface names read from Altium's SDK
+interface assembly, each tried in a sandbox script): the kinds are made by
+`PCBServer.PCBRuleFactory` with `eRule_DifferentialPairsRouting`
+(`IPCB_DifferentialPairsRoutingRule`: `MinGap`/`MaxGap`/`PreferedGap` and
+`MinWidth`/`MaxWidth`/`PreferedWidth` per layer, `MaxUncoupledLength`; its descriptor shows
+the smallest minimum and largest maximum over all layers), `eRule_MaxMinLength`
+(`MinLimit`, `MaxLimit`), `eRule_MatchedLengths` (`Tolerance`), `eRule_RoutingLayers`
+(`RoutingLayers(<layer>)`, every layer allowed by default; its descriptor names no layer),
+`eRule_PowerPlaneConnectStyle` (`PlaneConnectStyle`, `ReliefExpansion`,
+`ReliefConductorWidth`, `ReliefAirGap`, `ReliefEntries`), `eRule_ComponentClearance` (`Gap`,
+`VerticalGap`), `eRule_SilkToSolderMaskClearance` (`SilkToMaskGap`),
+`eRule_SilkToSilkClearance` (`SilkToSilkClearance`), `eRule_HoleToHoleClearance` (`Gap`),
+`eRule_MinimumAnnularRing` (`Minimum`) and `eRule_MinimumSolderMaskSliver`
+(`MinSolderMaskSliver`); every property is set directly and is in the saved file. Altium's
+board outline clearance rule has `GetState_Gap` and `GetClearance` only, no setter. Priority:
+the SDK gives `IPCB_Rule.Priority` a getter only, and `Rule.Priority := 2` in a script stops
+it with an exception; no board or server method orders rules. A rule removed and added again
+(`Board.RemovePCBObject`, `AddPCBObject`, the same object) goes to priority 1 of its kind and
+the others move down, its values kept; that sets any priority.
+Fix: eleven kinds more in `create_pcb_rule`, values in mils as before (`server/pcb_rules.py`,
+`RULE_KINDS`): `differential_pair` (`min_gap_mils`, `max_gap_mils`, `preferred_gap_mils`,
+`min_width_mils`, `max_width_mils`, `preferred_width_mils`, set on every signal layer as
+`width` is; optional `max_uncoupled_length_mils`), `length` (`min_mils`, `max_mils`),
+`matched_length` (`tolerance_mils`), `routing_layers` (`layers`, the board's signal layer
+names routing may use; its other signal layers are set not allowed; a name the board does not
+have refused in Altium before anything changes, with the board's signal layers), `plane_connect`
+(`connect_style` relief, direct or none; optional `expansion_mils`, `conductor_width_mils`,
+`air_gap_mils`, `entries` 2 or 4), `component_clearance` (`gap_mils`, optional
+`vertical_gap_mils`), `silk_to_solder_mask`, `silk_to_silk`, `hole_to_hole` and
+`solder_mask_sliver` (`gap_mils`), `annular_ring` (`min_mils`). Checks before Altium: min not
+above max and preferred between them for each trio, no negative value but a mask expansion's,
+no value past 100000 mils (a unit mistake), a number that is a number (not a bool, NaN or
+infinity), a layer name without `,`, `;`, `=` or `|`, none named twice. `priority` (1 the
+highest of its kind; 0 or none leaves the rule at 1, as before): refused past one more than
+the kind's other rules, in Altium before any change, with the range; the rule is added at 1
+and the rule at the asked priority is removed and added again, priority minus 1 times, in
+the same undo step, so the rules above it keep their order. Each call now reads the rule's
+values back from Altium (`read_back`, in the keys given, the layer names for
+`routing_layers`) and holds them against what was sent: a value stored otherwise, a per-layer
+value that differs between layers, or a priority not reached is listed in `differences`
+with `success` false. The warning of a rule scoped to everything now needs it at priority 1,
+and a one-scope kind's `scope2` no longer hides it. The result gives the rule's comment too.
+Fabricator preset: `create_pcb_rules_preset(preset, board_path, dry_run, replace,
+width_preferred_mils, width_max_mils)`, from `server/data/fab_presets/jlcpcb.json`: JLCPCB's
+PCB capabilities page (https://jlcpcb.com/capabilities/pcb-capabilities), read 2026-11-15 by
+a plain GET (the page shows no date of its own); each rule quotes its row and the page's text,
+its figures in mm as the page gives them. `jlcpcb_2layer_1oz`: clearance 0.10 mm and width
+minimum 0.10 mm ("0.10 / 0.10 mm (4 / 4 mil)"), hole size 0.15 to 6.3 mm, hole to hole 0.2 mm
+between vias (IsVia, IsVia) and 0.45 mm otherwise ("Pad Hole-to-Hole Spacing"), annular ring
+0.18 mm on pads ("absolute minimum") and 0.05 mm on vias (derived: half of the 0.1 mm by which
+the page says a via's diameter must exceed its hole), silk to solder mask 0.15 mm (IsPad, All;
+"Pad to Silkscreen"), solder mask sliver 0.10 mm (1 oz, green, red, yellow, blue, purple).
+`jlcpcb_multilayer_1oz`: the same with clearance and width 0.09 mm and the pad ring 0.15 mm.
+What the page gives and no rule sets is listed in the file and the result (`not_set`, with
+why): hole-to-track clearances, board edge clearance, the non-plated hole and ring minimums,
+silkscreen line width and text height, the 1:1 mask opening, the black and white mask bridge,
+and no silk-to-silk figure on the page. Rules are named `JLCPCB_2L_1oz_…` / `JLCPCB_ML_1oz_…`,
+their comment the page, the date and the row. The page gives a width minimum only: the width
+rule is made when `width_preferred_mils` and `width_max_mils` are given, else listed in
+`skipped`. A preset rule name already on the board refuses the whole call (unless `replace`);
+`dry_run` reads the board's rules only and gives the plan. The preset's data file is kept by
+git through a `!server/data/fab_presets/*.json` line in `.gitignore` (upstream ignores
+`*.json`).
+Test before: `tests/test_live_create_pcb_rule.py` (`ALTIUM_LIVE=1`, copies of the 2-layer
+SpiritLevel-SL1 example board, closed unsaved): each of the eleven kinds made, its properties
+read through a board iterator by the test's own script, its descriptor through
+`get_pcb_rules`, and the properties again after a save and reopen; a routing layer the board
+does not have refused, nothing added, the board unmodified; two clearance rules put at the
+lowest priority and at 2, the kind's order read back and after a reopen, a priority out of
+range refused with the order unchanged; the 2-layer JLCPCB preset by a dry run (nothing
+changed, width skipped) and then with a width, each rule's properties, comment and priority
+read back (above the board's catch-all or same-scope rule of its kind, below its narrower
+ones) and after a reopen, and a second call refused by name. Before the change all 3 failed:
+"unknown rule_type 'differential_pair'; one of: clearance, width, hole_size, routing_via,
+solder_mask_expansion, paste_mask_expansion, polygon_connect", "TypeError:
+create_pcb_rule() got an unexpected keyword argument 'priority'" and "AttributeError: module
+'main' has no attribute 'create_pcb_rules_preset'". After: 3/3 pass in AD25; with
+`test_live_pcb_rules` (1), `test_live_set_layer_stackup` (4, `pcb_utils.pas`) and
+`test_live_drc` (14, a user of `create_pcb_rule`) 22 of 22 live tests passed. Offline: 9 new in
+`tests/test_pcb_rules.py` (each kind's encoding and checks, the read-back and its
+comparison) and 22 in the new `tests/test_fab_presets.py` (the preset file: its page and
+date, each figure in its quoted text or its working given, every rule encoding; the
+priorities planned; the tool's priority and read-back and the preset tool with the bridge
+faked), added to `.github/workflows/tests.yml`; 484 tests pass (was 453).
+Decided 2026-11-15 by the run, not the owner: priority is set by removing and adding again
+the rules that stay above the new one, because the API gives no setter and that move keeps
+each rule's object and values; the result's read priority, checked against the one asked,
+says whether it held.
+Decided 2026-11-15 by the run, not the owner: a preset rule goes directly above the highest
+rule of its kind that it takes over (scoped to everything, or of its own scope), the lowest of
+its kind when there is none, because at priority 1 a rule scoped to everything would override
+every narrower rule the designer set, and below the board's catch-all it would never apply.
+Decided 2026-11-15 by the run, not the owner: the preset holds only rules whose every figure
+is the page's (or worked out from its text, the working written), so the width rule waits for
+the caller's preferred and largest width and no routing via style rule is made (the via hole
+and diameter minimums are held by the hole size and annular ring rules), because the page
+gives no preferred or largest value and a figure from memory is what the decision rules out.
+Decided 2026-11-15 by the run, not the owner: `annular_ring` and `solder_mask_sliver` were
+added beside the kinds the decision named, because the page's annular ring and mask bridge
+minimums are part of a fabricator's minimums and Altium checks them by those two rules.
+Decided 2026-11-15 by the run, not the owner: every call reads the values back and reports
+`success` false on a difference, because the descriptor of a routing layers rule names no
+layer and a differential pair's shows only the extremes over all layers, so it cannot show
+what was stored.
 Fixed in the commit that moves it here. Local: on `ad25`, in the commit that moves it here;
 not yet in a build. Upstream: not yet decided.
 

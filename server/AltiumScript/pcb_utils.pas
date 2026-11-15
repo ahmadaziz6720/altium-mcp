@@ -2027,18 +2027,92 @@ begin
     Board.BoardIterator_Destroy(Iterator);
 end;
 
+// The rule of RuleKind at priority Priority on Board, or nil
+function RuleOfKindAtPriority(Board: IPCB_Board; RuleKind: Integer; Priority: Integer): IPCB_Rule;
+var
+    Iterator : IPCB_BoardIterator;
+    Rule     : IPCB_Rule;
+begin
+    Result := nil;
+    Iterator := Board.BoardIterator_Create;
+    Iterator.AddFilter_ObjectSet(MkSet(eRuleObject));
+    Iterator.AddFilter_LayerSet(AllLayers);
+    Iterator.AddFilter_Method(eProcessAll);
+    Rule := Iterator.FirstPCBObject;
+    while (Rule <> nil) and (Result = nil) do
+    begin
+        if (Rule.RuleKind = RuleKind) and (Rule.Priority = Priority) then Result := Rule;
+        Rule := Iterator.NextPCBObject;
+    end;
+    Board.BoardIterator_Destroy(Iterator);
+end;
+
+// The names of the board's signal layers (its layer stack), comma-separated
+function SignalLayerNames(Board: IPCB_Board): String;
+var
+    L : IPCB_LayerObject_V7;
+begin
+    Result := '';
+    L := Board.LayerStack_V7.First(eLayerClass_Signal);
+    while L <> nil do
+    begin
+        if Result <> '' then Result := Result + ',';
+        Result := Result + L.Name;
+        L := Board.LayerStack_V7.Next(eLayerClass_Signal, L);
+    end;
+end;
+
+// Whether Name is in Names, a comma-separated list, in any case
+function NameInList(Name: String; Names: String): Boolean;
+var
+    List : TStringList;
+    i    : Integer;
+begin
+    Result := False;
+    List := TStringList.Create;
+    try
+        List.Text := StringReplace(Names, ',', #13#10, REPLACEALL);
+        for i := 0 to List.Count - 1 do
+            if UpperCase(Trim(List[i])) = UpperCase(Trim(Name)) then Result := True;
+    finally
+        List.Free;
+    end;
+end;
+
+function ConnectStyleWord(Style: Integer): String;
+begin
+    if Style = eDirectConnectToPlane then Result := 'direct'
+    else if Style = eNoConnect then Result := 'none'
+    else Result := 'relief';
+end;
+
+function ConnectStyleOf(Values: TStringList): Integer;
+var
+    Style : String;
+begin
+    Style := Values.Values['connect_style'];
+    if Style = 'direct' then Result := eDirectConnectToPlane
+    else if Style = 'none' then Result := eNoConnect
+    else Result := eReliefConnectToPlane;
+end;
+
 // Add a design rule to the focused board. Values holds "key=value" lines in
-// internal units (counts for entries, a word for connect_style), already
-// checked by the server for this kind. Constraint properties are only
-// reachable through a variable of the rule's own interface, hence one
-// variable per kind. Every value is read back into the result: Descriptor
-// shows what Altium actually stored.
+// internal units (counts for entries, a word for connect_style, a comma list
+// of layer names for layers), already checked by the server for this kind.
+// Constraint properties are only reachable through a variable of the rule's
+// own interface, hence one variable per kind. Priority 0 leaves the rule
+// where Altium puts a new one, priority 1; a script cannot set Priority, so
+// a lower place is reached by removing and adding again each rule that is
+// to stay above it, which puts that rule at priority 1 in turn. Every value
+// is read back into "read_back", in the form Values came in: the server
+// holds it against what it sent. Descriptor shows what Altium stored.
 function CreatePCBRule(Kind: String; Name: String; Scope1: String; Scope2: String; Comment: String;
-                       Values: TStringList; Replace: Boolean): String;
+                       Values: TStringList; Replace: Boolean; Priority: Integer): String;
 var
     Board    : IPCB_Board;
     Existing : IPCB_Rule;
     Rule     : IPCB_Rule;
+    Above    : IPCB_Rule;
     Clear    : IPCB_ClearanceConstraint;
     Width    : IPCB_MaxMinWidthConstraint;
     Hole     : IPCB_MaxMinHoleSizeConstraint;
@@ -2046,8 +2120,20 @@ var
     SMask    : IPCB_SolderMaskExpansionRule;
     PMask    : IPCB_PasteMaskExpansionRule;
     Connect  : IPCB_PolygonConnectStyleRule;
-    L        : Integer;
-    Style    : String;
+    DPair    : IPCB_DifferentialPairsRoutingRule;
+    Len      : IPCB_MaxMinLengthConstraint;
+    Matched  : IPCB_MatchedNetLengthsConstraint;
+    RLayers  : IPCB_RoutingLayersRule;
+    Plane    : IPCB_PowerPlaneConnectStyleRule;
+    CompClr  : IPCB_ComponentClearanceConstraint;
+    SilkMask : IPCB_SilkToSolderMaskClearanceRule;
+    SilkSilk : IPCB_SilkToSilkClearanceRule;
+    HoleHole : IPCB_HoleToHoleClearanceRule;
+    Ring     : IPCB_MinimumAnnularRing;
+    Sliver   : IPCB_MinimumSolderMaskSliverRule;
+    LayerObj : IPCB_LayerObject_V7;
+    L, Step, Others : Integer;
+    Wanted, Missing, Allowed, ReadBack, Differ : String;
     Props    : TStringList;
 begin
     Board := GetBoardSafe(0);
@@ -2116,13 +2202,7 @@ begin
     else if Kind = 'polygon_connect' then
     begin
         Connect := PCBServer.PCBRuleFactory(eRule_PolygonConnectStyle);
-        Style := Values.Values['connect_style'];
-        if Style = 'direct' then
-            Connect.ConnectStyle := eDirectConnectToPlane
-        else if Style = 'none' then
-            Connect.ConnectStyle := eNoConnect
-        else
-            Connect.ConnectStyle := eReliefConnectToPlane;
+        Connect.ConnectStyle := ConnectStyleOf(Values);
         if RuleHasValue(Values, 'conductor_width') then
             Connect.ReliefConductorWidth := RuleValue(Values, 'conductor_width', 0);
         if RuleHasValue(Values, 'air_gap') then
@@ -2130,6 +2210,115 @@ begin
         if RuleHasValue(Values, 'entries') then
             Connect.ReliefEntries := RuleValue(Values, 'entries', 4);
         Rule := Connect;
+    end
+    else if Kind = 'differential_pair' then
+    begin
+        DPair := PCBServer.PCBRuleFactory(eRule_DifferentialPairsRouting);
+        // Gap and width are per layer, as Width's; set them on every signal layer
+        for L := eTopLayer to eBottomLayer do
+        begin
+            DPair.MinGap(L) := RuleValue(Values, 'min_gap', 0);
+            DPair.MaxGap(L) := RuleValue(Values, 'max_gap', 0);
+            DPair.PreferedGap(L) := RuleValue(Values, 'preferred_gap', 0);
+            DPair.MinWidth(L) := RuleValue(Values, 'min_width', 0);
+            DPair.MaxWidth(L) := RuleValue(Values, 'max_width', 0);
+            DPair.PreferedWidth(L) := RuleValue(Values, 'preferred_width', 0);
+        end;
+        if RuleHasValue(Values, 'max_uncoupled_length') then
+            DPair.MaxUncoupledLength := RuleValue(Values, 'max_uncoupled_length', 0);
+        Rule := DPair;
+    end
+    else if Kind = 'length' then
+    begin
+        Len := PCBServer.PCBRuleFactory(eRule_MaxMinLength);
+        Len.MinLimit := RuleValue(Values, 'min', 0);
+        Len.MaxLimit := RuleValue(Values, 'max', 0);
+        Rule := Len;
+    end
+    else if Kind = 'matched_length' then
+    begin
+        Matched := PCBServer.PCBRuleFactory(eRule_MatchedLengths);
+        Matched.Tolerance := RuleValue(Values, 'tolerance', 0);
+        Rule := Matched;
+    end
+    else if Kind = 'routing_layers' then
+    begin
+        // Every name must be a signal layer of this board, before anything changes
+        Wanted := Values.Values['layers'];
+        Allowed := SignalLayerNames(Board);
+        Values.Text := StringReplace(Wanted, ',', #13#10, REPLACEALL);
+        Missing := '';
+        for L := 0 to Values.Count - 1 do
+            if not NameInList(Values[L], Allowed) then
+            begin
+                if Missing <> '' then Missing := Missing + ', ';
+                Missing := Missing + Values[L];
+            end;
+        if Missing <> '' then
+        begin
+            Result := 'ERROR: Not a signal layer of this board: ' + Missing + '. Its signal layers: ' + Allowed;
+            Exit;
+        end;
+        RLayers := PCBServer.PCBRuleFactory(eRule_RoutingLayers);
+        LayerObj := Board.LayerStack_V7.First(eLayerClass_Signal);
+        while LayerObj <> nil do
+        begin
+            RLayers.RoutingLayers(LayerObj.V6_LayerID) := NameInList(LayerObj.Name, Wanted);
+            LayerObj := Board.LayerStack_V7.Next(eLayerClass_Signal, LayerObj);
+        end;
+        Rule := RLayers;
+    end
+    else if Kind = 'plane_connect' then
+    begin
+        Plane := PCBServer.PCBRuleFactory(eRule_PowerPlaneConnectStyle);
+        Plane.PlaneConnectStyle := ConnectStyleOf(Values);
+        if RuleHasValue(Values, 'expansion') then
+            Plane.ReliefExpansion := RuleValue(Values, 'expansion', 0);
+        if RuleHasValue(Values, 'conductor_width') then
+            Plane.ReliefConductorWidth := RuleValue(Values, 'conductor_width', 0);
+        if RuleHasValue(Values, 'air_gap') then
+            Plane.ReliefAirGap := RuleValue(Values, 'air_gap', 0);
+        if RuleHasValue(Values, 'entries') then
+            Plane.ReliefEntries := RuleValue(Values, 'entries', 4);
+        Rule := Plane;
+    end
+    else if Kind = 'component_clearance' then
+    begin
+        CompClr := PCBServer.PCBRuleFactory(eRule_ComponentClearance);
+        CompClr.Gap := RuleValue(Values, 'gap', 0);
+        if RuleHasValue(Values, 'vertical_gap') then
+            CompClr.VerticalGap := RuleValue(Values, 'vertical_gap', 0);
+        Rule := CompClr;
+    end
+    else if Kind = 'silk_to_solder_mask' then
+    begin
+        SilkMask := PCBServer.PCBRuleFactory(eRule_SilkToSolderMaskClearance);
+        SilkMask.SilkToMaskGap := RuleValue(Values, 'gap', 0);
+        Rule := SilkMask;
+    end
+    else if Kind = 'silk_to_silk' then
+    begin
+        SilkSilk := PCBServer.PCBRuleFactory(eRule_SilkToSilkClearance);
+        SilkSilk.SilkToSilkClearance := RuleValue(Values, 'gap', 0);
+        Rule := SilkSilk;
+    end
+    else if Kind = 'hole_to_hole' then
+    begin
+        HoleHole := PCBServer.PCBRuleFactory(eRule_HoleToHoleClearance);
+        HoleHole.Gap := RuleValue(Values, 'gap', 0);
+        Rule := HoleHole;
+    end
+    else if Kind = 'annular_ring' then
+    begin
+        Ring := PCBServer.PCBRuleFactory(eRule_MinimumAnnularRing);
+        Ring.Minimum := RuleValue(Values, 'min', 0);
+        Rule := Ring;
+    end
+    else if Kind = 'solder_mask_sliver' then
+    begin
+        Sliver := PCBServer.PCBRuleFactory(eRule_MinimumSolderMaskSliver);
+        Sliver.MinSolderMaskSliver := RuleValue(Values, 'gap', 0);
+        Rule := Sliver;
     end;
     if Rule = nil then
     begin
@@ -2142,6 +2331,16 @@ begin
     Rule.Scope2Expression := Scope2;
     if Comment <> '' then Rule.Comment := Comment;
 
+    // The rules of this kind it joins: a replaced one is not among them
+    Others := OtherRulesOfKind(Board, Rule);
+    if Priority = 0 then Priority := 1;
+    if (Priority < 1) or (Priority > Others + 1) then
+    begin
+        Result := 'ERROR: priority ' + IntToStr(Priority) + ' is out of range: 1 (the highest) to ' +
+                  IntToStr(Others + 1) + ' for this kind, which has ' + IntToStr(Others) + ' other rule(s)';
+        Exit;
+    end;
+
     // PostProcess must run whatever happens, or Altium's undo stays broken
     PCBServer.PreProcess;
     try
@@ -2152,9 +2351,99 @@ begin
         end;
         Board.AddPCBObject(Rule);
         PCBServer.SendMessageToRobots(Board.I_ObjectAddress, c_Broadcast, PCBM_BoardRegisteration, Rule.I_ObjectAddress);
+        // The rule is at 1 now; the rule at Priority (the one that was at
+        // Priority - 1) goes back on top, Priority - 1 times
+        for Step := 2 to Priority do
+        begin
+            Above := RuleOfKindAtPriority(Board, Rule.RuleKind, Priority);
+            if Above <> nil then
+            begin
+                Board.RemovePCBObject(Above);
+                Board.AddPCBObject(Above);
+                PCBServer.SendMessageToRobots(Board.I_ObjectAddress, c_Broadcast, PCBM_BoardRegisteration, Above.I_ObjectAddress);
+            end;
+        end;
     finally
         PCBServer.PostProcess;
     end;
+
+    // What Altium stored, in the form the values came in
+    ReadBack := '';
+    Differ := '';
+    if Kind = 'clearance' then
+        ReadBack := 'gap=' + IntToStr(Clear.Gap)
+    else if Kind = 'width' then
+    begin
+        ReadBack := 'min=' + IntToStr(Width.MinWidth(eTopLayer)) + ';max=' + IntToStr(Width.MaxWidth(eTopLayer)) +
+                    ';preferred=' + IntToStr(Width.FavoredWidth(eTopLayer));
+        for L := eTopLayer to eBottomLayer do
+            if (Width.MinWidth(L) <> Width.MinWidth(eTopLayer)) or (Width.MaxWidth(L) <> Width.MaxWidth(eTopLayer)) or
+               (Width.FavoredWidth(L) <> Width.FavoredWidth(eTopLayer)) then Differ := 'width';
+    end
+    else if Kind = 'hole_size' then
+        ReadBack := 'min=' + IntToStr(Hole.MinLimit) + ';max=' + IntToStr(Hole.MaxLimit)
+    else if Kind = 'routing_via' then
+        ReadBack := 'min_diameter=' + IntToStr(Via.MinWidth) + ';max_diameter=' + IntToStr(Via.MaxWidth) +
+                    ';preferred_diameter=' + IntToStr(Via.PreferedWidth) + ';min_hole=' + IntToStr(Via.MinHoleWidth) +
+                    ';max_hole=' + IntToStr(Via.MaxHoleWidth) + ';preferred_hole=' + IntToStr(Via.PreferedHoleWidth)
+    else if Kind = 'solder_mask_expansion' then
+        ReadBack := 'expansion=' + IntToStr(SMask.Expansion)
+    else if Kind = 'paste_mask_expansion' then
+        ReadBack := 'expansion=' + IntToStr(PMask.Expansion)
+    else if Kind = 'polygon_connect' then
+        ReadBack := 'connect_style=' + ConnectStyleWord(Connect.ConnectStyle) +
+                    ';conductor_width=' + IntToStr(Connect.ReliefConductorWidth) +
+                    ';air_gap=' + IntToStr(Connect.ReliefAirGap) + ';entries=' + IntToStr(Connect.ReliefEntries)
+    else if Kind = 'differential_pair' then
+    begin
+        ReadBack := 'min_gap=' + IntToStr(DPair.MinGap(eTopLayer)) + ';max_gap=' + IntToStr(DPair.MaxGap(eTopLayer)) +
+                    ';preferred_gap=' + IntToStr(DPair.PreferedGap(eTopLayer)) +
+                    ';min_width=' + IntToStr(DPair.MinWidth(eTopLayer)) + ';max_width=' + IntToStr(DPair.MaxWidth(eTopLayer)) +
+                    ';preferred_width=' + IntToStr(DPair.PreferedWidth(eTopLayer)) +
+                    ';max_uncoupled_length=' + IntToStr(DPair.MaxUncoupledLength);
+        for L := eTopLayer to eBottomLayer do
+            if (DPair.MinGap(L) <> DPair.MinGap(eTopLayer)) or (DPair.MaxGap(L) <> DPair.MaxGap(eTopLayer)) or
+               (DPair.PreferedGap(L) <> DPair.PreferedGap(eTopLayer)) or (DPair.MinWidth(L) <> DPair.MinWidth(eTopLayer)) or
+               (DPair.MaxWidth(L) <> DPair.MaxWidth(eTopLayer)) or (DPair.PreferedWidth(L) <> DPair.PreferedWidth(eTopLayer)) then
+                Differ := 'gap or width';
+    end
+    else if Kind = 'length' then
+        ReadBack := 'min=' + IntToStr(Len.MinLimit) + ';max=' + IntToStr(Len.MaxLimit)
+    else if Kind = 'matched_length' then
+        ReadBack := 'tolerance=' + IntToStr(Matched.Tolerance)
+    else if Kind = 'routing_layers' then
+    begin
+        Allowed := '';
+        LayerObj := Board.LayerStack_V7.First(eLayerClass_Signal);
+        while LayerObj <> nil do
+        begin
+            if RLayers.RoutingLayers(LayerObj.V6_LayerID) then
+            begin
+                if Allowed <> '' then Allowed := Allowed + ',';
+                Allowed := Allowed + LayerObj.Name;
+            end;
+            LayerObj := Board.LayerStack_V7.Next(eLayerClass_Signal, LayerObj);
+        end;
+        ReadBack := 'layers=' + Allowed;
+    end
+    else if Kind = 'plane_connect' then
+        ReadBack := 'connect_style=' + ConnectStyleWord(Plane.PlaneConnectStyle) +
+                    ';expansion=' + IntToStr(Plane.ReliefExpansion) +
+                    ';conductor_width=' + IntToStr(Plane.ReliefConductorWidth) +
+                    ';air_gap=' + IntToStr(Plane.ReliefAirGap) + ';entries=' + IntToStr(Plane.ReliefEntries)
+    else if Kind = 'component_clearance' then
+        ReadBack := 'gap=' + IntToStr(CompClr.Gap) + ';vertical_gap=' + IntToStr(CompClr.VerticalGap)
+    else if Kind = 'silk_to_solder_mask' then
+        ReadBack := 'gap=' + IntToStr(SilkMask.SilkToMaskGap)
+    else if Kind = 'silk_to_silk' then
+        ReadBack := 'gap=' + IntToStr(SilkSilk.SilkToSilkClearance)
+    else if Kind = 'hole_to_hole' then
+        ReadBack := 'gap=' + IntToStr(HoleHole.Gap)
+    else if Kind = 'annular_ring' then
+        ReadBack := 'min=' + IntToStr(Ring.Minimum)
+    else if Kind = 'solder_mask_sliver' then
+        ReadBack := 'gap=' + IntToStr(Sliver.MinSolderMaskSliver);
+    if Differ <> '' then ReadBack := ReadBack + ';layers_differ=' + Differ;
 
     Props := TStringList.Create;
     try
@@ -2163,12 +2452,12 @@ begin
         AddJSONProperty(Props, 'descriptor', Rule.Descriptor);
         AddJSONProperty(Props, 'scope1', Rule.Scope1Expression);
         AddJSONProperty(Props, 'scope2', Rule.Scope2Expression);
-        // A rule added by script always becomes priority 1 of its kind, and
-        // Priority cannot be set from a script
         AddJSONInteger(Props, 'priority', Rule.Priority);
         AddJSONInteger(Props, 'other_rules_of_kind', OtherRulesOfKind(Board, Rule));
         AddJSONBoolean(Props, 'enabled', Rule.Enabled);
         AddJSONBoolean(Props, 'replaced', Existing <> nil);
+        AddJSONProperty(Props, 'read_back', ReadBack);
+        AddJSONProperty(Props, 'comment', Rule.Comment);
         AddJSONProperty(Props, 'board', Board.FileName);
         Result := BuildJSONObject(Props);
     finally

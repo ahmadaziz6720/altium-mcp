@@ -23,3 +23,6 @@ dev/make_circuit.py
 dev/sheet*_parts.json
 dev/sheet*_rebuild.py
 altium-mcp-requests.md
+
+# Fabricator presets are data the server reads (create_pcb_rules_preset)
+!server/data/fab_presets/*.json

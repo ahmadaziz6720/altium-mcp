@@ -27,7 +27,12 @@ _SPECIAL_LAYERS = {
 
 
 # What parse_outjob decodes from an output's settings
-_SUMMARIES = ("gerber", "nc_drill", "test_points", "pick_place", "printouts")
+_SUMMARIES = ("gerber", "nc_drill", "test_points", "pick_place", "printouts", "bom")
+
+# A BOM's BatchMode and the file Altium writes for it (probed in AD25,
+# 2026-11-15: 0 to 6 each run; 2 and 5 both wrote .xlsx; 7 is "Unknown
+# report mode")
+BOM_FORMATS = {"0": "csv", "1": "txt", "2": "xlsx", "3": "html", "4": "xml", "5": "xlsx", "6": "pdf"}
 
 
 def layer_name(layer_id: int) -> str:
@@ -101,6 +106,28 @@ def _gerber_summary(record: dict) -> dict:
         "drill_drawing_pair0_checked": record.get("PlotDrillDrawingLayerPair0_Checked") == "True",
         "drill_guide_plot_all_used_pairs": record.get("PlotUsedDrillGuideLayerPairs") == "True",
         "drill_guide_pair0_checked": record.get("PlotDrillGuideLayerPair0_Checked") == "True",
+    }
+
+
+def _bom_summary(sections: dict):
+    """A BOM's file format, its columns in order and its grouping, from the
+    sections an OutJob's own BOM settings have (General, VisibleOrder,
+    GroupOrder, SortOrder); None when it has none (a project whose BOM
+    comes from an ActiveBOM document keeps only ColumnNameFormat)."""
+    general = sections.get("General")
+    visible = sections.get("VisibleOrder")
+    if not isinstance(general, dict) and not isinstance(visible, dict):
+        return None
+    general = general if isinstance(general, dict) else {}
+    group = sections.get("GroupOrder")
+    sort = sections.get("SortOrder")
+    mode = general.get("BatchMode")
+    return {
+        "format": BOM_FORMATS.get(mode, f"unknown (BatchMode {mode})" if mode is not None else None),
+        "columns": list(visible) if isinstance(visible, dict) else [],
+        "group_by": [k for k, v in group.items() if v == "True"] if isinstance(group, dict) else [],
+        "sort_by": dict(sort) if isinstance(sort, dict) else {},
+        "open_exported": general.get("OpenExported") == "True",
     }
 
 
@@ -190,6 +217,10 @@ def parse_outjob(path, include_raw: bool = True) -> dict:
         sections = _named_sections(items)
         if sections:
             output["sections"] = sections
+        if out_type == "BOM_PartType":
+            bom = _bom_summary(sections)
+            if bom:
+                output["bom"] = bom
         decoded = any(output.get(k) for k in _SUMMARIES) or (sections and len(sections) == len(items))
         if include_raw or not decoded:
             output["raw_settings"] = records

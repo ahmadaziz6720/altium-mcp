@@ -140,6 +140,14 @@ class OutJobParserTest(unittest.TestCase):
         self.assertEqual(list(bom["sections"]["SortOrder"]), ["Designator", "Comment"])
         self.assertEqual(bom["raw_settings"][0], {"value": "CaptionAsName"})
 
+    def test_bom_summary(self):
+        bom = {o["name"]: o for o in self.data["outputs"]}["Bill of Materials"]["bom"]
+        self.assertEqual(bom["format"], "xlsx")
+        self.assertEqual(bom["group_by"], ["LibRef"])
+        self.assertEqual(bom["sort_by"], {"Designator": "Up", "Comment": "Up"})
+        self.assertTrue(bom["open_exported"])
+        self.assertEqual(bom["columns"], [])
+
     def test_unset_paths_are_null(self):
         self.assertIsNone(self.data["containers"][0]["relative_output_path"])
         self.assertIsNone(self.data["containers"][0]["output_path"])

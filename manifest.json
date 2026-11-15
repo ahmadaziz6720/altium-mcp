@@ -21,11 +21,19 @@
     },
     {
       "name": "run_output_jobs",
-      "description": "Run output job containers from an OutJob file (outjob_path, or the first open OutJob) and check that PDF containers wrote their file"
+      "description": "Run output job containers from an OutJob file (outjob_path, or the first open OutJob) and check that PDF containers wrote their file; an OutJob open with no unsaved change is opened again, so the run uses the file as saved"
     },
     {
       "name": "get_outjob_settings",
-      "description": "Read an .OutJob file from disk and return containers, outputs and decoded fabrication settings (Gerber layers, NC Drill, IPC-D-356, pick and place)"
+      "description": "Read an .OutJob file from disk and return containers, outputs and decoded fabrication settings (Gerber layers, NC Drill, IPC-D-356, pick and place, BOM)"
+    },
+    {
+      "name": "write_outjob",
+      "description": "Write an OutJob from a preset (fab_jlcpcb: JLCPCB's Gerber, NC Drill, BOM and pick and place settings, from its pages with the date read) or edit the Gerber layers and format, NC Drill, BOM, pick and place and output folder of one, read back from the file"
+    },
+    {
+      "name": "make_assembly_files",
+      "description": "Turn Altium's BOM and pick and place into an assembly service's files (JLCPCB: BOM and CPL columns, mm, rotation corrections from a table the owner fills) and zip the Gerbers and drill files; no Altium needed"
     },
     {
       "name": "get_project_info",

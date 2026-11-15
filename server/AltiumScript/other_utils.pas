@@ -1081,6 +1081,7 @@ var
     Project: IProject;
     TargetFile: String;
     StartTime: TDateTime;
+    Reloaded, Unsaved: Boolean;
 begin
     OutJobPath := ResolveOutJobPath(RequestedPath);
 
@@ -1109,10 +1110,37 @@ begin
 
         // Open the OutJob document. Checked for Nil before any use: a
         // caller-supplied outjob_path may name a file Altium cannot open.
-        if not(Client.IsDocumentOpen(OutJobPath)) then
-            OutJobDoc := Client.OpenDocument('OUTPUTJOB', OutJobPath)
-        else
+        // An OutJob already open with no unsaved change is closed and opened
+        // again, so the run uses the file as saved (it may have been written
+        // since Altium read it, e.g. by write_outjob); one with unsaved
+        // changes is run as Altium has it, and the result says so.
+        OutJobDoc := Nil;
+        Reloaded := False;
+        Unsaved := False;
+        if Client.IsDocumentOpen(OutJobPath) then
+        begin
             OutJobDoc := Client.GetDocumentByPath(OutJobPath);
+            if OutJobDoc <> Nil then
+            begin
+                // Through BoolToStr: Modified read directly in a condition
+                // is always False in the bridge (see DocumentModified)
+                if BoolToStr(OutJobDoc.Modified, True) = 'True' then
+                    Unsaved := True
+                else
+                begin
+                    Client.CloseDocument(OutJobDoc);
+                    OutJobDoc := Nil;
+                    Reloaded := True;
+                end;
+            end;
+        end;
+        if OutJobDoc = Nil then
+            OutJobDoc := Client.OpenDocument('OUTPUTJOB', OutJobPath);
+        AddJSONBoolean(ResultProps, 'outjob_reloaded', Reloaded);
+        AddJSONBoolean(ResultProps, 'outjob_unsaved_changes', Unsaved);
+        if Unsaved then
+            AddJSONProperty(ResultProps, 'note',
+                'The OutJob has unsaved changes in Altium: the run used them, not the file as saved');
 
         // Exit if we can't open the OutJob document
         if OutJobDoc = Nil then

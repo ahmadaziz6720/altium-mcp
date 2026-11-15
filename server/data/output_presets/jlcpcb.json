@@ -1,0 +1,97 @@
+{
+  "service": "JLCPCB",
+  "about": "Each setting is the one the page named beside it gave on the date read, quoted in page_text. A setting the pages do not give is marked decided, with why. Read the pages again before relying on the preset: a service changes what it asks for.",
+  "sources": {
+    "gerber": {"url": "https://jlcpcb.com/help/article/how-to-export-altium-pcb-to-gerber-files", "read": "2026-11-15",
+               "page_date": "Last updated on Nov 10, 2026", "page_altium": "Altium Designer 26.1.1; the page says the dialogs are unchanged in 24 and 25"},
+    "bom_altium": {"url": "https://jlcpcb.com/help/article/how-to-generate-bill-of-materials-and-centroid-file-from-altium", "read": "2026-11-15",
+                   "page_date": "Last updated on Sep 09, 2026"},
+    "bom": {"url": "https://jlcpcb.com/help/article/bill-of-materials-for-pcb-assembly", "read": "2026-11-15",
+            "page_date": "Last updated on Sep 09, 2026"},
+    "cpl": {"url": "https://jlcpcb.com/help/article/pick-place-file-for-pcb-assembly", "read": "2026-11-15",
+            "page_date": "Last updated on Sep 09, 2026"}
+  },
+  "outjob_presets": {
+    "fab_jlcpcb": {
+      "description": "JLCPCB's fabrication and assembly outputs: Gerber RS-274X in mm 4:4 with the board profile as the outline, NC Drill Excellon in inches 2:5 with plated and non-plated holes apart, a BOM in CSV and a pick and place in CSV, in mm, all in one folder.",
+      "container": "JLCPCB Outputs",
+      "output_folder": "JLCPCB",
+      "gerber": {
+        "units": "mm", "format": "4:4", "zeroes": "suppress_leading", "origin": "absolute",
+        "layers": ["copper", "Top Overlay", "Bottom Overlay", "Top Solder", "Bottom Solder", "Top Paste", "Bottom Paste"],
+        "board_profile": true,
+        "source": "gerber",
+        "page_text": {
+          "units": "Units: Millimeters",
+          "format": "Decimal: 0.0001 mm (a 4:4 coordinate format, giving 0.1 micron resolution)",
+          "zeroes": "Leading/Trailing Zeros: Suppress leading zeroes",
+          "layers": "Board Outline (.GM); Top Layer (.GTL) and Bottom Layer (.GBL); Top Overlay (.GTO) and Bottom Overlay (.GBO); Top Solder (.GTS) and Bottom Solder (.GBS); Top Paste (.GTP) and Bottom Paste (.GBP)",
+          "board_profile": "Board Outline (.GM) is the standard profile ... plot only one outline layer",
+          "rs274x": "choose the Gerber option (not Gerber X2) ... RS-274X settings on the Advanced tab"
+        },
+        "decided": {
+          "origin": "The page gives no Gerber origin; absolute, the origin it gives for the drill files ('Coordinate Positions: Reference to absolute origin'), so the Gerbers and the drills line up.",
+          "copper": "Every copper layer Altium has (Top, Mid Layer 1 to 30, Internal Plane 1 to 16, Bottom): Altium writes a file only for those in the board's stack (probed on a 2-layer board, 2026-11-15), so the inner layers of a 4- or 6-layer board are in the set without naming them.",
+          "aperture_tolerance": "The page's 'Plus 0.00013mm, Minus 0.00013mm' is Altium's default of 50 internal units (0.005 mil, 0.000127 mm) as Altium shows it in mm; kept at 50."
+        }
+      },
+      "nc_drill": {
+        "units": "inch", "format": "2:5", "zeroes": "keep", "origin": "absolute", "separate_plated": true,
+        "source": "gerber",
+        "page_text": {
+          "units": "Units: Inches",
+          "format": "Format: 2:5, which gives 0.01 mil resolution",
+          "zeroes": "Leading/Trailing Zeroes: Keep leading and trailing zeroes",
+          "origin": "Coordinate Positions: Reference to absolute origin",
+          "separate_plated": "Generate separate NC Drill files for plated & non-plated holes (ticked)"
+        }
+      },
+      "bom": {
+        "format": "csv",
+        "columns": ["Comment", "Designator", "Footprint", "LCSC Part #"],
+        "group_by": ["Comment", "Footprint", "LCSC Part #"],
+        "source": "bom_altium",
+        "page_text": {
+          "format": "BOM file is a simple text file in comma separated form (csv)",
+          "columns": "Next column is the Designator ... The next one that is the Footprint or package ... The last column is LCSC part number (the first is Comment)",
+          "part_number": "add a new parameter named LCSC Part # to our part"
+        },
+        "decided": {
+          "group_by": "The page gives no grouping; one row per part (same comment, footprint and part number), its designators together, as the page's own example rows list several designators."
+        }
+      },
+      "pick_place": {
+        "units": "mm", "formats": ["csv"],
+        "source": "cpl",
+        "page_text": {
+          "units": "Required units: Metric(mm).",
+          "formats": "Recommended File Format: .csv, .xls and .xlsx."
+        }
+      }
+    }
+  },
+  "assembly_services": {
+    "jlcpcb": {
+      "bom": {
+        "columns": ["Comment", "Designator", "Footprint", "LCSC Part #"],
+        "part_number_column": "LCSC Part #",
+        "default_part_number_parameter": "LCSC Part #",
+        "source": ["bom", "bom_altium"],
+        "page_text": "must contain: Comment, Designator, Footprint (bom); The last column is LCSC part number ... add a new parameter named LCSC Part # to our part (bom_altium)"
+      },
+      "cpl": {
+        "columns": ["Designator", "Mid X", "Mid Y", "Layer", "Rotation"],
+        "units": "mm",
+        "layers": {"top": "Top", "bottom": "Bottom"},
+        "source": "cpl",
+        "page_text": "Designator; Mid X/Mid Y: The X/Y coordinate of the component centroid. Required units: Metric(mm).; Layer: Top / Bottom, the board side where the component should be placed.; Rotation: The rotation of the component given in degrees. Positive values are counter clockwise.",
+        "decided": "Mid X and Mid Y are written as plain numbers in mm, 4 decimals, as Altium's mm file gives them: the page names the unit, not a suffix."
+      },
+      "zip": {
+        "source": "gerber",
+        "page_text": "Archive types are .zip and .rar only; the structure must be flat, with the files at the top level rather than inside a nested subfolder."
+      },
+      "rotations": "jlcpcb_rotations.csv"
+    }
+  }
+}

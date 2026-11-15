@@ -6762,6 +6762,203 @@ async def get_outjob_settings(ctx: Context, outjob_path: str, include_raw_settin
     return json.dumps(data, indent=2, ensure_ascii=False)
 
 
+@_tool()
+async def write_outjob(ctx: Context, outjob_path: str, preset: str = "", gerber: dict = None,
+                       nc_drill: dict = None, bom: dict = None, pick_place: dict = None,
+                       output_folder: str = "", container: str = "", board_document: str = "",
+                       overwrite: bool = False) -> str:
+    """
+    Write an .OutJob from a preset, or edit the Gerber, NC Drill, BOM and pick
+    and place outputs of one, and read the file back.
+
+    Needs no Altium: the file is written on disk. To run it, add it to the
+    project (add_project_document) and run its container with
+    run_output_jobs; a run uses the file as saved, even while Altium has the
+    OutJob open, unless it has unsaved changes there.
+
+    A new file needs a preset; an existing one is edited (a preset on it is
+    refused unless overwrite=True, which writes it anew). Each settings group
+    given goes into the first output of its kind (Gerber RS-274X, NC Drill,
+    BOM, Pick Place), added when there is none, and that output is connected
+    to the container; what the group leaves out is kept as the file has it.
+    Everything else in an existing file is kept as it is.
+
+    Presets (server/data/output_presets; each setting names the page it
+    comes from and the date read): fab_jlcpcb, JLCPCB's settings: Gerber in
+    mm 4:4, leading zeroes suppressed, absolute origin, every copper layer
+    (Altium plots those in the board's stack), overlays, solder and paste
+    masks, the board profile as the one outline (.GM); NC Drill Excellon in
+    inches 2:5, zeroes kept, absolute origin, plated and non-plated holes in
+    separate files; BOM in CSV with Comment, Designator, Footprint and
+    "LCSC Part #"; pick and place in CSV, mm; container "JLCPCB Outputs"
+    writing into folder "JLCPCB".
+
+    Args:
+        outjob_path (str): Full path of the .OutJob.
+        preset (str): A preset's name, for a new file (or with overwrite).
+        gerber (dict): units ("mm" or "inch"), format (mm "4:2"/"4:3"/"4:4",
+            inch "2:3"/"2:4"/"2:5"; a change of units needs its format),
+            zeroes ("suppress_leading", "suppress_trailing", "keep"), origin
+            ("absolute", "relative"), layers (names as get_outjob_settings
+            gives them, "copper" for every copper layer), board_profile
+            (true plots the board's shape as an outline file).
+        nc_drill (dict): units, format, zeroes, origin as for gerber;
+            separate_plated (true: plated and non-plated holes apart).
+        bom (dict): format ("csv", "txt", "html", "xml", "xlsx", "pdf"),
+            columns (in order; a parameter's name gives its column, empty
+            when parts lack it), group_by (columns whose equal values make
+            one row; empty: a row per part). A run opens no spreadsheet. A
+            project that has an ActiveBOM document takes its BOM from that
+            document, not from these settings.
+        pick_place (dict): units ("mm" or "mil"), formats (["csv"], ["txt"]
+            or both).
+        output_folder (str): The container's folder, relative to the
+            project's folder or absolute; all its files go there (not release
+            managed, no subfolder per output type). A preset gives one.
+        container (str): The GeneratedFiles container to use; added when the
+            file has none of that name. Default: the preset's, or the file's
+            first GeneratedFiles container.
+        board_document (str): The board the Gerber, drill and pick and place
+            outputs are made from (its file name in the project). Default:
+            as the file has it (empty: the project's board).
+        overwrite (bool): With a preset, write over an existing file.
+
+    Returns:
+        str: JSON with success, outjob_path, created, container,
+             output_folder, outputs (per kind: index, name, added,
+             connected_now), preset with its sources, differences (what the
+             file read back does not hold of what was asked; success false
+             when any) and settings (get_outjob_settings of the file).
+    """
+    import outjob_writer as ow
+
+    path = long_path(outjob_path) if outjob_path else ""
+    if not path or not os.path.isabs(path) or os.path.splitext(path)[1].lower() != ".outjob":
+        return json.dumps({"success": False, "error": f"outjob_path must be a full path ending in .OutJob: {outjob_path}"})
+    exists = os.path.isfile(path)
+    specs = {k: v for k, v in (("gerber", gerber), ("nc_drill", nc_drill), ("bom", bom),
+                               ("pick_place", pick_place)) if v is not None}
+    info = None
+    try:
+        if preset:
+            presets = ow.load_presets()
+            if preset not in presets:
+                return json.dumps({"success": False, "error": f"unknown preset '{preset}'; one of "
+                                                              f"{', '.join(presets) or '(none)'}"})
+            if exists and not overwrite:
+                return json.dumps({"success": False, "error": f"{path} exists: a preset writes a new file "
+                                                              "(overwrite=true writes over it; without a preset "
+                                                              "the file's outputs are edited)"})
+            info = presets[preset]
+            merged = ow.preset_specs(info)
+            for kind, spec in specs.items():
+                merged[kind] = dict(merged.get(kind, {}), **spec)
+            specs = merged
+            container = container or info["container"]
+            output_folder = output_folder or info.get("output_folder", "")
+            doc = ow.new_document(container)
+            encoding = "cp1252"
+        else:
+            if not exists:
+                return json.dumps({"success": False, "error": f"{path} does not exist: a new OutJob needs a preset "
+                                                              f"({', '.join(ow.load_presets()) or 'none'})"})
+            if not specs and not output_folder and not board_document:
+                return json.dumps({"success": False, "error": "nothing to change: give gerber, nc_drill, bom, "
+                                                              "pick_place, output_folder or board_document"})
+            text, encoding = ow.read_text(path)
+            doc = ow.IniDoc(text)
+            if "OutputGroup1" not in [s[0] for s in doc.sections]:
+                return json.dumps({"success": False, "error": f"{path} has no [OutputGroup1]: not an OutJob"})
+        done = ow.apply(doc, specs, container, output_folder or None, board_document or None)
+        data = doc.text().encode(encoding if encoding != "utf-8-sig" else "utf-8-sig")
+    except ow.OutJobError as e:
+        return json.dumps({"success": False, "error": str(e)})
+    except UnicodeEncodeError as e:
+        return json.dumps({"success": False, "error": f"a name cannot be written in the file's encoding: {e}"})
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "wb") as f:
+            f.write(data)
+    except OSError as e:
+        return json.dumps({"success": False, "error": f"could not write {path}: {e}"})
+    parsed = parse_outjob(path, include_raw=False)
+    diffs = ow.compare(parsed, specs, done, output_folder or None, board_document or None)
+    folder = next((c.get("base_path") for c in parsed["containers"] if c["name"] == done["container"]), None)
+    result = {"success": not diffs, "outjob_path": path, "created": not exists or bool(preset),
+              "container": done["container"], "output_folder": folder, "outputs": done["outputs"],
+              "differences": diffs}
+    if diffs:
+        result["error"] = "the file read back does not hold what was asked"
+    if info:
+        result["preset"] = {"name": preset, "service": info.get("service"),
+                            "sources": {k: f"{v['url']} (read {v['read']})" for k, v in info["sources"].items()}}
+    result["settings"] = parsed
+    return json.dumps(result, indent=2, ensure_ascii=False)
+
+
+@_tool()
+async def make_assembly_files(ctx: Context, service: str, bom_path: str, pick_place_path: str, gerber_dir: str,
+                              out_dir: str, part_number_parameter: str = "", rotations_path: str = "",
+                              name: str = "") -> str:
+    """
+    Turn Altium's BOM and pick and place into an assembly service's files and
+    zip the Gerbers and drill files. Needs no Altium.
+
+    Service "jlcpcb" (columns from JLCPCB's help pages, named with the date
+    read in server/data/output_presets/jlcpcb.json): a BOM of Comment,
+    Designator, Footprint, LCSC Part #; a placement list (CPL) of
+    Designator, Mid X, Mid Y (mm), Layer (Top/Bottom), Rotation; one flat
+    zip of the Gerber and Excellon files in gerber_dir.
+
+    The inputs are what an OutJob from write_outjob's fab_jlcpcb preset
+    writes: Altium's BOM in CSV with the columns Comment, Designator,
+    Footprint and the part number parameter, and its pick and place in CSV
+    (mm or mil; mil is turned into mm). A file in gerber_dir goes into the
+    zip when its content is a Gerber (a %FS format statement) or an Excellon
+    drill file (starts with M48); Altium's reports beside them do not
+    (not_zipped). Rotations are corrected per footprint from a table the
+    owner fills (server/data/output_presets/jlcpcb_rotations.csv, empty to
+    start): the first row whose footprint name or pattern matches adds its
+    degrees, on its layer or on both.
+
+    Args:
+        service (str): "jlcpcb".
+        bom_path (str): Altium's BOM, CSV.
+        pick_place_path (str): Altium's pick and place, CSV.
+        gerber_dir (str): The folder holding the Gerber and drill files (its
+            own files only, not subfolders).
+        out_dir (str): Where the three files are written (made if missing).
+        part_number_parameter (str): The BOM column holding the supplier part
+            number (default "LCSC Part #", the parameter JLCPCB's Altium page
+            names).
+        rotations_path (str): Another rotation table (same columns:
+            footprint, rotation, layer, note).
+        name (str): The files' name stem (default: the board's, from the pick
+            and place file's name).
+
+    Returns:
+        str: JSON with success, bom_file, cpl_file, zip_file, bom_rows,
+             cpl_rows, pick_place_units, missing_part_number (designators),
+             rotations_applied [{designator, footprint, layer, from, to,
+             rule}], zipped {gerber, drill}, not_zipped, only_in_bom and
+             only_in_cpl (designators in one file only), warnings, sources.
+    """
+    import assembly_files as af
+
+    services = af.load_services()
+    key = (service or "").strip().lower()
+    if key not in services:
+        return json.dumps({"success": False, "error": f"unknown service '{service}'; one of {', '.join(services)}"})
+    try:
+        out = af.make(services[key], long_path(bom_path), long_path(pick_place_path), long_path(gerber_dir),
+                      out_dir, part_number_parameter, long_path(rotations_path) if rotations_path else "", name)
+    except af.AssemblyError as e:
+        return json.dumps({"success": False, "error": str(e)})
+    except OSError as e:
+        return json.dumps({"success": False, "error": f"{e}"})
+    return json.dumps(out, indent=2, ensure_ascii=False)
+
+
 async def _simple_command(command: str, params: dict, what: str) -> str:
     """Run a bridge command and return its result as JSON text."""
     response = await altium_bridge.execute_command(command, params)

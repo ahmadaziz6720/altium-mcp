@@ -1,0 +1,8 @@
+# Rotation corrections for JLCPCB's placement list, made by make_assembly_files.
+# Empty to start: the owner fills it, one row per footprint whose part JLCPCB places turned.
+# footprint: the footprint name as the pick and place file gives it, or a pattern with * and ? (case ignored);
+#   the first row that matches a part is used, so put exact names above patterns.
+# rotation: degrees added to Altium's rotation (counter clockwise positive, as JLCPCB's page says), e.g. 90, -90, 180.
+# layer: Top or Bottom to apply the row on that side only; empty for both.
+# note: free text, e.g. where the correction was seen.
+footprint,rotation,layer,note

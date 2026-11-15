@@ -10,7 +10,7 @@ Three sections: **Open**, not yet fixed; **Waiting**, fixed and not yet settled 
 merged, a fix not yet run in a session); **Closed**, merged upstream, run and held, or
 decided against, with the record.
 
-**Open: A8, A11, A12, A15, A23, A25 to A28, A31 to A34, A36.**
+**Open: A8, A11, A15, A23, A25 to A28, A31 to A34, A36.**
 
 A2, A7, A4 and A6 went out together in `build-20261112-120520` (owner, 2026-11-12), so one
 scenario test covers them; A3 and A8 were not waited for. That test ran and held for
@@ -286,7 +286,7 @@ unasked, and ending and restarting `X2.EXE` when Altium hangs.
 - [x] A34 (a): committed (as A35 in Waiting; Altium started by the run and left running)
 - [x] A13: committed (A36 new from it, Open)
 - [x] A14: committed (priority by remove and re-add; JLCPCB preset read 2026-11-15)
-- [ ] A12: committed (or left Open, why written into it)
+- [x] A12: committed
 - [ ] group 4: offline and live tests, pushed, released (build: …)
 - [ ] group 4: scenario test (session id: …), entry committed and sorted, release page
 - [ ] A15: committed (or left Open, why written into it)
@@ -372,16 +372,6 @@ changes to `server/main.py`, `server/AltiumScript/other_utils.pas`,
 `server/AltiumScript/Altium_API.pas`, `.github/workflows/tests.yml`). Next: whether the
 ECO done by hand (Import Changes, Validate, Execute, Close), then new projects made, brings
 the RCW error too; if it does, it is Altium's, and the tool may go in with a usage note.
-
-**A12. Output jobs can be run and read, not made.** `run_output_jobs` runs containers of
-an OutJob that exists and `get_outjob_settings` reads one from disk; nothing creates an
-OutJob or sets its outputs (Gerber layers and format, NC Drill, BOM, pick and place, output
-folder). Nor are outputs given in the form an assembly service asks for, e.g. JLCPCB's: a
-BOM of Comment, Designator, Footprint and the supplier part number; a placement list of
-Designator, Mid X, Mid Y, Layer, Rotation, with the per-footprint rotation corrections it
-needs; the Gerbers and drill files zipped. Local: a tool that writes an OutJob from a
-preset or edits the outputs of one, and a step that turns Altium's BOM and pick and place
-into a named service's columns.
 
 **A15. Parts come from local `.SchLib` and `.PcbLib` files only.** `build_schematic` and
 `edit_schematic`'s `place_component` need a `.SchLib` path (`.IntLib` is not supported); a
@@ -794,6 +784,158 @@ Decided 2026-11-15 by the run, not the owner: every call reads the values back a
 `success` false on a difference, because the descriptor of a routing layers rule names no
 layer and a differential pair's shows only the extremes over all layers, so it cannot show
 what was stored.
+Fixed in the commit that moves it here. Local: on `ad25`, in the commit that moves it here;
+not yet in a build. Upstream: not yet decided.
+
+**A12. Output jobs can be run and read, not made.** `run_output_jobs` runs containers of
+an OutJob that exists and `get_outjob_settings` reads one from disk; nothing creates an
+OutJob or sets its outputs (Gerber layers and format, NC Drill, BOM, pick and place, output
+folder). Nor are outputs given in the form an assembly service asks for, e.g. JLCPCB's: a
+BOM of Comment, Designator, Footprint and the supplier part number; a placement list of
+Designator, Mid X, Mid Y, Layer, Rotation, with the per-footprint rotation corrections it
+needs; the Gerbers and drill files zipped. Local: a tool that writes an OutJob from a
+preset or edits the outputs of one, and a step that turns Altium's BOM and pick and place
+into a named service's columns.
+Cause: no tool wrote an OutJob (`get_outjob_settings` only parses one, `run_output_jobs` only
+runs one), and nothing turned Altium's BOM and pick and place into a service's form.
+Found 2026-11-15 by the run's probes in AD25 (OutJobs written by hand after Altium's own
+examples, Bluetooth Sentinel and Mini PC, run by `run_output_jobs` on a copy of the
+SpiritLevel-SL1 example): an OutJob written as plain INI text, added to the project, runs with
+the settings it holds. `GerberUnit` Metric/Imperial with `NumberOfDecimals` 4 gave
+`%FSLAX44Y44*%` `%MOMM*%`, Imperial 5 gave `%FSLAX25Y25*%` `%MOIN*%`; NC Drill `ZeroesMode`
+`KeepLeadingAndTrailingZeroes` gave `INCH` (2:5, both zeroes kept), `SuppressLeadingZeroes`
+gave `INCH,TZ`; `GenerateSeparatePlatedNonPlatedFiles` gave `-Plated` and `-NonPlated` files;
+`PlotBoardProfile=True` gave the board's shape as `.GM`; Mid Layer 1 and 2 and Internal Plane 1
+in `Plot.Set` gave no file on the 2-layer board (Altium plots only the layers in the stack);
+a BOM column named after a parameter no part has comes out empty; BOM `BatchMode` 0 to 6 wrote
+.csv, .txt, .xlsx, .html, .xml (+ .xsl), .xlsx and .pdf, and 7 put up "EOleException Unknown
+report mode: 7" and stopped the run until its OK was pressed (149 s); a GeneratedFiles
+container with `ReleaseManaged`=0 writes into `OutputBasePath`, relative to the project's
+folder or absolute, with `OutputPathOutputer` `[Output Type]` one subfolder per output type,
+empty none. Altium reloads an open OutJob it has not changed when the file changes on disk,
+a moment later: a run started before that used the old settings once (the first run of the
+test below: "the second run wrote to the new folder" false).
+Fix: `write_outjob(outjob_path, preset, gerber, nc_drill, bom, pick_place, output_folder,
+container, board_document, overwrite)` (`server/outjob_writer.py`, the tool in `main.py`; no
+Altium). A new file needs a preset; an existing one is edited line by line, every line not
+asked for kept as it was (and its encoding: ANSI, or UTF-8 with or without its mark); a preset
+over an existing file is refused unless `overwrite`. Each group goes into the first output of
+its kind (Gerber RS-274X, NC Drill, BOM_PartType, Pick Place), added from Altium's own record
+when there is none, and is connected to the container (named, or the file's first
+GeneratedFiles one, added when there is none; a Publish or Printer container refused).
+Settings: gerber `units` (mm, inch), `format` (mm 4:2 to 4:4, inch 2:3 to 2:5; a change of
+units needs its format), `zeroes`, `origin`, `layers` (names as the read gives them, `copper`
+for every copper layer), `board_profile`; nc_drill `units`, `format`, `zeroes`, `origin`,
+`separate_plated`; bom `format` (csv, txt, html, xml, xlsx, pdf), `columns`, `group_by` (the
+exported BOM not opened, no export dialog); pick_place `units` (mm, mil), `formats` (csv, txt);
+`output_folder` (not release managed, no subfolder per type, so the zip can be flat). Every
+check runs on a copy before the file is touched. The file is then read back by
+`outjob_parser.parse_outjob` and held against what was asked (`differences`, `success` false
+when any); the result gives the read (`settings`). `get_outjob_settings` gives a BOM's `bom`
+(file format, columns, grouping, sort, whether it opens the export). `run_output_jobs` closes
+and opens again an OutJob Altium has open with no unsaved change, so the run uses the file as
+saved (`outjob_reloaded`); one with unsaved changes is run as Altium has it, not closed, and
+the result says so (`outjob_unsaved_changes`, `note`); the flag is read through `BoolToStr`,
+as `DocumentModified` says (read directly it is always False in the bridge, which would have
+closed an OutJob with unsaved changes and dropped them).
+Preset `fab_jlcpcb` (`server/data/output_presets/jlcpcb.json`, kept by git through
+`!server/data/output_presets/*.json` in `.gitignore`), from JLCPCB's pages read 2026-11-15 by
+a plain GET each, each setting quoting its page: "How to Generate Gerber Files in Altium
+Designer 26" (https://jlcpcb.com/help/article/how-to-export-altium-pcb-to-gerber-files, "Last
+updated on Nov 10, 2026", made with AD 26.1.1, its dialogs unchanged in 24 and 25 by the page):
+Gerber "Units: Millimeters", "Decimal: 0.0001 mm (a 4:4 coordinate format ...)", "Suppress
+leading zeroes", the layers Board Outline (.GM), Top/Bottom Layer, Overlay, Solder and Paste,
+one outline only; NC Drill "Units: Inches", "Format: 2:5", "Keep leading and trailing
+zeroes", "Reference to absolute origin", plated and non-plated holes in separate files; the
+zip .zip and flat. "How to Generate BOM and Pick and Place Files in Altium Designer"
+(https://jlcpcb.com/help/article/how-to-generate-bill-of-materials-and-centroid-file-from-altium,
+"Last updated on Sep 09, 2026"): the BOM in CSV, Comment, Designator, Footprint, the LCSC part
+number last, from "a new parameter named LCSC Part #". "Bill of Materials for PCB Assembly"
+(https://jlcpcb.com/help/article/bill-of-materials-for-pcb-assembly, Sep 09, 2026): Comment,
+Designator, Footprint. "Pick & Place File for PCB Assembly"
+(https://jlcpcb.com/help/article/pick-place-file-for-pcb-assembly, Sep 09, 2026): Designator,
+Mid X/Mid Y "Required units: Metric(mm)", Layer "Top / Bottom", Rotation "Positive values are
+counter clockwise". Container "JLCPCB Outputs", folder "JLCPCB". The first URL the brief named
+(`how-to-generate-gerber-and-drill-files-in-altium-designer`) gave 404; the pages above were
+found by a search of jlcpcb.com.
+Offline step: `make_assembly_files(service, bom_path, pick_place_path, gerber_dir, out_dir,
+part_number_parameter, rotations_path, name)` (`server/assembly_files.py`; no Altium), service
+`jlcpcb` from the same file: `<name>_JLCPCB_BOM.csv` (Comment, Designator, Footprint, LCSC Part
+#, one row per row of Altium's BOM; the part number from the column named by
+`part_number_parameter`, default "LCSC Part #"; a missing column refused, naming the columns
+the file has), `<name>_JLCPCB_CPL.csv` (Designator, Mid X, Mid Y in mm with 4 decimals, from
+Altium's Center-X/Y in mm or mil, Layer Top or Bottom, Rotation corrected), and
+`<name>_JLCPCB_Gerber.zip`, flat, of gerber_dir's own files whose content is a Gerber (a `%FS`
+statement) or an Excellon file (starts with `M48`); Altium's reports beside them are listed in
+`not_zipped`. The result names the parts with no part number, the rotations applied (the table
+row each), and the designators in only one of the two files. The rotation table
+`server/data/output_presets/jlcpcb_rotations.csv` (footprint name or `*`/`?` pattern, degrees
+added, Top/Bottom or both, note; `#` lines are comments; the first row that matches is used) is
+empty, for the owner to fill.
+Test before: `tests/test_live_outjob_writer.py` (`ALTIUM_LIVE=1`, a copy of the SpiritLevel-SL1
+example project, closed unsaved): the preset written, read back by `get_outjob_settings`
+(Gerber Metric 4 Absolute, suppressed leading zeroes, board profile, every copper layer, no
+mechanical or keep-out layer; NC Drill Imperial 2:5, zeroes kept, absolute, plated apart; BOM
+csv with the four columns; pick and place mm CSV; the container's folder, not release managed,
+not added to the project), a preset over it refused and the file unchanged, added to the
+project and run: the .GTL `%FSLAX44Y44*%` `%MOMM*%`, the nine layers' files and no .GM1 or .GKO,
+the plated and non-plated drill files `;FILE_FORMAT=2:5` and `INCH`, the BOM's header, the pick
+and place in mm; then, the OutJob open in Altium, edited (Gerber inch 2:5, pick and place mil,
+folder "JLCPCB inch"), read back, run again: the new folder, `%FSLAX25Y25*%` `%MOIN*%`, Center-X
+in mil, `outjob_reloaded` true; marked modified in Altium and run: `outjob_unsaved_changes`
+true, not reopened; last the offline step on Altium's files with a one-row rotation table: the
+BOM and CPL columns and row counts, R10 (CR2012-0805) turned by 90, Mid X equal to Altium's
+Center-X, the zip flat with the nine Gerbers and the drill files and without the reports, the
+designators in one file only as the files give them, and the mil file giving the same mm within
+0.001. Before the tools it errored: "AttributeError: module 'main' has no attribute
+'write_outjob'". On the old `run_output_jobs` script it fails at "None is not False" (no
+`outjob_reloaded`).
+After: 1/1 passes in AD25 (run twice in its final form); with `test_live_project_setup` (9, the other
+functions of `other_utils.pas`) and `test_live_resident` (5, the bridge's bundle changed) 15 of
+15 live tests passed, on an Altium restarted by the run (the server's memory guard stopped the
+first try at 3.7 GB). Offline: 20 new in `tests/test_outjob_writer.py` (layer IDs both ways,
+each setting's keys and checks, the preset and its pages, an Altium file edited with one line
+changed, an output and a container added and connected, a refused request changing nothing,
+the read-back comparison, the tool's refusals and encoding), 14 in `tests/test_assembly_files.py`
+(Altium's real BOM and pick and place in mm and mil from this test's run, as fixtures in
+`tests/fixtures/`, their path line made neutral; the rotation table; the files, the zip, the
+refusals) and 1 in `tests/test_outjob_parser.py` (the BOM summary), the two new modules added to
+`.github/workflows/tests.yml`; 519 tests pass (was 484).
+Decided 2026-11-15 by the run, not the owner: the Gerber origin is absolute, because the page
+gives none for the Gerbers and gives "Reference to absolute origin" for the drill files, and the
+two must line up.
+Decided 2026-11-15 by the run, not the owner: the preset plots every copper layer Altium has
+(Top, Mid Layer 1 to 30, Internal Plane 1 to 16, Bottom), because Altium writes a file only for
+those in the board's stack (probed), so a 4- or 6-layer board gets its inner layers without the
+preset knowing the board, where a fixed 2-layer list would drop them silently; the read lists
+all 48 as the file holds them.
+Decided 2026-11-15 by the run, not the owner: the board profile (`PlotBoardProfile`, written as
+.GM) is the preset's one outline, no mechanical layer, because the page names Board Outline
+(.GM) the standard and asks for one outline layer, and which mechanical layer holds a board's
+outline differs from board to board.
+Decided 2026-11-15 by the run, not the owner: the BOM's part number column and its default
+parameter are "LCSC Part #", because that is the parameter the Altium page tells to add and its
+last column; another name is given by `part_number_parameter` (and the BOM's `columns`).
+Decided 2026-11-15 by the run, not the owner: the BOM's grouping is Comment, Footprint and LCSC
+Part #, one row per part with its designators together, because the pages give no grouping and
+show rows of several designators; Mid X and Mid Y are plain numbers in mm, because the page names
+the unit, not a suffix; the aperture tolerance stays Altium's 50 (0.000127 mm), which Altium
+shows as the page's 0.00013 mm.
+Decided 2026-11-15 by the run, not the owner: BOM `BatchMode` 2 (also .xlsx) is not offered and 7
+and up are refused, because 2 and 5 wrote the same kind of file with no way told apart and 7 put
+up an error that stopped the run.
+Decided 2026-11-15 by the run, not the owner: `run_output_jobs` closes and opens again an open
+OutJob with no unsaved change, because Altium's own reload of a changed file comes a moment later
+and a run before it used the old settings once; it costs a close and an open, and an OutJob with
+unsaved changes is left as it is and named in the result. The test shows the reload and the
+unsaved case; it does not fail reliably on the old script by its effect (after a 3 s pause Altium
+had reloaded the file itself, three runs of three), only by the missing flag.
+Decided 2026-11-15 by the run, not the owner: a rotation row adds its degrees as given on the
+side it names (both when none), because the pages read give no correction and no rule for the
+bottom side, and the owner fills the table from what JLCPCB's review shows.
+Decided 2026-11-15 by the run, not the owner: `write_outjob` does not add the file to the
+project; the caller does it with `add_project_document`, because that tool already does it and
+checks it, and `write_outjob` then needs no Altium.
 Fixed in the commit that moves it here. Local: on `ad25`, in the commit that moves it here;
 not yet in a build. Upstream: not yet decided.
 

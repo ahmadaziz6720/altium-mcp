@@ -26,3 +26,6 @@ altium-mcp-requests.md
 
 # Fabricator presets are data the server reads (create_pcb_rules_preset)
 !server/data/fab_presets/*.json
+
+# Output presets and assembly services are data the server reads (write_outjob, make_assembly_files)
+!server/data/output_presets/*.json

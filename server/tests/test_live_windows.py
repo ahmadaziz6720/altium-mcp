@@ -184,7 +184,10 @@ class _MessageCase(unittest.TestCase):
             request=main.REQUEST_FILE, response=main.RESPONSE_FILE,
             what=what, kind=kind, buttons=buttons))
         start = time.monotonic()
-        with mock.patch.object(main.script_bundle, "ensure_bundle", return_value=str(script)):
+        # The test's script runs by a launch, in place of the bundle: the
+        # resident bridge (A30) would serve the request with the real one
+        with mock.patch.object(main.script_bundle, "ensure_bundle", return_value=str(script)), \
+                mock.patch.object(main.altium_bridge.config, "resident_bridge", False):
             response = asyncio.run(main.altium_bridge.execute_command(
                 "a24_message_test", {}, timeout=self.LIMIT))
         return response, time.monotonic() - start

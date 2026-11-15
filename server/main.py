@@ -42,6 +42,7 @@ import win_processes
 import foreground
 import functools
 import altium_messages
+import resident
 from outjob_parser import parse_outjob
 
 # Set MCP_DIR to the directory of the current Python file
@@ -147,6 +148,11 @@ _remove_leftover_temp_files()
 # reporting progress, and for any command to finish at all
 START_TIMEOUT = 20
 START_TIMEOUT_COLD = 240
+# How long the resident bridge (A30) gets to claim a request, which it does
+# within a tick (100 ms) when Altium is idle; then the script is launched
+RESIDENT_TAKE_TIMEOUT = 1.5
+# The resident projects, one folder per build (resident.py)
+RESIDENT_ROOT = EXCHANGE_DIR / "resident"
 RESPONSE_TIMEOUT = 120
 RESPONSE_TIMEOUT_MAX = 30 * 60
 
@@ -233,6 +239,9 @@ class AltiumConfig:
     def __init__(self):
         self.altium_exe_path = ""
         self.script_path = str(DEFAULT_SCRIPT_PATH)
+        # The resident bridge (A30); "resident_bridge": false in config.json
+        # goes back to a script launch per call
+        self.resident_bridge = True
         self.load_config()
     
     def load_config(self):
@@ -249,6 +258,7 @@ class AltiumConfig:
                 saved_script = config.get("script_path", "")
                 if saved_script and os.path.exists(saved_script):
                     self.script_path = saved_script
+                self.resident_bridge = config.get("resident_bridge", True) is not False
                 logger.info(f"Loaded configuration from {source}")
                 if source is LEGACY_CONFIG_FILE:
                     self.save_config()
@@ -273,6 +283,8 @@ class AltiumConfig:
         # both share this file and must not steal each other's scripts.
         if Path(self.script_path) != DEFAULT_SCRIPT_PATH:
             config["script_path"] = self.script_path
+        if not self.resident_bridge:
+            config["resident_bridge"] = False
         return config
 
     def save_config(self):
@@ -485,6 +497,12 @@ class AltiumBridge:
         # request_id, mutating, and hwnd of the message it waits on (None
         # once that is not known)
         self._waiting: Optional[Dict[str, Any]] = None
+        # The resident bridge (A30), and how many times starting it failed in
+        # a row in this server's run (after two, calls launch the script)
+        self.resident = resident.Resident(RESIDENT_ROOT)
+        self._resident_failures = 0
+        # How the last call reached Altium, for get_server_status
+        self.last_route: Optional[Dict[str, Any]] = None
 
     async def ensure_paths(self, need_script: bool = True) -> Optional[str]:
         """None when Altium (and the bridge script project) can be found,
@@ -711,6 +729,108 @@ class AltiumBridge:
         except Exception as e:
             logger.error(f"Could not send -REditScript:Stop: {e}")
 
+    def _route(self, altium_running: bool):
+        """(mode, why) for this call, resident.decide's; with the resident's
+        project prepared and, to start ours, the residents of other builds
+        told to close. Blocking (window reads, file writes): run in a thread."""
+        if not self.config.resident_bridge:
+            return "launch", "the resident bridge is off in config.json"
+        try:
+            self.resident.prepare(self._resolve_msix_path(self.config.script_path))
+        except (OSError, ValueError) as e:
+            logger.warning(f"Could not prepare the resident bridge's project: {e}")
+            return "launch", f"the resident project could not be prepared ({e})"
+        # A take file left by a call that ended badly would have the resident
+        # serve a request meant for a launch
+        self.resident.reclaim()
+        found = resident.windows()
+        self._hide_residents(found)
+        mode, why = resident.decide(found, self.resident.tag, time.time(), enabled=True,
+                                    altium_running=altium_running,
+                                    message_open=bool(altium_messages.find()),
+                                    start_failures=self._resident_failures)
+        if mode == "start":
+            self.resident.clear()
+            told = self.resident.stop_others(found)
+            if told:
+                logger.info(f"Told the resident bridge of other builds to close: {', '.join(told)}")
+        return mode, why
+
+    def _hide_residents(self, found=None):
+        """This build's resident forms off the taskbar (resident.hide_from_taskbar)."""
+        try:
+            for w in resident.windows() if found is None else found:
+                if w.tag == self.resident.tag and not resident.hide_from_taskbar(w.hwnd):
+                    logger.warning("Could not take the resident bridge off the taskbar")
+        except Exception as e:
+            logger.warning(f"Could not take the resident bridge off the taskbar: {e}")
+
+    async def _wait_taken(self, timeout: float) -> bool:
+        """True once the resident claimed the request (deleted its take
+        file); False when it did not within timeout, the take file then
+        removed so that it never does."""
+        end = time.monotonic() + timeout
+        while time.monotonic() < end:
+            if self.resident.taken():
+                return True
+            await asyncio.sleep(0.01)
+        return not self.resident.reclaim()
+
+    async def _hand_over(self, command: str, cold_start: bool) -> Optional[bool]:
+        """Hand the request just written to Altium: to the resident bridge
+        of this build when it is alive, else by starting it, else (and when
+        either did not take the request) by a script launch, as before A30.
+        True once the request was taken, False when it was not within the
+        start timeout, None when the script could not be launched at all."""
+        t0 = time.monotonic()
+        mode, why = await asyncio.to_thread(self._route, not cold_start)
+        route = {"command": command, "mode": mode, "why": why}
+        if mode in ("resident", "start"):
+            try:
+                self.resident.write_take()
+            except OSError as e:
+                mode, why = "launch", f"the take file could not be written ({e})"
+                route.update(mode=mode, why=why)
+        if mode == "resident":
+            if await self._wait_taken(RESIDENT_TAKE_TIMEOUT):
+                route["taken_s"] = round(time.monotonic() - t0, 3)
+                self.last_route = route
+                logger.info(f"Request taken by the resident bridge ({self.resident.tag}) "
+                            f"in {route['taken_s']} s")
+                return True
+            route["fallback"] = f"not taken within {RESIDENT_TAKE_TIMEOUT} s"
+            logger.warning(f"The resident bridge did not take the request within "
+                           f"{RESIDENT_TAKE_TIMEOUT} s; launching the bridge script")
+        elif mode == "start":
+            logger.info(f"Starting the resident bridge ({self.resident.tag})")
+            try:
+                subprocess.Popen(self.resident.start_command(self.config.altium_exe_path), shell=True)
+                taken = await self._wait_taken(START_TIMEOUT)
+            except Exception as e:
+                logger.error(f"Could not start the resident bridge: {e}")
+                taken = False
+            if taken:
+                await asyncio.to_thread(self._hide_residents)
+                self._resident_failures = 0
+                route["taken_s"] = round(time.monotonic() - t0, 3)
+                self.last_route = route
+                logger.info(f"Resident bridge started, request taken in {route['taken_s']} s")
+                return True
+            self._resident_failures += 1
+            route["fallback"] = f"the resident did not start within {START_TIMEOUT} s"
+            logger.warning(f"The resident bridge did not start (failure {self._resident_failures}); "
+                           f"launching the bridge script")
+            # A refused start leaves an OK-only box that would hold the launch
+            _dismiss_altium_dialogs(message_boxes_only=True)
+        else:
+            logger.info(f"Launching the bridge script: {why}")
+        self.last_route = route
+        if not await self.run_altium_script():
+            return None
+        started = await self._wait_for_start(START_TIMEOUT_COLD if cold_start else START_TIMEOUT)
+        route["taken_s"] = round(time.monotonic() - t0, 3) if started else None
+        return started
+
     @staticmethod
     async def _wait_for_start(timeout: float) -> bool:
         """The bridge script deletes request.json as soon as it has read it."""
@@ -769,8 +889,8 @@ class AltiumBridge:
             if cold_start:
                 logger.info("Altium is not running - launching it, allowing time for startup")
 
-            success = await self.run_altium_script()
-            if not success:
+            started = await self._hand_over(command, cold_start)
+            if started is None:
                 return {"success": False, "error": "Failed to run Altium script"}
 
             # A running Altium picks the request up within seconds. If it does
@@ -778,7 +898,6 @@ class AltiumBridge:
             # launch once more. The script consumes request.json, so a queued
             # first launch cannot run it twice. Any other script is left alone:
             # it may be one the user is running or debugging.
-            started = await self._wait_for_start(START_TIMEOUT_COLD if cold_start else START_TIMEOUT)
             recovered = False
             if not started and STUCK_MARKER.exists():
                 logger.warning(f"Altium did not pick up the request within {START_TIMEOUT}s "
@@ -862,7 +981,9 @@ class AltiumBridge:
                     break
                 if now - last_progress > timeout or now - start_time > max(RESPONSE_TIMEOUT_MAX, timeout):
                     break
-                await asyncio.sleep(0.25)
+                # Most replies come within a second, through the resident
+                # bridge in about 0.1 s: look often until then
+                await asyncio.sleep(0.02 if now - start_time < 2 else 0.25)
 
             if left is not None:
                 # The script waits on the message, not in the debugger: it
@@ -6929,9 +7050,34 @@ async def get_server_status(ctx: Context) -> str:
         "script_path": altium_bridge.config.script_path,
         "altium_found": os.path.exists(altium_bridge.config.altium_exe_path),
         "script_found": os.path.exists(altium_bridge.config.script_path),
+        "resident_bridge": _resident_status(),
     }
-    
+
     return json.dumps(status, indent=2)
+
+
+def _resident_status() -> Dict[str, Any]:
+    """The resident bridge (A30): on or off, this build's tag, the residents
+    Altium holds now, and how the last call reached Altium."""
+    b = altium_bridge
+    out: Dict[str, Any] = {"enabled": b.config.resident_bridge}
+    try:
+        b.resident.prepare(b._resolve_msix_path(b.config.script_path))
+        out["tag"] = b.resident.tag
+    except (OSError, ValueError) as e:
+        out["tag"] = None
+        out["error"] = f"its project could not be prepared: {e}"
+    now = time.time()
+    try:
+        out["windows"] = [{"tag": w.tag, "this_build": w.tag == b.resident.tag,
+                           "alive": w.fresh(now), "enabled": w.enabled,
+                           "beat_age_s": None if w.beat is None else round(now - w.beat, 1)}
+                          for w in resident.windows()]
+    except Exception as e:
+        out["windows"] = f"not read: {e}"
+    out["start_failures"] = b._resident_failures
+    out["last_call"] = b.last_route
+    return out
 
 if __name__ == "__main__":
     logger.info("Starting Altium MCP Server...")

@@ -310,7 +310,12 @@ unasked, and ending and restarting `X2.EXE` when Altium hangs.
   sorted, release page; A40 and A8 held and Closed (A8 but the footprints' descriptions, A41),
   A41 to A44 new (Open), A26 met again and widened. Ran once, not stopped, 111 turns, about
   12 minutes.
-- [ ] the report
+- [x] the report (2026-11-15, in the reply): the run's five groups released (`build-20261114-163431`,
+  `-180059`, `-210622`, `build-20261115-143551`, `-172812`); Closed by their scenario tests A19,
+  A20, A5, A3, A9, A21, A10, A16, A35, A13, A14 (but its priority, A38), A12, A40 and A8 (but
+  its descriptions, A41); left Open A11 (the ECO's RCW error, code in a named stash) and A15 (b)
+  (an outside service, the owner's call); new from the scenario tests A23, A25 to A28, A36 to
+  A39, A41 to A44, for the next run. The record commits after group 5's push are not pushed.
 
 ---
 

@@ -305,7 +305,8 @@ unasked, and ending and restarting `X2.EXE` when Altium hangs.
 - [x] A8: committed (found: `PCB:BuildPCBLibrary` run hidden; `make_pcblib_from_board`)
 - [x] group 5: offline and live tests, pushed, released (build: `build-20261115-172812`;
   545 offline, 72 live; Altium restarted before the live tests)
-- [ ] group 5: scenario test (session id: …), entry committed and sorted, release page
+- [ ] group 5: scenario test (session id: `72025b3d-6b33-4d9b-867b-6c414f8185ed`), entry committed and
+  sorted, release page
 - [ ] the report
 
 ---

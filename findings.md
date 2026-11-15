@@ -497,3 +497,89 @@ was deleted (A5's usage).
 Sorted into A30 (1), Closed; A34, new (2 (b) and (d), 3 as (d), 5's picture as (c)); A31
 (2 (a), 3), met again; A32 (4, 6), met again; A29 (5), Closed. 2 (c), the DRC dialog, is
 as the tool says.
+
+**2026-11-15: scenario test of a release adding stack, rule-kind, rule-preset and output-job tools (A35, A13, A14, A12), on a copy of a small 2-layer board, with short checks**
+
+Release `bin\0.7.0-20261115-143551` (build line `0.7.0-ad25-20261115-143551 cc1015d`). The
+stack, rule and output steps ran on a copy of the project, closed unsaved at the end (the
+stack and rules after a save and reopen in between). The session's server was restarted
+once midway (the client reconnected); same release, same resident.
+
+1. A35, held. Before the first call a resident of tag `9f6d405bbefc` was already alive (left by
+   the fork's live tests from the checkout); the release's `get_server_status` gave the same
+   tag, `this_build` true, and its first call was taken by it (`mode` resident, "alive", 0.078
+   s): no start, no launch. Offline, `Resident.prepare` on the checkout, on the release copy
+   and on a copy of the release with every `.pas`/`.dfm`/`.PrjScr` turned to LF gave the same
+   tag, `9f6d405bbefc`, all three. A second resident project of another tag (`adc685c40861`,
+   no live form) was still listed in Altium's Projects panel, from an earlier build.
+2. A13, held. `set_pcb_layer_stackup` with the read passed back: `changed` 0,
+   `board_modified` false. Preset `4_layer_1.6mm_7628`: Mid-Layer 1 and 2 added, the stack
+   read back equal (63.79 mil with masks), `differences` []; a track routed on Mid Layer 1;
+   after a save and reopen, Altium's own stack lists 4 signal layers and the track is there.
+   Preset `2_layer_1.6mm` then refused with `layers_in_use` (Mid Layer 1, 1 object), nothing
+   changed; the track deleted, both inner layers removed, read back equal. Refused before
+   Altium: a 1600 mil dielectric ("outside (0, 250.0] mil"), a `|` in a layer name, two
+   dielectrics between two copper layers.
+3. Small, A13: the dry run of the 4-layer preset on the 2-layer board listed in
+   `would_change` only the two outer coppers' thickness (1.4 → 1.378); the call then reported
+   `changed` 15. The existing core between the outer layers became the top prepreg (type,
+   material, height 60 → 7.874 mil, constant 4.8 → 4.4), and the new layers' values were set:
+   neither is in the dry run, which therefore understates what the call does to the
+   existing dielectric.
+4. A14, held for the values. All eleven new kinds made with values read back equal to those
+   sent (`differential_pair` with uncoupled length, `routing_layers`, `length`,
+   `matched_length`, `plane_connect`, `component_clearance` at priority 2, `silk_to_silk`,
+   `silk_to_solder_mask`, `hole_to_hole` at the lowest priority, `annular_ring`,
+   `solder_mask_sliver`), and in the saved file after a reopen (58 rules, the priorities as
+   set). Refused: priority 99 ("out of range: 1 (the highest) to 2"), a routing layer the
+   board does not have ("Its signal layers: Top Layer,Bottom Layer"), min gap above max gap.
+   `create_pcb_rules_preset("jlcpcb_2layer_1oz")`: dry run without width (width in
+   `skipped`, 10 `not_set` with why), then with a width: 9 rules, each read back equal, the
+   priorities as the plan said (above the board's catch-all of its kind, or above a rule of
+   the same scope); a second call refused by name.
+5. **A14, failed in a way the read cannot show: a priority set by the tools is not what the
+   batch DRC uses until the board is reopened.** A via-scoped annular ring rule of 5 mil
+   (`IsVia`) was made first; the preset then put its 1.97 mil via ring rule (same scope) at
+   priority 1, the 5 mil rule at 2 (`get_pcb_rules`, a board iterator's `Priority`, and
+   `FindDominantRuleForObject` for every via all agree: the preset's rule dominates all 17
+   vias). `run_drc` in the same session nevertheless reported 14 violations of the 5 mil rule
+   ("Minimum Annular Ring: (4mil < 5mil)", every 20/12 mil via), `success` true. Saved, closed,
+   reopened: the same check, 0. Then, on the reopened board, a 6 mil rule of the same scope
+   made at priority 4 (the lowest; `create_pcb_rule` read back 4): `run_drc` reported 17
+   violations of it, all vias, the report listing it first. So the add at 1 and the
+   remove-and-add-again moves give the property the right order, but the DRC in that session
+   checks by the order the rules were added (the last added winning), and a preset or a
+   low-priority rule changes what the DRC reports until the board is reopened. Workaround:
+   save, close and reopen before `run_drc`. A check after the moves that the DRC agrees (or
+   whatever Altium call refreshes its rule order) would be needed for `priority` to hold.
+6. A12, held. `write_outjob(preset="fab_jlcpcb")` on a new file, `add_project_document`, then
+   `run_output_jobs(["JLCPCB Outputs"])`: the folder holds nine Gerbers (`%FSLAX44Y44*%`
+   `%MOMM*%`, `.GM` outline), the plated drill file (`;FILE_FORMAT=2:5`, `INCH`; the board has
+   no non-plated hole, so no `-NonPlated` file), the BOM CSV with Comment, Designator,
+   Footprint, LCSC Part # (12 rows, part number empty) and the pick and place in mm.
+   `make_assembly_files`: BOM 12 rows, CPL 16, all 16 named in `missing_part_number` with a
+   warning, a flat zip of the nine Gerbers and the drill file, Altium's reports in
+   `not_zipped`. The OutJob then edited (Gerber inch 2:5, pick and place mil, another folder)
+   and opened in Altium: the run gave `outjob_reloaded` true and `%FSLAX25Y25*%` `%MOIN*%`,
+   Center-X in mil; the offline step on the mil file gave the same Mid X/Y as from the mm file
+   (difference 0.0000 mm), a two-row rotation table applied (an exact name +90 on Top, a
+   `RESC*` pattern +180 on both: 3 parts turned), and `part_number_parameter="Comment"` filled
+   the part number. Refused: a preset over the existing file without `overwrite`, a part
+   number column the BOM lacks (naming the columns it has).
+7. Wasteful, A12 and A13: every `write_outjob` returns the whole read of the file, about 10k
+   characters, 7k of them the Gerber's 55 plotted layers listed one by one (all 30 mid layers
+   and 16 planes, as the preset plots every copper layer); an edit of two settings returned
+   the same 10k. `set_pcb_layer_stackup` returns `requested` and `stack` both (3 to 5k for a
+   2- or 4-layer board). A summary (`plotted_layers`: "every copper layer" plus the others by
+   name; the stack only when it differs) would do for a check.
+8. Met at the start, source unknown: Altium had the reference project focused with
+   `project_modified` true and a fifth document, `Sheet1.SchDoc` (no path, not open, not on
+   disk); the project file on disk was unchanged. A new schematic taken into the focused
+   project by an earlier call or test and never detached is the likely cause (A10's
+   `detached_from` covers `add_project_document` and `build_schematic`); nothing in this
+   session made it. Closed unsaved, the project reopened clean (4 documents, not modified).
+
+60 calls, 0 errors, 110k characters (8 `run_altium_script`: opening, closing, checks through
+Altium; the largest `get_pcb_rules` 13k, `write_outjob` 11k and 10k, `run_drc` 9k). The
+reference project's `.PrjPcbStructure` was there before the session and was deleted (A5's
+usage).

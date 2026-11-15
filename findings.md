@@ -493,3 +493,7 @@ silkscreen check) ran on a copy of the project; the copy was closed unsaved.
 41 calls, 0 errors, 35k characters (3 `run_altium_script`: opening, closing, the message; 11
 `get_server_status`). The reference project's `.PrjPcbStructure` appeared again on closing and
 was deleted (A5's usage).
+
+Sorted into A30 (1), Closed; A34, new (2 (b) and (d), 3 as (d), 5's picture as (c)); A31
+(2 (a), 3), met again; A32 (4, 6), met again; A29 (5), Closed. 2 (c), the DRC dialog, is
+as the tool says.

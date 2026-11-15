@@ -10,7 +10,7 @@ Three sections: **Open**, not yet fixed; **Waiting**, fixed and not yet settled 
 merged, a fix not yet run in a session); **Closed**, merged upstream, run and held, or
 decided against, with the record.
 
-**Open: A8, A11 to A15, A23, A25 to A28, A31 to A33.**
+**Open: A8, A11 to A15, A23, A25 to A28, A31 to A34.**
 
 A2, A7, A4 and A6 went out together in `build-20261112-120520` (owner, 2026-11-12), so one
 scenario test covers them; A3 and A8 were not waited for. That test ran and held for
@@ -29,6 +29,9 @@ Documents. The DRC report is open under a `file:///` name, and
 
 A17 and A18 went out together in `build-20261114-145312` (owner, 2026-11-14): one scenario
 test covers both. That test ran and held for both (findings 2026-11-14, second entry).
+A29 and A30 went out together in `build-20261115-114630` (owner, 2026-11-15): one scenario
+test covers both. It ran, the second time from the start, and held for both (findings
+2026-11-15, first entry); what it left is A31, A32 and A34.
 
 A10 to A16 come from a review of the tools against a whole design flow (schematic and
 missing library parts, ERC; a board with its rules and layer stack; placement; routing,
@@ -268,12 +271,14 @@ unasked, and ending and restarting `X2.EXE` when Altium hangs.
 - [x] A30: committed (`f1b1559`)
 - [x] A29 and A30: offline and live tests, pushed, released (build:
   `build-20261115-114630`; 415 offline, 55 live through the resident)
-- [ ] A29 and A30: scenario test, entry committed and sorted, release page. A first run
-  (session id `7b30a860-4934-4fb9-9d6a-c5e1b88d69b2`, from 11:47) was stopped by the owner's
-  word after about 2 minutes, to be run again from the start in a new session with a new
-  session id; its copy `uji/0.7.0-20261115-114630/` in the owner's project may be partly
-  made. `reports/uji-skenario.md` there has a section J for A30 and A29 (written
-  2026-11-15 by the session that built A30).
+- [x] A29 and A30: scenario test (session id: `173d1f40-3911-4aed-a69d-f99eb870248b`),
+  entry committed and sorted, release page; A29 and A30 held for what they asked and
+  Closed, A34 new (Open), A31 and A32 met again. A first run (session id
+  `7b30a860-4934-4fb9-9d6a-c5e1b88d69b2`, from 11:47) was stopped by the owner's word after
+  about 2 minutes; run again from the start on the owner's word of 2026-11-15, its copy
+  moved aside to `uji/0.7.0-20261115-114630.run1-dihentikan/` in the owner's project,
+  Altium started fresh. The second run ran once, not stopped, 93 turns. The record
+  commits (the entry, the sort) are not pushed: they go out with the next push of `ad25`.
 - [ ] A13: committed (or left Open, why written into it)
 - [ ] A14: committed (or left Open, why written into it)
 - [ ] A12: committed (or left Open, why written into it)
@@ -458,6 +463,10 @@ event (only a 20 ms poll saw it); the same open without the close, 7 ms. Local: 
 last window that was not Altium's (from the previous call) when the start reads 0, give it
 back once more after a box the server closes, and a poll beside the events while a call
 runs; a live test for each. (2026-11-14, sixth entry, 2 and 3.) For the next run.
+Met again in the scenario test of `build-20261115-114630` (2026-11-15, first entry, 2 (a)
+and 3): the resident bridge's start kept Altium's main window in front about 1.5 s, and a
+`run_altium_script` closing one project and opening another 2.9 s (the closing script
+1.6 s), each with no foreground event, seen by the poll only.
 
 **A32. `run_altium_script` answers Altium's messages its own way.** A24's rule (a message
 with choices is left open and named, a call made while one is open is not run) does not
@@ -472,6 +481,12 @@ debugger has been stopped, so it is no longer running", `executor_wedged` true, 
 not named, while the script still waited on it and ran to its end once it was closed. Local:
 `run_altium_script` follows A24's watch and refusal (and A29's tool), and says a script
 waits on a message when it does. (2026-11-14, sixth entry, 5 and 6.) For the next run.
+Met again, unchanged, in the scenario test of `build-20261115-114630` (2026-11-15, first
+entry, 4): (c) as above, about 55 s, six busy boxes raised by its probes, the message left
+open. Also (d) (same entry, 6): `answer_altium_message` on the message such a script left
+open gave `outcome` "no_command_waiting", its note guessing a script of the user's own; it
+was this server's, its call already ended with "no result", and the script's own answer
+is read by no one. The note could say so when the window is a `run_altium_script`'s.
 
 **A33. An OK-only message open before a bridge call is neither pressed nor named.** The
 check before the launch lets a lone OK through (leaving it to the watch), Altium refuses
@@ -483,6 +498,21 @@ the busy box was over it; the busy box first, then the message, closed both. Loc
 the launch, press a lone OK (the topmost box first) and say so, or refuse naming it, as for
 a message with choices; a live test with an OK message left open by a script. (2026-11-14,
 sixth entry, 7.) For the next run.
+
+**A34. Small points left by the resident bridge and the message tool.** From A30's work
+and the scenario test of `build-20261115-114630` (2026-11-15, first entry, 2, 3 and 5).
+(a) The resident's tag hashes the files' bytes before the line ends are made CRLF, so a
+release copy and a checkout at the same commit give two tags and, on one Altium, close
+each other's resident (found after the release, A30): hash the text after the CRLF step.
+(b) Calls the resident served still brought Altium in front briefly, each given back by
+A22's guard: the first `get_board_summary` after the start, 25 ms (the same call again:
+never; a guess, the board brought to view the first time a tool uses it), and after
+`answer_altium_message` pressed a button, the resident form then the main window, about
+10 ms (closing the modal hands activation to Altium's next window, the form first).
+(c) `answer_altium_message`'s picture of a `MessageDlg` cuts its buttons at the bottom.
+(d) `run_altium_script` is not served by the resident, each call still a launch (its
+description still says `RunScriptFile`); A30 did not say whether that is meant: to
+decide, with A31 and A32. Local. For the next run.
 
 ## Waiting
 
@@ -530,215 +560,6 @@ Scenario test of that build held (2026-11-12, third entry, 2): 38 rules, the sco
 `filter2` only on binary rules. The reply went from 9.3k to 8.5k characters only (about
 9 %): what is left is mostly the key names and indentation repeated on every rule.
 Waits for the upstream PR.
-
-**A29. A message with choices blocks Altium until someone answers it.** Since A24 a
-message Altium puts up during a call that has choices (Yes/No, OK/Cancel) or another single
-button ends the call at once, named, with a picture of it, and is left open; every later
-call is refused while it is up. So the call no longer waits, but Altium does: nothing the
-server has can answer it, and only the owner, at Altium's screen, can (the owner,
-2026-11-14: "bikin agent nunggu gw dong"). The server should not choose an answer itself:
-"No" to a save question throws work away, and "Cancel" in the middle of a command can leave
-the design half changed. Local: a tool that answers an open Altium message with one of its
-buttons by caption (`answer_altium_message`, e.g. `button="Cancel"`), its list of open
-messages with title, buttons and picture when called with none, and the answer read back
-(the window gone, what the waiting command then answered); the A24 failure and refusal
-naming the tool. The agent, which sees the picture and knows what it was doing, answers,
-and asks the owner only when unsure. A live test: a script's `MessageDlg` with Yes/No
-(`tests/test_live_windows.py`'s `MessageTest` puts one up), answered "No" by the tool, the
-script's reply read back. (The owner, 2026-11-14, after A24's commit.)
-Also, from the scenario test of `build-20261114-225815` (2026-11-14, sixth entry, 4):
-each refusal writes a new picture of the same window, and the `altium_messages` list
-reaches the tool's reply only as the error text: one picture per window, and the list
-in the reply, with the tool.
-Cause: nothing in the server pressed a button other than a lone OK or Close, and nothing
-kept the command left waiting, so its late reply was dropped by the next call (which
-deletes any leftover reply); the refusal took a new picture of the same window at each
-call. Fix: `answer_altium_message` (`main.py`, `altium_messages.py`). With no `button` it
-lists Altium's open message windows (title, class, buttons, picture, and
-`command_waiting` on the one a call of this server left its command waiting on),
-changing nothing, and gives that command's reply once it is in. With a `button` it picks
-the only open message or the one with that `title` (any case), presses the button by
-caption (`button_key`: no `&`, any case), and, when it is the message the left command
-waits on (or that one is gone and this may be its next), waits for that command's reply,
-told apart by its `request_id`: `outcome` "replied" with `reply`, "another_message" (the
-command met a further message, named with its picture, left open), "no_reply_yet" after
-`wait_seconds` (60) without progress, said so, or "no_command_waiting". A caption the
-message does not have, no message, several and no title, or two with the same title:
-fails, naming them, nothing pressed. A24's failure ("left open") and refusal ("Not run")
-now say "answer it with answer_altium_message (…) or in Altium". One picture per window:
-`altium_messages.Pictures`, kept by handle, class, title and buttons, dropped once the
-window is gone.
-Decided 2026-11-14 by the run, not the owner: listing takes no lock; pressing takes this
-server's command lock and then the exchange lock, each with a bounded 10 s wait
-(`ANSWER_LOCK_WAIT`), and presses nothing when one stays held, because the script waiting
-on the message holds neither lock (the call that launched it ended and let both go), so
-no wait here can deadlock with it, and holding both until the reply is read keeps a new
-request from deleting that reply; an exchange lock held by another session means the
-message may be that session's, which is not this caller's to answer.
-Decided 2026-11-14 by the run, not the owner: a button named by the caller is pressed by
-a posted click, then `BM_CLICK`, never by closing the window, because a close gives the
-script another answer than the one asked for (A32 (a): Cancel, 2); a further message met
-while waiting for the reply is named and left, even an OK-only one, because the tool
-answers only what the caller asked.
-Decided 2026-11-14 by the run, not the owner: the reply is taken only with the waiting
-command's `request_id` (one without it is not), because a reply of another request would
-be a wrong result.
-Decided 2026-11-14 by the run, not the owner: the `altium_messages` list is not added to
-the reply of every tool (they pass on only the error text, which names each message's
-title, buttons and picture); the list, with the pictures, is `answer_altium_message`'s
-reply with no button, because that is the smaller change and the error already names the
-tool.
-Live test `tests/test_live_windows.py` (`AnswerTest`, the script's `MessageDlg` with Yes
-and No; `MESSAGE_SCRIPT` now echoes the request's `request_id`, as the bridge does):
-before, 4/4 fail: "module 'main' has no attribute 'answer_altium_message'" (3) and "a new
-picture per refusal" (three files of one window); after, 4/4 pass ("No" pressed, the window
-gone, the reply "answered 7" read back, the next call run; the listing with the picture,
-the window still open; "Cancel" failing with "its buttons are Yes, No"; one picture), the
-file 9/9 in 56 s. Offline tests in `test_altium_messages.py` (40, 24 new); offline 392 OK.
-Fixed in `c348b6d`. Local: on `ad25`, released in `build-20261115-114630`. Upstream: not yet
-decided.
-
-**A30. A script launch per call is what brings Altium to the front.** A22's guard gives
-the foreground back within 1 to 7 ms, but every call still starts
-`X2.EXE -RScriptingSystem:RunScriptFile(…)`, and Altium activates itself on each such
-command line (a bare `X2.EXE` does not): a key typed in those milliseconds still goes to
-Altium (about 2 to 3 % of calls while the owner types without pause), the window may flash
-for a frame, and each launch costs about 2 s of the call (from "Running command" to
-"Bridge script started" in the server log). Cleaner: a bridge that stays in Altium,
-started once, reading `request.json` by itself (a script form kept open with a timer, or
-another way into the running Altium), so no command line per call. Unknown, to probe
-first: whether a script form shown non-modal survives the end of the script that showed
-it in AD25, whether its timer fires while a script of the user's own runs or sits in the
-debugger, how it is started again after Altium restarts, and the script engine's memory
-per call (it leaks on every launch now). Also worth a look: whether the running Altium
-takes commands another way (COM, DDE) without activating. Found: a decision with the owner
-before the build, as it changes the bridge upstream's tools all rest on; A22's guard stays
-either way. (The owner, 2026-11-14, after A22's commit.)
-
-Probed 2026-11-14 (live, AD25, the server not running; the scripts are in `dev/a30_probe/`).
-(1) Yes, from a script *project* only. A form shown with `Show` by
-`ScriptingSystem:RunScript(ProjectName=…)` outlives the script that showed it, and its
-`TTimer` (100 ms) kept firing: over 240 s with a call every 10 s, 24/24 served, no stall seen
-at a 0.2 s sampling. `RunScriptFile` cannot do it: it loads no `.dfm` ("Undeclared
-identifier: TProbeForm"), and DelphiScript takes no script routine as an event handler
-(`OnTimer := Proc`: "Invalid procedure usage"; `@Proc`: "Expression expected"). The form
-must stay visible: never shown, or shown and hidden in the same run, the script ends and
-the form is freed; shown borderless at -32000,-32000 it works. With the bridge's own units
-and a form unit in one project, its timer calling the bridge's `Run` whenever
-`request.json` is there: 30 calls, the reply after median 110 ms (max 153 ms), against
-median 1.90 s (max 2.02 s) for the same request through a launch of the bundle, 1.86 s of
-it before the script takes the request.
-(2) The timer fires while Altium shows a modal message (`ShowMessage`), while another
-script's runtime-error dialog is up, and while that script sits stopped after it: 5/5 calls
-served in each, about 110 ms. A request is then served inside a modal loop, so A24's rule
-(no call while a message is open) has to be checked by the server before it writes the
-request. While another script runs it fires only if that script pumps messages
-(`Application.ProcessMessages`: a request is served in the middle of that script); one that
-does not holds it off for its whole run (a 5.05 s gap for a 5 s loop). Scripts launched
-beside it run (30 bundle launches, 34 trivial ones); `-REditScript:Stop` with nothing
-stopped leaves it alive. It does not block Altium's UI: a window-message round trip median
-0.99 ms, p99 2.86 ms with it, 0.98 and 2.65 ms without; Altium's CPU 11.15 % against
-10.94 % of one core, idle. A runtime error inside its own handler (a command's) ends it:
-Altium shows a plain "Error" box (OK only) and opens the unit's source in its editor, the
-timer stops for good (a `try`/`finally` around the call did not keep it), and the next
-`-REditScript:Stop` frees the form. An exception from its own file write did the same once
-("Cannot create file … being used by another process": the probe was reading the heartbeat
-file at that moment), so the server must read such a file by its time only, never opening
-it. Once, not reproduced in three tries, a form stopped after a launch was refused behind
-another script stopped in the debugger.
-(3) It dies with Altium; it is started by one `RunScript` of its project, 2.3 s (Altium
-takes the front once, as at every launch now, which A22's guard handles). Not tried across
-a real restart: the process ends, so the form does, and the server starts it again at the
-first call that finds no window of it. A second launch of the same project while it lives
-is refused ("Another script executing now", an Error box, and the launch after it "There is
-another instance of running, but it is busy", an Information box), so the server checks it
-is alive before starting it: its window (by its caption, of X2.EXE, not hung) and a
-heartbeat file's time. A command it serves holds the heartbeat still, so a still heartbeat
-while a request is in flight is not a death. Each `RunScript` of a project adds that
-project to Altium's Projects panel; closing it there (`Client.CloseDocument`) left the form
-running.
-(4) Memory: 30 launches of the bundle, +3.9 MB private bytes (0.13 MB per call), GDI and
-USER objects unchanged; 30 launches of a trivial script file, +0.0 MB; 30 calls served by
-the resident, +0.0 MB and handles unchanged; the resident's own start, +1.4 to 4.5 MB and
-+13 GDI, +26 USER objects, once.
-(5) No other way in found. The Running Object Table holds nothing of Altium;
-`GetActiveObject` on `Altium.Application`, `AltiumDesigner.Application`, `DXP.Application`,
-`X2.Application`, `DXP.Client` and `Altium.Client`: "Invalid class string"; the 104 HKCR keys
-naming Altium are file types, the Mechatronic `SolidSDK` classes ("Operation unavailable")
-and the URL protocols `DXP:` and `DXPProcess:`, whose open command is `X2.exe "%1"`, the
-same command line. No DDE server answered (services DXP, Altium, X2, AltiumDesigner,
-Client, ADVPCB, PROTEL; topics System, Client and the service's name). Not tried: the
-message a second X2.EXE hands its command line to the first with; the activation is in the
-first's handling of it.
-(6) 10 calls served by the resident with a window of another process in front: Altium in
-front 0 ms, 0 times, the window kept the foreground; 3 unguarded launches of a script file:
-Altium in front 3 times. Two traps met on the way: a script file with LF line ends does not
-compile ("Error in declaration block at Line:3, Char:53"), and a `FileName` holding a space,
-unquoted, starts a second X2.EXE instead of reaching the running one (the server's exchange
-folder has none).
-Recommended by the run, for the owner's decision: build it, as the first path, with the
-launch per call kept as its fallback. A form unit (about 80 lines) in the bridge's project,
-started by one guarded `RunScript` at a call that finds no window of it; the server checks
-it alive and that no Altium message is open, writes `request.json` as now and, when it is
-not taken within about 1 s, falls back to the launch it does now (which also covers a
-resident ended by a runtime error: `-REditScript:Stop` as now, and the resident started
-again at the next call). Its heartbeat carries the bundle's hash, and a resident of another
-build is told to close (a stop file) and started again, so a new release never serves with
-old code. Gains: about 1.8 s and 0.13 MB per call, and no activation at all for a served
-call (A22's 1 to 7 ms window and A31's gaps go away for those). Costs and risks: re-entrancy
-(a request served inside a modal loop or inside a user's script that pumps messages; the
-server's check before writing covers the first, nothing covers the second), one script
-project in the Projects panel and an off-screen form of Altium's for the session, a
-runtime error still opening the bridge's source in Altium's editor, and a second path to
-test (live tests: it serves, lasts minutes, takes no foreground, falls back once it is
-gone, comes back after a runtime error). A22's guard stays for the launches.
-Decided 2026-11-15 by the owner: build it, as the run recommended (the launch kept as
-the fallback).
-Fix: `server/resident.py` and `server/AltiumScript/Resident/MCPResident.pas` (`.dfm`), and
-`main.py`'s `_hand_over`. The resident project, under `C:\Users\Public\altium_mcp\resident\<tag>\`,
-holds the bridge as script_bundle's one unit (`MCPBridge.pas`) and the form unit, filled
-with its tag and folder; the tag is a hash of their text. Each call writes `request.json`,
-then a `take` file the form deletes (its claim) before it runs the bridge's `Run`; a `take`
-the server can still delete after 1.5 s is a request not claimed, and the call goes by the
-launch as before. The heartbeat is the form's caption, `altium-mcp resident <tag>
-<yyyymmddhhnnss>`, read with `GetWindowText` (no message sent, no file opened); a `stop`
-file closes the form. A call goes by the launch when Altium is not running, an Altium
-message is open or the form is disabled (a modal loop: VCL disables the other forms of the
-thread), this build's form is there with a caption older than 5 s, or two starts failed;
-none of this build alive, it is started (`RunScript` of its project, guarded by A22), the
-residents of other builds told to stop first. `"resident_bridge": false` in `config.json`
-turns it off. `get_server_status` gives `resident_bridge` (tag, the forms, how the last
-call went). The response is looked for every 20 ms for the first 2 s (was 250 ms).
-Found on the way (2026-11-15): (a) Altium gives a script form `WS_EX_APPWINDOW`, so the form
-had a taskbar button of its own; hidden by the form after its script ended, it was still
-freed (every call then started it again), so the server changes its styles (off
-`WS_EX_APPWINDOW`, on `WS_EX_TOOLWINDOW`) and removes its button (`ITaskbarList::DeleteTab`).
-(b) With the bridge's own units in the project, `create_symbols_batch` and
-`create_schematic_symbol` failed: "Undeclared identifier: SchLibIsFocused" (an Error box,
-the form's timer stopped for good, freed by the timeout's `-REditScript:Stop`): a script
-project compiles each unit in order, and `schematic_utils.pas` calls `SchLibIsFocused`
-above its definition. The bundle orders routines, so the resident runs the bundle. The
-launch's own fallback (the project, when bundling fails) has the same fault; not changed.
-(c) While Altium's UI thread is busy (opening the 16-layer example board, 18 s) the
-caption goes stale and one call went by the launch, the next by the resident again. (d)
-`-REditScript:Stop` with nothing stopped (the sandbox's recovery) left the form alive.
-Live test `tests/test_live_resident.py` (5): calls after the first served with no launch,
-under 0.6 s; the form off the taskbar and Alt+Tab; a request not claimed goes by the launch
-and the resident stays; a resident of another build replaced; five served calls with
-Altium never in front (`_Watch`: 0 times). With `resident_bridge` off, 2 of them fail
-("'launch' != 'start'", "'launch' != 'resident'"). Measured: start 2.0 to 2.5 s, then
-median 0.11 s per call (was about 2.0 s). `test_live_windows`'s A24 tests run their own
-script by a launch (resident off in the test). All live modules, 55 tests, through the
-resident (114 calls taken by it, the A24 tests' 7 by launch): 54 passed, the one failure
-the replacement test's own (a blank line did not change the bundle; it now adds a
-routine), then 5/5. Offline: `tests/test_resident.py` (23); 415 OK.
-Found after the release (2026-11-15): the tag hashes the files' bytes before the line ends
-are made CRLF, so the release copy (`git archive`) and this checkout, at the same commit,
-give two tags (`0fd9980a5570`, `a4ea8490f7f3`): a live test from the checkout and a session
-on the release, on one Altium, close each other's resident and start their own (2 s and one
-launch each time). Hash the text after the CRLF step. Not changed yet.
-Fixed in `f1b1559`. Local: on `ad25`, released in `build-20261115-114630`. Upstream: not yet
-decided.
 
 ## Closed
 
@@ -1434,3 +1255,229 @@ choices itself, closing it as Cancel, and is launched while one is open; its dia
 of a script waiting on a message is wrong) and A33 (an OK-only message open before a
 bridge call is neither pressed nor named). Its small point on the refusal (a new picture
 per refusal, the `altium_messages` list not in the tool's reply) went into A29.
+
+**A29. A message with choices blocks Altium until someone answers it.** Since A24 a
+message Altium puts up during a call that has choices (Yes/No, OK/Cancel) or another single
+button ends the call at once, named, with a picture of it, and is left open; every later
+call is refused while it is up. So the call no longer waits, but Altium does: nothing the
+server has can answer it, and only the owner, at Altium's screen, can (the owner,
+2026-11-14: "bikin agent nunggu gw dong"). The server should not choose an answer itself:
+"No" to a save question throws work away, and "Cancel" in the middle of a command can leave
+the design half changed. Local: a tool that answers an open Altium message with one of its
+buttons by caption (`answer_altium_message`, e.g. `button="Cancel"`), its list of open
+messages with title, buttons and picture when called with none, and the answer read back
+(the window gone, what the waiting command then answered); the A24 failure and refusal
+naming the tool. The agent, which sees the picture and knows what it was doing, answers,
+and asks the owner only when unsure. A live test: a script's `MessageDlg` with Yes/No
+(`tests/test_live_windows.py`'s `MessageTest` puts one up), answered "No" by the tool, the
+script's reply read back. (The owner, 2026-11-14, after A24's commit.)
+Also, from the scenario test of `build-20261114-225815` (2026-11-14, sixth entry, 4):
+each refusal writes a new picture of the same window, and the `altium_messages` list
+reaches the tool's reply only as the error text: one picture per window, and the list
+in the reply, with the tool.
+Cause: nothing in the server pressed a button other than a lone OK or Close, and nothing
+kept the command left waiting, so its late reply was dropped by the next call (which
+deletes any leftover reply); the refusal took a new picture of the same window at each
+call. Fix: `answer_altium_message` (`main.py`, `altium_messages.py`). With no `button` it
+lists Altium's open message windows (title, class, buttons, picture, and
+`command_waiting` on the one a call of this server left its command waiting on),
+changing nothing, and gives that command's reply once it is in. With a `button` it picks
+the only open message or the one with that `title` (any case), presses the button by
+caption (`button_key`: no `&`, any case), and, when it is the message the left command
+waits on (or that one is gone and this may be its next), waits for that command's reply,
+told apart by its `request_id`: `outcome` "replied" with `reply`, "another_message" (the
+command met a further message, named with its picture, left open), "no_reply_yet" after
+`wait_seconds` (60) without progress, said so, or "no_command_waiting". A caption the
+message does not have, no message, several and no title, or two with the same title:
+fails, naming them, nothing pressed. A24's failure ("left open") and refusal ("Not run")
+now say "answer it with answer_altium_message (…) or in Altium". One picture per window:
+`altium_messages.Pictures`, kept by handle, class, title and buttons, dropped once the
+window is gone.
+Decided 2026-11-14 by the run, not the owner: listing takes no lock; pressing takes this
+server's command lock and then the exchange lock, each with a bounded 10 s wait
+(`ANSWER_LOCK_WAIT`), and presses nothing when one stays held, because the script waiting
+on the message holds neither lock (the call that launched it ended and let both go), so
+no wait here can deadlock with it, and holding both until the reply is read keeps a new
+request from deleting that reply; an exchange lock held by another session means the
+message may be that session's, which is not this caller's to answer.
+Decided 2026-11-14 by the run, not the owner: a button named by the caller is pressed by
+a posted click, then `BM_CLICK`, never by closing the window, because a close gives the
+script another answer than the one asked for (A32 (a): Cancel, 2); a further message met
+while waiting for the reply is named and left, even an OK-only one, because the tool
+answers only what the caller asked.
+Decided 2026-11-14 by the run, not the owner: the reply is taken only with the waiting
+command's `request_id` (one without it is not), because a reply of another request would
+be a wrong result.
+Decided 2026-11-14 by the run, not the owner: the `altium_messages` list is not added to
+the reply of every tool (they pass on only the error text, which names each message's
+title, buttons and picture); the list, with the pictures, is `answer_altium_message`'s
+reply with no button, because that is the smaller change and the error already names the
+tool.
+Live test `tests/test_live_windows.py` (`AnswerTest`, the script's `MessageDlg` with Yes
+and No; `MESSAGE_SCRIPT` now echoes the request's `request_id`, as the bridge does):
+before, 4/4 fail: "module 'main' has no attribute 'answer_altium_message'" (3) and "a new
+picture per refusal" (three files of one window); after, 4/4 pass ("No" pressed, the window
+gone, the reply "answered 7" read back, the next call run; the listing with the picture,
+the window still open; "Cancel" failing with "its buttons are Yes, No"; one picture), the
+file 9/9 in 56 s. Offline tests in `test_altium_messages.py` (40, 24 new); offline 392 OK.
+Fixed in `c348b6d`. Local: on `ad25`, released in `build-20261115-114630`. Upstream: not yet
+decided.
+Closed: the scenario test of that build held (2026-11-15, first entry, 5):
+`answer_altium_message()` listed the open Yes/No message with its title, buttons and
+picture; with it open `get_board_summary` was refused in 0.3 s naming it and the tool,
+with the listing's picture (one picture per window); `button="Cancel"` failed naming Yes
+and No, nothing pressed; `button="No"` closed it, and the next call ran. Its small points
+went into A34 (c) (the picture cuts the buttons) and A32 (d) (the note on a message a
+`run_altium_script` of this server left open).
+
+**A30. A script launch per call is what brings Altium to the front.** A22's guard gives
+the foreground back within 1 to 7 ms, but every call still starts
+`X2.EXE -RScriptingSystem:RunScriptFile(…)`, and Altium activates itself on each such
+command line (a bare `X2.EXE` does not): a key typed in those milliseconds still goes to
+Altium (about 2 to 3 % of calls while the owner types without pause), the window may flash
+for a frame, and each launch costs about 2 s of the call (from "Running command" to
+"Bridge script started" in the server log). Cleaner: a bridge that stays in Altium,
+started once, reading `request.json` by itself (a script form kept open with a timer, or
+another way into the running Altium), so no command line per call. Unknown, to probe
+first: whether a script form shown non-modal survives the end of the script that showed
+it in AD25, whether its timer fires while a script of the user's own runs or sits in the
+debugger, how it is started again after Altium restarts, and the script engine's memory
+per call (it leaks on every launch now). Also worth a look: whether the running Altium
+takes commands another way (COM, DDE) without activating. Found: a decision with the owner
+before the build, as it changes the bridge upstream's tools all rest on; A22's guard stays
+either way. (The owner, 2026-11-14, after A22's commit.)
+
+Probed 2026-11-14 (live, AD25, the server not running; the scripts are in `dev/a30_probe/`).
+(1) Yes, from a script *project* only. A form shown with `Show` by
+`ScriptingSystem:RunScript(ProjectName=…)` outlives the script that showed it, and its
+`TTimer` (100 ms) kept firing: over 240 s with a call every 10 s, 24/24 served, no stall seen
+at a 0.2 s sampling. `RunScriptFile` cannot do it: it loads no `.dfm` ("Undeclared
+identifier: TProbeForm"), and DelphiScript takes no script routine as an event handler
+(`OnTimer := Proc`: "Invalid procedure usage"; `@Proc`: "Expression expected"). The form
+must stay visible: never shown, or shown and hidden in the same run, the script ends and
+the form is freed; shown borderless at -32000,-32000 it works. With the bridge's own units
+and a form unit in one project, its timer calling the bridge's `Run` whenever
+`request.json` is there: 30 calls, the reply after median 110 ms (max 153 ms), against
+median 1.90 s (max 2.02 s) for the same request through a launch of the bundle, 1.86 s of
+it before the script takes the request.
+(2) The timer fires while Altium shows a modal message (`ShowMessage`), while another
+script's runtime-error dialog is up, and while that script sits stopped after it: 5/5 calls
+served in each, about 110 ms. A request is then served inside a modal loop, so A24's rule
+(no call while a message is open) has to be checked by the server before it writes the
+request. While another script runs it fires only if that script pumps messages
+(`Application.ProcessMessages`: a request is served in the middle of that script); one that
+does not holds it off for its whole run (a 5.05 s gap for a 5 s loop). Scripts launched
+beside it run (30 bundle launches, 34 trivial ones); `-REditScript:Stop` with nothing
+stopped leaves it alive. It does not block Altium's UI: a window-message round trip median
+0.99 ms, p99 2.86 ms with it, 0.98 and 2.65 ms without; Altium's CPU 11.15 % against
+10.94 % of one core, idle. A runtime error inside its own handler (a command's) ends it:
+Altium shows a plain "Error" box (OK only) and opens the unit's source in its editor, the
+timer stops for good (a `try`/`finally` around the call did not keep it), and the next
+`-REditScript:Stop` frees the form. An exception from its own file write did the same once
+("Cannot create file … being used by another process": the probe was reading the heartbeat
+file at that moment), so the server must read such a file by its time only, never opening
+it. Once, not reproduced in three tries, a form stopped after a launch was refused behind
+another script stopped in the debugger.
+(3) It dies with Altium; it is started by one `RunScript` of its project, 2.3 s (Altium
+takes the front once, as at every launch now, which A22's guard handles). Not tried across
+a real restart: the process ends, so the form does, and the server starts it again at the
+first call that finds no window of it. A second launch of the same project while it lives
+is refused ("Another script executing now", an Error box, and the launch after it "There is
+another instance of running, but it is busy", an Information box), so the server checks it
+is alive before starting it: its window (by its caption, of X2.EXE, not hung) and a
+heartbeat file's time. A command it serves holds the heartbeat still, so a still heartbeat
+while a request is in flight is not a death. Each `RunScript` of a project adds that
+project to Altium's Projects panel; closing it there (`Client.CloseDocument`) left the form
+running.
+(4) Memory: 30 launches of the bundle, +3.9 MB private bytes (0.13 MB per call), GDI and
+USER objects unchanged; 30 launches of a trivial script file, +0.0 MB; 30 calls served by
+the resident, +0.0 MB and handles unchanged; the resident's own start, +1.4 to 4.5 MB and
++13 GDI, +26 USER objects, once.
+(5) No other way in found. The Running Object Table holds nothing of Altium;
+`GetActiveObject` on `Altium.Application`, `AltiumDesigner.Application`, `DXP.Application`,
+`X2.Application`, `DXP.Client` and `Altium.Client`: "Invalid class string"; the 104 HKCR keys
+naming Altium are file types, the Mechatronic `SolidSDK` classes ("Operation unavailable")
+and the URL protocols `DXP:` and `DXPProcess:`, whose open command is `X2.exe "%1"`, the
+same command line. No DDE server answered (services DXP, Altium, X2, AltiumDesigner,
+Client, ADVPCB, PROTEL; topics System, Client and the service's name). Not tried: the
+message a second X2.EXE hands its command line to the first with; the activation is in the
+first's handling of it.
+(6) 10 calls served by the resident with a window of another process in front: Altium in
+front 0 ms, 0 times, the window kept the foreground; 3 unguarded launches of a script file:
+Altium in front 3 times. Two traps met on the way: a script file with LF line ends does not
+compile ("Error in declaration block at Line:3, Char:53"), and a `FileName` holding a space,
+unquoted, starts a second X2.EXE instead of reaching the running one (the server's exchange
+folder has none).
+Recommended by the run, for the owner's decision: build it, as the first path, with the
+launch per call kept as its fallback. A form unit (about 80 lines) in the bridge's project,
+started by one guarded `RunScript` at a call that finds no window of it; the server checks
+it alive and that no Altium message is open, writes `request.json` as now and, when it is
+not taken within about 1 s, falls back to the launch it does now (which also covers a
+resident ended by a runtime error: `-REditScript:Stop` as now, and the resident started
+again at the next call). Its heartbeat carries the bundle's hash, and a resident of another
+build is told to close (a stop file) and started again, so a new release never serves with
+old code. Gains: about 1.8 s and 0.13 MB per call, and no activation at all for a served
+call (A22's 1 to 7 ms window and A31's gaps go away for those). Costs and risks: re-entrancy
+(a request served inside a modal loop or inside a user's script that pumps messages; the
+server's check before writing covers the first, nothing covers the second), one script
+project in the Projects panel and an off-screen form of Altium's for the session, a
+runtime error still opening the bridge's source in Altium's editor, and a second path to
+test (live tests: it serves, lasts minutes, takes no foreground, falls back once it is
+gone, comes back after a runtime error). A22's guard stays for the launches.
+Decided 2026-11-15 by the owner: build it, as the run recommended (the launch kept as
+the fallback).
+Fix: `server/resident.py` and `server/AltiumScript/Resident/MCPResident.pas` (`.dfm`), and
+`main.py`'s `_hand_over`. The resident project, under `C:\Users\Public\altium_mcp\resident\<tag>\`,
+holds the bridge as script_bundle's one unit (`MCPBridge.pas`) and the form unit, filled
+with its tag and folder; the tag is a hash of their text. Each call writes `request.json`,
+then a `take` file the form deletes (its claim) before it runs the bridge's `Run`; a `take`
+the server can still delete after 1.5 s is a request not claimed, and the call goes by the
+launch as before. The heartbeat is the form's caption, `altium-mcp resident <tag>
+<yyyymmddhhnnss>`, read with `GetWindowText` (no message sent, no file opened); a `stop`
+file closes the form. A call goes by the launch when Altium is not running, an Altium
+message is open or the form is disabled (a modal loop: VCL disables the other forms of the
+thread), this build's form is there with a caption older than 5 s, or two starts failed;
+none of this build alive, it is started (`RunScript` of its project, guarded by A22), the
+residents of other builds told to stop first. `"resident_bridge": false` in `config.json`
+turns it off. `get_server_status` gives `resident_bridge` (tag, the forms, how the last
+call went). The response is looked for every 20 ms for the first 2 s (was 250 ms).
+Found on the way (2026-11-15): (a) Altium gives a script form `WS_EX_APPWINDOW`, so the form
+had a taskbar button of its own; hidden by the form after its script ended, it was still
+freed (every call then started it again), so the server changes its styles (off
+`WS_EX_APPWINDOW`, on `WS_EX_TOOLWINDOW`) and removes its button (`ITaskbarList::DeleteTab`).
+(b) With the bridge's own units in the project, `create_symbols_batch` and
+`create_schematic_symbol` failed: "Undeclared identifier: SchLibIsFocused" (an Error box,
+the form's timer stopped for good, freed by the timeout's `-REditScript:Stop`): a script
+project compiles each unit in order, and `schematic_utils.pas` calls `SchLibIsFocused`
+above its definition. The bundle orders routines, so the resident runs the bundle. The
+launch's own fallback (the project, when bundling fails) has the same fault; not changed.
+(c) While Altium's UI thread is busy (opening the 16-layer example board, 18 s) the
+caption goes stale and one call went by the launch, the next by the resident again. (d)
+`-REditScript:Stop` with nothing stopped (the sandbox's recovery) left the form alive.
+Live test `tests/test_live_resident.py` (5): calls after the first served with no launch,
+under 0.6 s; the form off the taskbar and Alt+Tab; a request not claimed goes by the launch
+and the resident stays; a resident of another build replaced; five served calls with
+Altium never in front (`_Watch`: 0 times). With `resident_bridge` off, 2 of them fail
+("'launch' != 'start'", "'launch' != 'resident'"). Measured: start 2.0 to 2.5 s, then
+median 0.11 s per call (was about 2.0 s). `test_live_windows`'s A24 tests run their own
+script by a launch (resident off in the test). All live modules, 55 tests, through the
+resident (114 calls taken by it, the A24 tests' 7 by launch): 54 passed, the one failure
+the replacement test's own (a blank line did not change the bundle; it now adds a
+routine), then 5/5. Offline: `tests/test_resident.py` (23); 415 OK.
+Found after the release (2026-11-15): the tag hashes the files' bytes before the line ends
+are made CRLF, so the release copy (`git archive`) and this checkout, at the same commit,
+give two tags (`0fd9980a5570`, `a4ea8490f7f3`): a live test from the checkout and a session
+on the release, on one Altium, close each other's resident and start their own (2 s and one
+launch each time). Hash the text after the CRLF step. Not changed yet.
+Fixed in `f1b1559`. Local: on `ad25`, released in `build-20261115-114630`. Upstream: not yet
+decided.
+Closed: the scenario test of that build held (2026-11-15, first entry, 1): the first
+call started the resident (2.92 s), and the 26 bridge requests after it were taken by it
+in 0.015 to 0.14 s with no launch, the results the same as before on every tool used
+(reads, `run_drc`, the edit and silkscreen scenarios on a copy); the form stayed off the
+taskbar, outlived a `run_altium_script` recovery and a message answered by hand, and the
+tools reported the design project, not the resident's. What is left: A34 (a), (b) and
+(d) (the tag hashed before the CRLF step; Altium briefly in front at the first board
+call and after a pressed button; `run_altium_script` still a launch) and A31 (the
+resident's start and that launch kept Altium in front 1.5 to 2.9 s with no foreground
+event).

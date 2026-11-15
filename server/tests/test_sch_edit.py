@@ -53,6 +53,10 @@ class EncodeTest(unittest.TestCase):
         self.assertEqual(one({"op": "place_component", "library": "C:\\lib\\R.SchLib", "symbol": "RES",
                               "designator": "R9", "x": 1, "y": 2, "rotation": 270}),
                          "PLACE|R9|C:\\lib\\R.SchLib|RES|10000|20000|3|0|")
+        # a part from an integrated library goes the same way (A15)
+        self.assertEqual(one({"op": "place_component", "library": "C:\\lib\\Parts.IntLib", "symbol": "RES",
+                              "designator": "R9", "x": 1, "y": 2, "mirror": True, "comment": "10k"}),
+                         "PLACE|R9|C:\\lib\\Parts.IntLib|RES|10000|20000|0|1|10k")
 
     def test_errors_name_the_operation(self):
         cases = [
@@ -65,8 +69,8 @@ class EncodeTest(unittest.TestCase):
             ({"op": "set_parameter", "designator": "R1", "name": "Value", "value": "a|b"}, "'|'"),
             ({"op": "add_wire", "points": [[0, 0]]}, "at least two"),
             ({"op": "delete_at", "kind": "pin", "x": 0, "y": 0}, "kind is one of"),
-            ({"op": "place_component", "library": "x.IntLib", "symbol": "R", "designator": "R1",
-              "x": 0, "y": 0}, ".SchLib"),
+            ({"op": "place_component", "library": "x.PcbLib", "symbol": "R", "designator": "R1",
+              "x": 0, "y": 0}, ".SchLib or .IntLib"),
         ]
         for op, expected in cases:
             lines, err = encode_operations([{"op": "add_junction", "x": 0, "y": 0}, op])

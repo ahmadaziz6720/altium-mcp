@@ -298,7 +298,8 @@ unasked, and ending and restarting `X2.EXE` when Altium hangs.
   priority (A38), A37 to A39 new (Open). Stopped once by the 5-hour usage limit after 67
   turns and resumed with the same id (32 turns more). Then the run stopped after group 4 on
   the owner's word of 2026-11-15, to go on in a new session from A15.
-- [ ] A15: committed (or left Open, why written into it)
+- [x] A15: committed (split: A15 (a) done as A40, in Waiting; A15 (b), the supplier lookup
+  and vendor import, stays Open by the plan)
 - [ ] A8: committed (or left Open, why written into it)
 - [ ] group 5: offline and live tests, pushed, released (build: …)
 - [ ] group 5: scenario test (session id: …), entry committed and sorted, release page
@@ -391,6 +392,12 @@ datasheet with the symbol and footprint tools, unchecked against a vendor's mode
 `.IntLib` parts in `build_schematic`, the DbLib search as a tool, a supplier lookup that
 fills the part number parameters, and an import of a vendor's downloaded symbol and
 footprint worth a look.
+Split 2026-11-15 by the run: `.IntLib` parts in `build_schematic` and `place_component`
+and the DbLib search as a tool are done, as A40 (A15 (a)) in Waiting. What stays Open here
+is A15 (b): the supplier lookup that fills the part number parameters (Altium's
+Manufacturer Part Search, a content vault, a supplier's catalogue such as LCSC's) and the
+import of a vendor's downloaded symbol and footprint. Not in the run of 2026-11-14 by its
+plan: an outside service and its terms are the owner's call.
 
 **A23. `get_unrouted_connections` read by net names no pad.** With `nets` only, the
 connections come with `from_pad` and `to_pad` null even where an end is a pad's centre;
@@ -599,6 +606,77 @@ Scenario test of that build held (2026-11-12, third entry, 2): 38 rules, the sco
 `filter2` only on binary rules. The reply went from 9.3k to 8.5k characters only (about
 9 %): what is left is mostly the key names and indentation repeated on every rule.
 Waits for the upstream PR.
+
+**A40. A15 (a), parts from an `.IntLib` and the DbLib search as a tool.** `build_schematic`
+and `edit_schematic`'s `place_component` refused any library but a `.SchLib`, in Python,
+before Altium was called: the bridge placed a part by opening its library as a document and
+copying the symbol, and a symbol inside an `.IntLib` cannot be opened that way. A `.DbLib`'s
+database could be searched only with `dev/db_search.py`, a command line, not a tool. (The
+review of 2026-11-12, A15; split from it by the run.) Local.
+Fix: `server/AltiumScript/schematic_utils.pas`, `PlaceIntLibComponent`: a part from an
+`.IntLib` is placed by Altium's own `IntegratedLibraryManager.PlaceLibraryComponent` (library
+reference, path, `Designator|Orientation|Location.X|Location.Y`), which places it on the
+schematic in front, so the sheet is brought to the front first; it returns no object, so the
+part is placed under a designator no part has, found by it, and then given its designator,
+mirror, exact place and comment as a `.SchLib` part is. `BuildCircuitFromSpec` (a `PART`
+record) and `PlaceSchComponent` (edit's `PLACE`) take that way for an `.IntLib` path; a part
+not in the library (`PlaceLibraryComponent` returns False) is reported as a missing part or
+an operation's error, as from a `.SchLib`. The Design Item ID, which links the part to its
+entry in the library, is kept unless `design_item_id` is given. `server/main.py` and
+`server/sch_edit.py` accept `.SchLib` or `.IntLib`. New `server/dblib.py`, the search from
+`dev/db_search.py` made a module: the DbLib's tables and part-number field (`Key=` or
+`UserWhereText`), its connection string (a relative Data Source resolved against the
+DbLib's folder), one SELECT at a time through OLE DB (anything else refused, names and
+terms quoted, LIKE wildcards in a term taken literally), a failed query reported with the
+database's message; a match names its symbol and footprint by the DbLib's own field
+mappings (`[Library Ref]`, `[Footprint Ref]`, ...) or by column name. New tools
+`search_dblib` (term, or a part number giving all its fields; read-only, needs no Altium)
+and `get_installed_libraries` (bridge command `get_installed_libraries`, from
+`IntegratedLibraryManager.InstalledLibraryPath`; `search_dblib` with no path takes the one
+DbLib installed). `dev/db_search.py` is now a command line over `server/dblib.py`. README's
+tool list updated.
+Test before: `tests/test_live_libraries.py` (`ALTIUM_LIVE=1`, AD25; an `.IntLib` compiled by
+Altium in a temporary folder from copies of the SpiritLevel-SL1 example's libraries, and a
+copy of the Atmel QTouch `.IntLib` Altium ships) failed 4 of 4 on the old code:
+`build_schematic` gave `symbol_library must be the full path of an existing .SchLib file
+(integrated libraries such as .IntLib are not supported)`, `edit_schematic` gave
+`operation 1: library must be the full path of a .SchLib file`, and
+`main.get_installed_libraries` did not exist.
+After: `test_live_libraries` 5/5 (a sheet built from two `.IntLib`s and a `.SchLib`, each
+part read back through Altium with its library reference, library name, Design Item ID,
+place, rotation, mirror and comment, and the `.IntLib` part's footprints equal to the
+symbol's in the library it was compiled from; a part missing from an `.IntLib` reported;
+`place_component` from both `.IntLib`s with a missing one reported, saved and read back
+from the reopened file; one undo takes back an edit that placed an `.IntLib` part and a
+wire; `get_installed_libraries` equal to Altium's list, a library installed by the test
+listed as `IntLib` and gone once uninstalled). The live tests of the tools touched:
+`test_live_project_setup.LiveProjectTest` 4/4 and `test_live_symbol_footprint` 9/9. Offline
+533 OK (was 519): new `tests/test_dblib.py` 14 (its 4 database tests search CSV files
+through the Access database engine's text driver, skipped where it is not installed, as on
+CI), `test_sch_edit` with an `.IntLib` placed and a `.PcbLib` refused; `tests.test_dblib`
+added to `.github/workflows/tests.yml`.
+Decided 2026-11-15 by the run, not the owner: the done part carries the code A40 and names
+A15 (a) in its title, A15 staying Open for (b), because a code can head one item only
+(`board.py --check`), as A34 (a) became A35.
+Decided 2026-11-15 by the run, not the owner: an `.IntLib` part is placed by
+`PlaceLibraryComponent`, not by extracting the library's symbols to a `.SchLib` and copying
+from there, because Altium then links the part as it links one it places itself (Design
+Item ID, library name, the library's models) and no extracted copy is left on disk. Altium
+sets the placed part's library path to `*` and its library name to the file's name; the
+tool keeps both.
+Decided 2026-11-15 by the run, not the owner: `get_installed_libraries` added, not named in
+the item, because `dev/db_search.py` found the DbLib among Altium's installed libraries
+when none was given, and a caller has no other way to learn the path of an installed
+`.IntLib` to place from; one read-only call.
+Decided 2026-11-15 by the run, not the owner: a database query that fails is an error with
+the database's message, where `dev/db_search.py` printed it and returned no rows, because
+no rows from a failed query read as "no such part".
+Decided 2026-11-15 by the run, not the owner: the live test compiles its `.IntLib` from the
+example's libraries and uninstalls it again (Altium installs a library it compiles),
+because the `.IntLib`s AD25 installs carry no footprints to read back.
+Fixed in the commit that moves it here.
+Local: on `ad25`, in the commit that moves it here; not yet in a build. Upstream: not yet
+decided.
 
 ## Closed
 

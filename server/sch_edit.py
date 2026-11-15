@@ -139,8 +139,8 @@ def encode_operations(operations: list, unit: str = "mil") -> Tuple[List[str], s
                                        _text(op.get("text", ""), "text")]))
             elif kind == "place_component":
                 lib = _text(op["library"], "library")
-                if not lib.lower().endswith(".schlib"):
-                    raise OpError("library must be the full path of a .SchLib file")
+                if not lib.lower().endswith((".schlib", ".intlib")):
+                    raise OpError("library must be the full path of a .SchLib or .IntLib file")
                 lines.append("|".join(["PLACE", _text(op["designator"], "designator"), lib,
                                        _text(op["symbol"], "symbol"), c(op["x"]), c(op["y"]),
                                        _rotation(op.get("rotation", 0)), "1" if op.get("mirror") else "0",

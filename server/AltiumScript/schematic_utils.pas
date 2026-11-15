@@ -1927,6 +1927,59 @@ begin
     Comp.SchIterator_Destroy(Iter);
 end;
 
+// Whether a library path names an integrated library (.IntLib)
+function IsIntLibPath(LibPath: String): Boolean;
+begin
+    Result := UpperCase(ExtractFileExt(LibPath)) = '.INTLIB';
+end;
+
+// Place a part from an integrated library (.IntLib) on Doc at X, Y
+// (internal units) and return it, or nil with Msg saying why. A symbol in
+// an .IntLib cannot be opened as a document; Altium's
+// IntegratedLibraryManager.PlaceLibraryComponent places it as the
+// Components panel does, linked to the library (Design Item ID, the
+// library's name) with the models it holds, on the schematic in front, so
+// Doc is brought to the front first. It returns no object: the part is
+// placed under a designator no part has and found by it.
+function PlaceIntLibComponent(Doc: ISch_Document; LibPath, LibRef: String; X, Y, Orientation: Integer;
+                              var Msg: String): ISch_Component;
+var
+    ServerDoc : IServerDocument;
+    Front     : ISch_Document;
+    Iterator  : ISch_Iterator;
+    Prim      : ISch_GraphicalObject;
+    Tag       : String;
+begin
+    Result := nil;
+    Tag := '#AMCP-PLACING#';
+    ServerDoc := Client.GetDocumentByPath(Doc.DocumentName);
+    if ServerDoc <> nil then Client.ShowDocument(ServerDoc);
+    Front := SchServer.GetCurrentSchDocument;
+    if (Front = nil) or (UpperCase(Front.DocumentName) <> UpperCase(Doc.DocumentName)) then
+    begin
+        Msg := 'could not bring the sheet to the front to place ' + LibRef + ' from ' + LibPath;
+        Exit;
+    end;
+    if not IntegratedLibraryManager.PlaceLibraryComponent(LibRef, LibPath,
+        'Designator=' + Tag + '|Orientation=' + IntToStr(Orientation) +
+        '|Location.X=' + IntToStr(X) + '|Location.Y=' + IntToStr(Y)) then
+    begin
+        Msg := LibRef + ' not found in ' + LibPath;
+        Exit;
+    end;
+    Iterator := Doc.SchIterator_Create;
+    Iterator.AddFilter_ObjectSet(MkSet(eSchComponent));
+    Prim := Iterator.FirstSchObject;
+    while Prim <> nil do
+    begin
+        if Prim.Designator.Text = Tag then Result := Prim;
+        Prim := Iterator.NextSchObject;
+    end;
+    Doc.SchIterator_Destroy(Iterator);
+    if Result = nil then
+        Msg := 'Altium reported ' + LibRef + ' placed from ' + LibPath + ', but it is not on the sheet';
+end;
+
 function BuildCircuitFromSpec(SpecPath: String; PlacementPath: String): String;
 var
     Spec, Placement, PinMap : TStringList;
@@ -1935,7 +1988,7 @@ var
     Iter, ChildIter : ISch_Iterator;
     Prim, Param, Obj : ISch_GraphicalObject;
     Impl : ISch_Implementation;
-    Rec, Kind, CurLib, PName, PVal, Adopted, Missing, Ok : String;
+    Rec, Kind, CurLib, PName, PVal, Adopted, Missing, Ok, Msg : String;
     Proj : IProject;
     i, fld, vtx, PartCount, GfxCount, PinCount : Integer;
     HotX, HotY : Integer;
@@ -2001,7 +2054,37 @@ begin
         Rec := Spec[i];
         Kind := GetFieldFromPipeString(Rec, 0);
 
-        if (Kind = 'PART') then
+        if (Kind = 'PART') and IsIntLibPath(GetFieldFromPipeString(Rec, 2)) then
+        begin
+            Replica := PlaceIntLibComponent(TargetDoc, GetFieldFromPipeString(Rec, 2),
+                GetFieldFromPipeString(Rec, 3), StrToInt(GetFieldFromPipeString(Rec, 5)),
+                StrToInt(GetFieldFromPipeString(Rec, 6)), StrToInt(GetFieldFromPipeString(Rec, 7)), Msg);
+            // The sheet is in front now, not the library CurLib names
+            CurLib := '';
+            if (Replica = nil) then
+            begin
+                Comp := nil;
+                if (Missing <> '') then Missing := Missing + ', ';
+                Missing := Missing + '"' + JSONEscapeString(GetFieldFromPipeString(Rec, 1) + ': ' + Msg) + '"';
+            end
+            else
+            begin
+                Replica.Designator.Text := GetFieldFromPipeString(Rec, 1);
+                // The Design Item ID is what links the part to its entry in
+                // the IntLib: kept unless one is given
+                if (GetFieldFromPipeString(Rec, 4) <> '') then
+                    Replica.DesignItemID := GetFieldFromPipeString(Rec, 4);
+                if (GetFieldFromPipeString(Rec, 8) = '1') then
+                    Replica.Mirror(Replica.Location);
+                Replica.MoveByXY(
+                    StrToInt(GetFieldFromPipeString(Rec, 5)) - Replica.Location.X,
+                    StrToInt(GetFieldFromPipeString(Rec, 6)) - Replica.Location.Y);
+                Comp := Replica;
+                PartCount := PartCount + 1;
+            end;
+        end
+
+        else if (Kind = 'PART') then
         begin
             if (GetFieldFromPipeString(Rec, 2) <> CurLib) then
             begin
@@ -3353,8 +3436,8 @@ begin
     end;
 end;
 
-// Place a symbol from a .SchLib on Doc. Opening the library makes it the
-// current document, so Doc is held by reference throughout.
+// Place a symbol from a .SchLib or an .IntLib on Doc. Opening a .SchLib
+// makes it the current document, so Doc is held by reference throughout.
 function PlaceSchComponent(Doc: ISch_Document; Rec: String; var Msg: String): Boolean;
 var
     LibDoc   : ISch_Document;
@@ -3368,6 +3451,21 @@ begin
     if not FileExists(LibPath) then
     begin
         Msg := 'library not found: ' + LibPath;
+        Exit;
+    end;
+    if IsIntLibPath(LibPath) then
+    begin
+        Replica := PlaceIntLibComponent(Doc, LibPath, GetFieldFromPipeString(Rec, 3),
+            StrToInt(GetFieldFromPipeString(Rec, 4)), StrToInt(GetFieldFromPipeString(Rec, 5)),
+            StrToInt(GetFieldFromPipeString(Rec, 6)), Msg);
+        if Replica = nil then Exit;
+        Replica.Designator.Text := GetFieldFromPipeString(Rec, 1);
+        if GetFieldFromPipeString(Rec, 7) = '1' then
+            Replica.Mirror(Replica.Location);
+        Replica.MoveByXY(StrToInt(GetFieldFromPipeString(Rec, 4)) - Replica.Location.X,
+                         StrToInt(GetFieldFromPipeString(Rec, 5)) - Replica.Location.Y);
+        if GetFieldFromPipeString(Rec, 8) <> '' then Replica.Comment.Text := GetFieldFromPipeString(Rec, 8);
+        Result := True;
         Exit;
     end;
     OpenLibraryDocument('SchLib', LibPath);

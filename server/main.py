@@ -2462,10 +2462,14 @@ async def build_schematic(ctx: Context, parts: list, wires: list = None,
 
     Args:
         parts: component dicts. Required keys: designator, symbol_library
-            (full path of a .SchLib file; .IntLib is not supported),
-            symbol, x, y (mils). Optional: design_item_id, orientation (0-3),
-            mirror (0/1), comment, description, footprint,
-            parameters ({name: value}).
+            (full path of a .SchLib or an .IntLib file; get_installed_libraries
+            lists the libraries Altium has installed), symbol (the library
+            reference), x, y (mils). Optional: design_item_id, orientation
+            (0-3), mirror (0/1), comment, description, footprint,
+            parameters ({name: value}). A part from an .IntLib is placed by
+            Altium as from its Components panel: linked to the library by its
+            Design Item ID (the library reference unless design_item_id is
+            given), with the footprints and other models the library holds.
         wires: each a flat list of alternating x,y in mils, e.g.
             [3900, 3000, 5300, 3000, 5300, 4900] - two segments, three points.
         junctions: [{"x":..,"y":..}] - only where 3+ branches actually meet.
@@ -2532,15 +2536,14 @@ async def build_schematic(ctx: Context, parts: list, wires: list = None,
         for name, val in (p.get("parameters") or {}).items():
             lines.append(f"PARAM|{name}|{val}")
 
-    # The bridge can only read .SchLib files, and asked to open a path that
-    # does not exist Altium creates an empty library of that name instead -
-    # which used to give an empty sheet reported as success (issue #19)
+    # Asked to open a path that does not exist Altium creates an empty
+    # library of that name instead - which used to give an empty sheet
+    # reported as success (issue #19)
     for lib in sorted({str(p["symbol_library"]) for p in parts}):
-        if not lib.lower().endswith(".schlib") or not os.path.isfile(lib):
+        if not lib.lower().endswith((".schlib", ".intlib")) or not os.path.isfile(lib):
             return json.dumps({"success": False,
                                "error": "symbol_library must be the full path of an existing "
-                                        ".SchLib file (integrated libraries such as .IntLib "
-                                        f"are not supported): {lib}"})
+                                        f".SchLib or .IntLib file: {lib}"})
 
     for route in (wires or []):
         if len(route) < 4 or len(route) % 2:
@@ -2622,8 +2625,10 @@ async def edit_schematic(ctx: Context, sheet_path: str, operations: list, unit: 
       move_component    designator, [part], [x, y], [rotation 0/90/180/270],
                         [mirror true/false]. x, y is the part's origin.
       delete_component  designator, [part]
-      place_component   library (.SchLib path), symbol, designator, x, y,
-                        [rotation], [mirror], [comment]
+      place_component   library (.SchLib or .IntLib path), symbol,
+                        designator, x, y, [rotation], [mirror], [comment]
+                        (an .IntLib part is linked to its library by its
+                        Design Item ID and carries the library's models)
       set_parameter     designator, name, value, [part], [visible]
                         (creates the parameter when missing)
       move_text         designator, name ("Designator", "Comment" or a
@@ -6989,6 +6994,103 @@ async def _bridge_json(command: str, params: dict, timeout: Optional[float] = No
     if not isinstance(result, dict):
         return None, f"unexpected reply: {str(result)[:300]}"
     return result, ""
+
+
+async def _installed_libraries() -> Tuple[Optional[list], str]:
+    """([{path, kind, exists}], "") of the libraries Altium has installed, or
+    (None, error)."""
+    result, error = await _bridge_json("get_installed_libraries", {})
+    if error:
+        return None, error
+    libs = []
+    for path in result.get("installed") or []:
+        ext = os.path.splitext(path)[1].lstrip(".")
+        libs.append({"path": path, "kind": ext or "unknown", "exists": os.path.isfile(path)})
+    return libs, ""
+
+
+@_tool(read_only=True)
+async def get_installed_libraries(ctx: Context) -> str:
+    """
+    List the libraries installed in Altium (the Components panel's installed
+    libraries), in Altium's order. Read-only.
+
+    Use it to find the full path of an integrated library (.IntLib) to place
+    parts from with build_schematic or edit_schematic's place_component, or
+    of a database library (.DbLib) to search with search_dblib.
+
+    Returns:
+        str: JSON with success and installed [{path, kind ("IntLib", "SchLib",
+             "PcbLib", "DbLib", ... from the file extension), exists (the
+             file is there)}].
+    """
+    libs, error = await _installed_libraries()
+    if error:
+        return json.dumps({"success": False, "error": f"Failed to list the installed libraries: {error}"})
+    return json.dumps({"success": True, "installed": libs}, indent=2, ensure_ascii=False)
+
+
+@_tool(read_only=True)
+async def search_dblib(ctx: Context, dblib_path: str = "", term: str = "", part_number: str = "",
+                       table: str = "", all_tables: bool = False, max_rows: int = 20) -> str:
+    """
+    Search the component database behind an Altium database library (.DbLib).
+    Read-only: only SELECT statements are sent, through the connection string
+    the .DbLib holds (OLE DB; the database's provider, such as Access's, must
+    be installed). Needs no Altium, but to find an installed DbLib.
+
+    Altium's API cannot list a DbLib's parts, so the database is queried
+    directly, by default in the tables the DbLib enables (the ones Altium
+    places parts from).
+
+    Args:
+        dblib_path (str): Full path of the .DbLib. Empty: the one DbLib
+            installed in Altium (get_installed_libraries lists them; with
+            several, give one).
+        term (str): Text to find in a part's description, comment, value,
+            manufacturer, class or category, or its part numbers (the DbLib's
+            part-number field and any column named like a part number).
+        part_number (str): Look one part up by the DbLib's part-number field
+            (its tables' Key= or UserWhereText); all its fields are returned.
+        table (str): Search this table only.
+        all_tables (bool): Search the tables the DbLib does not enable too.
+        max_rows (int): Matches returned per table (default 20).
+        With neither term nor part_number, the DbLib's tables are listed.
+
+    Returns:
+        str: JSON with success, dblib, part_number_field, tables [{name,
+             enabled, key}], and for term: searched_tables, match_count,
+             matches [{table, part_number, description, comment, value,
+             manufacturer, manufacturer_part_number, library_ref,
+             library_path, footprint_ref, footprint_path}] (the fields the
+             row has, by column name), a note when a table reached max_rows;
+             for part_number: part {table, fields} or null with a note.
+    """
+    import dblib
+
+    if not 1 <= int(max_rows) <= 500:
+        return json.dumps({"success": False, "error": "max_rows must be 1..500"})
+    if term and part_number:
+        return json.dumps({"success": False, "error": "give term or part_number, not both"})
+    if not dblib_path:
+        libs, error = await _installed_libraries()
+        if error:
+            return json.dumps({"success": False, "error": "No dblib_path given, and the DbLibs installed in "
+                                                          f"Altium could not be listed: {error}"})
+        found = [lib["path"] for lib in libs if lib["kind"].lower() == "dblib" and lib["exists"]]
+        if len(found) != 1:
+            return json.dumps({"success": False,
+                               "error": ("No dblib_path given and no DbLib is installed in Altium" if not found
+                                         else "No dblib_path given and several DbLibs are installed in Altium: "
+                                              "give one as dblib_path"),
+                               "installed_dblibs": found})
+        dblib_path = found[0]
+    try:
+        out = await asyncio.to_thread(dblib.search, Path(long_path(dblib_path)), term, part_number, table,
+                                      bool(all_tables), int(max_rows))
+    except (dblib.DbLibError, OSError) as e:
+        return json.dumps({"success": False, "error": str(e)})
+    return json.dumps(out, indent=2, ensure_ascii=False)
 
 
 @_tool(read_only=True)

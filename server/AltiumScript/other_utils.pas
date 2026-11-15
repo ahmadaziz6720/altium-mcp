@@ -454,6 +454,7 @@ begin
        (CommandName = 'create_footprints_batch') or
        (CommandName = 'create_pcb_footprint') or
        (CommandName = 'get_project_info') or
+       (CommandName = 'get_installed_libraries') or
        (CommandName = 'get_project_components') or
        (CommandName = 'get_erc_violations') or
        (CommandName = 'create_project') or
@@ -1469,6 +1470,28 @@ begin
         2: Result := 'alternate';
     else
         Result := 'kind_' + IntToStr(Kind);
+    end;
+end;
+
+// The libraries installed in Altium (Components panel, Libraries, Installed),
+// in Altium's order: {"installed": [path, ...]}
+function GetInstalledLibraries(Dummy: Integer): String;
+var
+    IntMan : IIntegratedLibraryManager;
+    Items, Props : TStringList;
+    i : Integer;
+begin
+    IntMan := IntegratedLibraryManager;
+    Items := TStringList.Create;
+    Props := TStringList.Create;
+    try
+        for i := 0 to IntMan.InstalledLibraryCount - 1 do
+            Items.Add('"' + JSONEscapeString(IntMan.InstalledLibraryPath(i)) + '"');
+        Props.Add(BuildJSONArray(Items, 'installed'));
+        Result := BuildJSONObject(Props);
+    finally
+        Items.Free;
+        Props.Free;
     end;
 end;
 

@@ -493,6 +493,7 @@ begin
        (CommandName = 'create_polygon_pour')                 or
        (CommandName = 'create_cutout')                       or
        (CommandName = 'set_board_outline')                   or
+       (CommandName = 'set_layer_stack')                     or
        (CommandName = 'board_layer_shapes')                  or
        (CommandName = 'get_component_primitives')            then
     begin

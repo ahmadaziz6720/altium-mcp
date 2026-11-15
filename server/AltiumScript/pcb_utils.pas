@@ -939,7 +939,8 @@ end;
 // layers and dielectric layers (cores, prepregs, solder masks) are entries of
 // their own. A copper layer's .Dielectric, which this read before, is empty
 // on AD25, so every dielectric was missing from the list and the thickness.
-// Overlay and paste layers carry no thickness and are left out.
+// Overlay and paste layers carry no thickness and are left out. A copper
+// layer's copper_type is Signal or Plane.
 function GetPCBLayerStackup(ROOT_DIR): String;
 var
     Board           : IPCB_Board;
@@ -1012,6 +1013,11 @@ begin
                     AddJSONProperty(LayerProps, 'layer_name', LayerObj.Name);
                     AddJSONProperty(LayerProps, 'layer_id', Layer2String(LayerObj.LayerID));
                     AddJSONProperty(LayerProps, 'material_type', 'Copper');
+                    // Internal Plane 1 to 16 are layers 39 to 54
+                    if (LayerObj.LayerID >= 39) and (LayerObj.LayerID <= 54) then
+                        AddJSONProperty(LayerProps, 'copper_type', 'Plane')
+                    else
+                        AddJSONProperty(LayerProps, 'copper_type', 'Signal');
                     AddJSONNumber(LayerProps, 'copper_thickness_mils', LayerObj.CopperThickness / 10000);
                     AddJSONNumber(LayerProps, 'copper_thickness_um', LayerObj.CopperThickness * 0.00254);
                     AddJSONInteger(LayerProps, 'layer_order', StackupArray.Count + 1);
@@ -1081,6 +1087,351 @@ begin
     finally
         StackupArray.Free;
         DielectricIDs.Free;
+        CopperIDs.Free;
+    end;
+end;
+
+// A layer id as compared: Layer2String gives 'Mid Layer 1', a layer's name
+// 'Mid-Layer 1'
+function StackIdKey(S: String): String;
+begin
+    Result := UpperCase(Trim(StringReplace(S, '-', ' ', REPLACEALL)));
+end;
+
+// The copper layer of Stack whose Layer2String is Id, or nil
+function StackCopperById(Stack: IPCB_LayerStack_V7; Id: String): IPCB_LayerObject_V7;
+var
+    L     : IPCB_LayerObject_V7;
+    Guard : Integer;
+begin
+    Result := nil;
+    L := Stack.First(eLayerClass_Electrical);
+    Guard := 0;
+    while (L <> nil) and (Result = nil) and (Guard < 1000) do
+    begin
+        if StackIdKey(Layer2String(L.LayerID)) = StackIdKey(Id) then
+            Result := L;
+        L := Stack.Next(eLayerClass_Electrical, L);
+        Guard := Guard + 1;
+    end;
+end;
+
+// The board's primitives on Layer, components' included
+function StackLayerObjectCount(Board: IPCB_Board; Layer: Integer): Integer;
+var
+    Iterator : IPCB_BoardIterator;
+    Prim     : IPCB_Primitive;
+begin
+    Result := 0;
+    Iterator := Board.BoardIterator_Create;
+    try
+        Iterator.AddFilter_ObjectSet(AllObjects);
+        Iterator.AddFilter_LayerSet(MkSet(Layer));
+        Iterator.AddFilter_Method(eProcessAll);
+        Prim := Iterator.FirstPCBObject;
+        while Prim <> nil do
+        begin
+            if Prim.Layer = Layer then
+                Result := Result + 1;
+            Prim := Iterator.NextPCBObject;
+        end;
+    finally
+        Board.BoardIterator_Destroy(Iterator);
+    end;
+end;
+
+// The N-th (0-based) copper or dielectric layer of Stack, top to bottom
+function StackEntry(Stack: IPCB_LayerStack_V7; CopperIDs, DielIDs: TStringList; N: Integer): IPCB_LayerObject_V7;
+var
+    L     : IPCB_LayerObject_V7;
+    I     : Integer;
+    Guard : Integer;
+begin
+    Result := nil;
+    I := 0;
+    L := Stack.First(eLayerClass_Physical);
+    Guard := 0;
+    while (L <> nil) and (Result = nil) and (Guard < 1000) do
+    begin
+        if (CopperIDs.IndexOf(IntToStr(L.V7_LayerID.ID)) >= 0) or
+           (DielIDs.IndexOf(IntToStr(L.V7_LayerID.ID)) >= 0) then
+        begin
+            if I = N then
+                Result := L;
+            I := I + 1;
+        end;
+        L := Stack.Next(eLayerClass_Physical, L);
+        Guard := Guard + 1;
+    end;
+end;
+
+// set_layer_stack: the focused board's layer stack from Spec, records joined
+// by ';' (layer_stack.py's encode): R|<layer id> removes a copper layer,
+// A|S|<id> or A|P|<id> adds a signal layer or a plane above copper layer
+// <id>, then one record per copper and dielectric layer of the stack as it
+// is after those, top to bottom: C|<name>|<thickness> and
+// D|<name>|<type>|<material>|<height>|<constant x10000>, lengths in internal
+// units, an empty field left as it is. Altium removes a copper layer with the
+// dielectric beside it and adds one with a new dielectric.
+// Checked before anything changes: a layer to remove that holds primitives
+// (they would stay on a layer that is not in the stack) or, a plane, a net,
+// is a U|<id>|<name>|<objects>|<net> record and nothing is changed; so is a
+// layer that is not on the board (X|<why>). With DryRun only the checks run.
+// Else: S|<layers added and removed>, K|<values changed>, M|<1 when the
+// document is modified>, F|<file>; the board is marked modified when
+// anything changed. Values equal to the board's are not written.
+function SetLayerStack(Spec: String; DryRun: Boolean): String;
+var
+    Board      : IPCB_Board;
+    Stack      : IPCB_LayerStack_V7;
+    L          : IPCB_LayerObject_V7;
+    Recs       : TStringList;
+    Lines      : TStringList;
+    Entries    : TStringList;
+    DielIDs    : TStringList;
+    CopperIDs  : TStringList;
+    Rec, Kind  : String;
+    Field      : String;
+    NetName    : String;
+    I, N, Guard: Integer;
+    Objects    : Integer;
+    Structural : Integer;
+    Changed    : Integer;
+    Refused    : Boolean;
+    Stopped    : Boolean;
+    Doc        : IServerDocument;
+begin
+    Board := GetBoardSafe(0);
+    if Board = nil then
+    begin
+        Result := 'ERROR: No PCB document is focused';
+        Exit;
+    end;
+    Stack := Board.LayerStack_V7;
+    if Board.MasterLayerStack.SubstackCount <> 1 then
+    begin
+        Result := 'ERROR: the board has ' + IntToStr(Board.MasterLayerStack.SubstackCount) +
+                  ' layer stacks (rigid-flex); this sets a board with one';
+        Exit;
+    end;
+    Recs := TStringList.Create;
+    Lines := TStringList.Create;
+    Entries := TStringList.Create;
+    DielIDs := TStringList.Create;
+    CopperIDs := TStringList.Create;
+    try
+        Recs.Text := StringReplace(Spec, ';', #13#10, REPLACEALL);
+        Refused := False;
+
+        // The checks, before anything changes
+        for I := 0 to Recs.Count - 1 do
+        begin
+            Rec := Recs[I];
+            Kind := GetFieldFromPipeString(Rec, 0);
+            if Kind = 'R' then
+            begin
+                L := StackCopperById(Stack, GetFieldFromPipeString(Rec, 1));
+                if L = nil then
+                begin
+                    Lines.Add('X|' + GetFieldFromPipeString(Rec, 1) + ' is not a copper layer of the board');
+                    Refused := True;
+                end
+                else
+                begin
+                    Objects := StackLayerObjectCount(Board, L.LayerID);
+                    NetName := '';
+                    // Internal Plane 1 to 16 are layers 39 to 54
+                    if (L.LayerID >= 39) and (L.LayerID <= 54) then
+                    begin
+                        NetName := L.NetName;
+                        if NetName = '(No Net)' then NetName := '';
+                    end;
+                    // Counted, not UsedByPrims: that stays True after the layer's
+                    // objects are deleted
+                    if (Objects > 0) or (NetName <> '') then
+                    begin
+                        Lines.Add('U|' + Layer2String(L.LayerID) + '|' + L.Name + '|' + IntToStr(Objects) + '|' + NetName);
+                        Refused := True;
+                    end;
+                end;
+            end
+            else if Kind = 'A' then
+            begin
+                if StackCopperById(Stack, GetFieldFromPipeString(Rec, 2)) = nil then
+                begin
+                    Lines.Add('X|' + GetFieldFromPipeString(Rec, 2) + ' is not a copper layer of the board');
+                    Refused := True;
+                end;
+            end;
+        end;
+        if Refused or DryRun then
+        begin
+            Lines.Add('F|' + Board.FileName);
+            Result := Lines.Text;
+            Exit;
+        end;
+
+        Structural := 0;
+        Changed := 0;
+        Stopped := False;
+        PCBServer.PreProcess;
+        try
+            for I := 0 to Recs.Count - 1 do
+            begin
+                Rec := Recs[I];
+                Kind := GetFieldFromPipeString(Rec, 0);
+                if Stopped then
+                    Kind := '';
+                if Kind = 'R' then
+                begin
+                    Stack.RemoveFromStack(StackCopperById(Stack, GetFieldFromPipeString(Rec, 1)));
+                    Structural := Structural + 1;
+                end
+                else if Kind = 'A' then
+                begin
+                    if GetFieldFromPipeString(Rec, 1) = 'P' then
+                        L := Stack.FirstAvailableInternalPlane
+                    else
+                        L := Stack.FirstAvailableSignalLayer;
+                    if L = nil then
+                    begin
+                        Lines.Add('X|Altium has no free layer of that kind left to add');
+                        Stopped := True;
+                    end
+                    else
+                    begin
+                        Stack.InsertInStackAbove(StackCopperById(Stack, GetFieldFromPipeString(Rec, 2)), L);
+                        Structural := Structural + 1;
+                    end;
+                end;
+            end;
+
+            // The copper and dielectric layers now, top to bottom, as the read lists them
+            L := Stack.First(eLayerClass_Dielectric);
+            Guard := 0;
+            while (L <> nil) and (Guard < 1000) do
+            begin
+                DielIDs.Add(IntToStr(L.V7_LayerID.ID));
+                L := Stack.Next(eLayerClass_Dielectric, L);
+                Guard := Guard + 1;
+            end;
+            L := Stack.First(eLayerClass_Electrical);
+            Guard := 0;
+            while (L <> nil) and (Guard < 1000) do
+            begin
+                CopperIDs.Add(IntToStr(L.V7_LayerID.ID));
+                L := Stack.Next(eLayerClass_Electrical, L);
+                Guard := Guard + 1;
+            end;
+            N := 0;
+            for I := 0 to Recs.Count - 1 do
+                if (GetFieldFromPipeString(Recs[I], 0) = 'C') or (GetFieldFromPipeString(Recs[I], 0) = 'D') then
+                    N := N + 1;
+            L := Stack.First(eLayerClass_Physical);
+            Guard := 0;
+            while (L <> nil) and (Guard < 1000) do
+            begin
+                if CopperIDs.IndexOf(IntToStr(L.V7_LayerID.ID)) >= 0 then
+                    Entries.Add('C')
+                else if DielIDs.IndexOf(IntToStr(L.V7_LayerID.ID)) >= 0 then
+                    Entries.Add('D');
+                L := Stack.Next(eLayerClass_Physical, L);
+                Guard := Guard + 1;
+            end;
+
+            if Stopped then
+                Lines.Add('X|no value was set')
+            else if Entries.Count <> N then
+                Lines.Add('X|after the layers were added and removed the stack has ' + IntToStr(Entries.Count) +
+                          ' copper and dielectric layers, the list ' + IntToStr(N) + '; no value was set')
+            else
+            begin
+                N := 0;
+                for I := 0 to Recs.Count - 1 do
+                begin
+                    Rec := Recs[I];
+                    Kind := GetFieldFromPipeString(Rec, 0);
+                    if (Kind = 'C') or (Kind = 'D') then
+                    begin
+                        L := StackEntry(Stack, CopperIDs, DielIDs, N);
+                        if Entries[N] <> Kind then
+                            Lines.Add('X|entry ' + IntToStr(N + 1) + ' is ' + Kind + ' in the list, not on the board (' + L.Name + ')')
+                        else
+                        begin
+                            Field := GetFieldFromPipeString(Rec, 1);
+                            if (Field <> '') and (Field <> L.Name) then
+                            begin
+                                L.Name := Field;
+                                Changed := Changed + 1;
+                            end;
+                            if Kind = 'C' then
+                            begin
+                                Field := GetFieldFromPipeString(Rec, 2);
+                                if (Field <> '') and (StrToInt(Field) <> L.CopperThickness) then
+                                begin
+                                    L.CopperThickness := StrToInt(Field);
+                                    Changed := Changed + 1;
+                                end;
+                            end
+                            else
+                            begin
+                                Field := GetFieldFromPipeString(Rec, 2);
+                                if (Field <> '') and (StrToInt(Field) <> L.DielectricType) then
+                                begin
+                                    L.DielectricType := StrToInt(Field);
+                                    Changed := Changed + 1;
+                                end;
+                                Field := GetFieldFromPipeString(Rec, 3);
+                                if (Field <> '') and (Field <> L.DielectricMaterial) then
+                                begin
+                                    L.DielectricMaterial := Field;
+                                    Changed := Changed + 1;
+                                end;
+                                Field := GetFieldFromPipeString(Rec, 4);
+                                if (Field <> '') and (StrToInt(Field) <> L.DielectricHeight) then
+                                begin
+                                    L.DielectricHeight := StrToInt(Field);
+                                    Changed := Changed + 1;
+                                end;
+                                Field := GetFieldFromPipeString(Rec, 5);
+                                if (Field <> '') and (StrToInt(Field) <> Round(L.DielectricConstant * 10000)) then
+                                begin
+                                    L.DielectricConstant := StrToInt(Field) / 10000;
+                                    Changed := Changed + 1;
+                                end;
+                            end;
+                        end;
+                        N := N + 1;
+                    end;
+                end;
+            end;
+        finally
+            PCBServer.PostProcess;
+        end;
+        // Altium does not mark the board changed for a stack edit made by
+        // script (probed on AD25), so it is marked here
+        Doc := FindOpenDocument(Board.FileName);
+        if (Structural > 0) or (Changed > 0) then
+        begin
+            if Doc <> nil then
+                Doc.SetModified(True);
+            Board.ViewManager_UpdateLayerTabs;
+            Board.ViewManager_FullUpdate;
+        end;
+        Lines.Add('S|' + IntToStr(Structural));
+        Lines.Add('K|' + IntToStr(Changed));
+        // Read through DocumentModified: Doc.Modified in a condition reads False
+        if DocumentModified(Doc) then
+            Lines.Add('M|1')
+        else
+            Lines.Add('M|0');
+        Lines.Add('F|' + Board.FileName);
+        Result := Lines.Text;
+    finally
+        Recs.Free;
+        Lines.Free;
+        Entries.Free;
+        DielIDs.Free;
         CopperIDs.Free;
     end;
 end;

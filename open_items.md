@@ -10,7 +10,7 @@ Three sections: **Open**, not yet fixed; **Waiting**, fixed and not yet settled 
 merged, a fix not yet run in a session); **Closed**, merged upstream, run and held, or
 decided against, with the record.
 
-**Open: A8, A11 to A15, A23, A25 to A28, A31 to A34.**
+**Open: A8, A11, A12, A14, A15, A23, A25 to A28, A31 to A34.**
 
 A2, A7, A4 and A6 went out together in `build-20261112-120520` (owner, 2026-11-12), so one
 scenario test covers them; A3 and A8 were not waited for. That test ran and held for
@@ -284,7 +284,7 @@ unasked, and ending and restarting `X2.EXE` when Altium hangs.
   Altium started fresh. The second run ran once, not stopped, 93 turns. The record
   commits (the entry, the sort) are not pushed: they go out with the next push of `ad25`.
 - [x] A34 (a): committed (as A35 in Waiting; Altium started by the run and left running)
-- [ ] A13: committed (or left Open, why written into it)
+- [x] A13: committed (A36 new from it, Open)
 - [ ] A14: committed (or left Open, why written into it)
 - [ ] A12: committed (or left Open, why written into it)
 - [ ] group 4: offline and live tests, pushed, released (build: …)
@@ -382,11 +382,6 @@ Designator, Mid X, Mid Y, Layer, Rotation, with the per-footprint rotation corre
 needs; the Gerbers and drill files zipped. Local: a tool that writes an OutJob from a
 preset or edits the outputs of one, and a step that turns Altium's BOM and pick and place
 into a named service's columns.
-
-**A13. The layer stack can only be read.** `get_pcb_layer_stackup` reads it; nothing adds
-or removes layers or sets copper weight, dielectric thickness, material or constant. Local:
-a tool that sets the stack from a list top to bottom, as the read gives it, with presets
-for common fabrication stacks (2-layer 1.6 mm; 4-layer 1.6 mm with 7628 prepreg).
 
 **A14. `create_pcb_rule` covers seven rule kinds.** Clearance, width, hole size, routing
 via, solder and paste mask expansion, polygon connect. Not differential pairs, length or
@@ -593,6 +588,96 @@ the shipped form templates in temporary folders, with `TEMPLATE_DIR` patched, be
 real files' line ends depend on the clone's `core.autocrlf` and the test must not.
 Fixed in the commit that moves it here. Local: on `ad25`, in the commit that moves it
 here; not yet in a build. Upstream: not yet decided.
+
+**A13. The layer stack can only be read.** `get_pcb_layer_stackup` reads it; nothing adds
+or removes layers or sets copper weight, dielectric thickness, material or constant. Local:
+a tool that sets the stack from a list top to bottom, as the read gives it, with presets
+for common fabrication stacks (2-layer 1.6 mm; 4-layer 1.6 mm with 7628 prepreg).
+Found 2026-11-15 by the run's probes in AD25 (`Board.LayerStack_V7`, method names read from
+Altium's SDK interface assembly): `FirstAvailableSignalLayer` / `FirstAvailableInternalPlane`
+give a free layer and `InsertInStackAbove(<copper layer>, <it>)` puts it in the stack directly
+above that layer, with a new dielectric between them (`InsertLayer` wants the old integer
+layer id and puts the layer above Bottom Layer); `RemoveFromStack(<layer>)` takes a copper
+layer out with the dielectric below it. A new dielectric may come with no material and a
+constant of 1e12 until set. `Name`, `CopperThickness`, `DielectricType` (0 none, 1 core,
+2 prepreg, 3 surface material), `DielectricMaterial`, `DielectricHeight` and
+`DielectricConstant` are set directly and are in the saved file. A layer removed while it
+holds a track leaves the track on a layer that is no longer in the stack. Altium does not
+mark the board modified for any of these. `UsedByPrims` stays True after a layer's last
+object is deleted. `Board.MasterLayerStack` (`SubstackCount`) tells a rigid-flex board.
+Fix: `set_pcb_layer_stackup(layers | preset, dry_run, board_path)`. `layers` is the stack
+top to bottom in the read's form (its `layers`, passed back as they are or edited): copper
+entries (`layer_name`, `layer_id`, `copper_type` Signal or Plane, `copper_thickness_mils`)
+and dielectric entries (`layer_name`, `dielectric_type`, `dielectric_material`,
+`dielectric_height_mils`, `dielectric_constant`); the read's `_um` keys taken when the mils
+are not given, and refused when both disagree; a key left out is left as the board has it;
+`layer_order` ignored; an unknown key, a value outside sane limits (a unit mistake) or a `|`
+or `;` in a name refused before Altium. The shape: the surface dielectrics, copper and one
+dielectric in turn, the surface dielectrics below. Top and bottom copper are Altium's Top and
+Bottom Layer; an inner entry keeps the board layer its `layer_id` names, or, without one, the
+board's next inner layer of its kind in order; the rest are new signal layers (planes where
+`copper_type` or an `Internal Plane` id says so); the board's inner layers no entry keeps are
+removed. The result: `requested`, `added` and `removed` copper layers, `changed` (values
+written), `board_modified`, `stack` (the read again) and `differences` from what was asked
+(`success` false when any); `dry_run` gives `would_add`, `would_remove`, `would_change` and
+runs Altium's check of the layers to remove. Presets (`server/layer_stack.py`, `PRESETS`;
+generic builds, approximate, not a fabricator's figures, as no fabricator's page was read):
+`2_layer_1.6mm`, 1 oz (35 um, 1.378 mil) copper on a 1.53 mm (60.2362 mil) FR-4 core, Dk
+4.6; `4_layer_1.6mm_7628`, 1 oz outer and 0.5 oz (17.5 um, 0.689 mil) inner signal layers,
+one 7628 ply of 0.2 mm (7.874 mil, Dk 4.4) under each outer layer and a 1.095 mm (43.1102 mil)
+FR-4 core (Dk 4.6), the common build of a 7628 4-layer board that fabricators such as JLCPCB
+offer something close to; both 1.6 mm of copper and dielectric, plus Altium's 0.4 mil solder
+masks (Solder Resist, Dk 3.5); no layer names set. Python side in `server/layer_stack.py`
+(checks, presets, the plan, the bridge records, the comparison), the tool in `main.py`; bridge
+command `set_layer_stack` (`SetLayerStack` in `pcb_utils.pas`): records `R|`, `A|`, then one
+`C|`/`D|` per layer of the stack after them, lengths in internal units, the constant x10000
+(no float text, as Altium's `FloatToStr` writes a decimal comma here). The read
+(`get_pcb_layer_stackup`) gives each copper entry a `copper_type` as well.
+Test before: `tests/test_live_set_layer_stackup.py` (`ALTIUM_LIVE=1`, copies of the 2-layer
+SpiritLevel-SL1 board and of the 4-layer WiFi board of the Mini PC example, closed unsaved):
+the 4-layer preset on the 2-layer board read back equal, after a save and reopen too, the new
+inner layers routable (a track lands on one) and Altium counting 4 signal layers; the 2-layer
+preset then refused while one inner layer holds that track (`layers_in_use`, 1 object, stack
+and flag unchanged) and, the track deleted, both inner layers removed and the 2-layer stack
+read back equal after a reopen; the read set back as it is changing nothing (`changed` 0, the
+board not modified); on the WiFi copy the 2-layer preset refused, dry run too, as both inner
+layers hold copper, then the read edited (a plane and a core added between the inner layers,
+the first core's material, constant and height changed), a dry run first changing nothing,
+read back equal and after a reopen, 5 copper layers of which 4 signal; a bad list refused
+before Altium. Before the tool all 4 errored: "AttributeError: module 'main' has no attribute
+'set_pcb_layer_stackup'". After: 4/4 pass in AD25; with `test_live_layer_stackup` (2, the read
+it changes) and `test_live_pcb_rules` (1, `pcb_utils.pas`) 7 of 7 live tests passed. Offline:
+37 new in `tests/test_layer_stack.py` (presets, checks, the plan, the records, the comparison,
+the tool with the bridge faked), added to `.github/workflows/tests.yml`; 453 tests pass
+(was 416). Altium was restarted once during the work (3.7 GB, the server's memory guard).
+Met on the way, not fixed here: a board open under its short (8.3) path is opened a second
+time by a tool given that path, as `long_path` gives the long form and `FocusBoardByPath` does
+not find the open document by it; the live test opens its copies by the long path, as
+`test_live_project_setup` does.
+Decided 2026-11-15 by the run, not the owner: removing a copper layer that holds objects, or a
+plane with a net, is refused with each such layer and its object count, nothing changed (dry
+run too), because `RemoveFromStack` leaves the objects on a layer outside the stack, which no
+read shows; removing them in the call would drop copper the caller did not name.
+Decided 2026-11-15 by the run, not the owner: one dielectric between two copper layers, the
+surface dielectrics neither added nor removed (as many as the board has, or none), existing
+inner layers never reordered, a board with two dielectrics in one gap or a rigid-flex board
+refused, because Altium adds and removes a copper layer with one dielectric beside it and the
+values are then set by place; adding a dielectric alone was not probed, and the smaller change
+covers the presets and a read set back.
+Decided 2026-11-15 by the run, not the owner: an inner entry without a `layer_id` keeps the
+board's next inner layer of its kind, because a preset set on a board of its own size must
+keep the board's layers and what is on them instead of removing and adding them.
+Decided 2026-11-15 by the run, not the owner: a value equal to the board's is not written, and
+the board is marked modified only when a layer or a value changed, because the read set back
+must leave the board as it was, as the item's "read back equal" asks.
+Decided 2026-11-15 by the run, not the owner: a layer in use is told by counting its objects
+with a board iterator, not by `UsedByPrims`, because that flag stayed True after the layer's
+only object was deleted and would refuse a removal that is safe.
+Decided 2026-11-15 by the run, not the owner: the read gives `copper_type` (Signal or Plane),
+because the set takes the read's form and a plane must come back a plane; the `layer_id` told
+it only by its wording.
+Fixed in the commit that moves it here. Local: on `ad25`, in the commit that moves it here;
+not yet in a build. Upstream: not yet decided.
 
 ## Closed
 

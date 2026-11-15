@@ -6253,8 +6253,10 @@ async def get_pcb_layer_stackup(ctx: Context) -> str:
     "layers" lists the stack top to bottom: each copper layer and each dielectric
     (core, prepreg, solder mask) is an entry of its own, told apart by
     "material_type" ("Copper" or "Dielectric"). Overlay and paste layers are left
-    out. "total_layers" counts the copper layers, "dielectric_layers" the
-    dielectrics, and "total_thickness_mils" sums both.
+    out. A copper entry's "copper_type" is "Signal" or "Plane". "total_layers"
+    counts the copper layers, "dielectric_layers" the dielectrics, and
+    "total_thickness_mils" sums both. set_pcb_layer_stackup takes "layers" in
+    this form.
 
     Returns:
         str: JSON object with detailed layer stackup information
@@ -6358,6 +6360,166 @@ async def create_pcb_rule(ctx: Context, rule_type: str, name: str, values: dict,
 
 # Changes the design: a timeout leaves its outcome unknown, so no blind retry
 MUTATING_COMMANDS.add("create_pcb_rule")
+
+
+def _stack_records(text) -> dict:
+    """The records of a set_layer_stack reply, by kind: {"U": [[fields], ...], ...}."""
+    out = {}
+    for line in str(text).splitlines():
+        line = line.strip()
+        if len(line) > 1 and line[1] == "|":
+            out.setdefault(line[0], []).append(line[2:].split("|"))
+    return out
+
+
+@_tool()
+async def set_pcb_layer_stackup(ctx: Context, layers: list = None, preset: str = "", dry_run: bool = False,
+                                board_path: str = "") -> str:
+    """
+    Set a PCB's layer stack: copper layers added or removed, and each layer's
+    copper weight, dielectric type, material, thickness and constant. The board
+    is changed, not saved.
+
+    layers is the stack top to bottom in the form get_pcb_layer_stackup gives
+    ("layers" of its result, which can be passed back as it is, edited):
+      copper      {"material_type": "Copper", "layer_name", "layer_id",
+                   "copper_type": "Signal" or "Plane", "copper_thickness_mils"}
+      dielectric  {"material_type": "Dielectric", "layer_name",
+                   "dielectric_type": "Core", "PrePreg", "Dielectric" or
+                   "Surface Material", "dielectric_material",
+                   "dielectric_height_mils", "dielectric_constant"}
+    Lengths in mils (or the read's *_um keys in micrometres); a key left out is
+    left as the board has it (a new layer: Altium's default); layer_order is
+    ignored, the list's order is the stack. The shape: the dielectrics above
+    the top copper (the solder mask), then copper and ONE dielectric in turn,
+    ending on copper, then the dielectrics below. The surface dielectrics are
+    not added or removed: give as many as the board has, or none.
+
+    Copper layers: the first and last are always Altium's Top Layer and Bottom
+    Layer (signal). An inner entry whose layer_id is on the board keeps that
+    layer; one without a layer_id takes the board's next inner layer of its
+    kind, in order; the others become new layers, routable signal layers, or
+    planes where copper_type (or a layer_id "Internal Plane N") says so. The
+    board's inner layers no entry keeps are removed, with the dielectric
+    beside them. Existing layers are not reordered.
+
+    REFUSED, nothing changed: a layer to remove that holds objects (tracks,
+    pads, pours, text, ...) or, a plane, a net, since they would stay on a
+    layer that is no longer in the stack; the result lists them under
+    "layers_in_use" with their object count. Move or delete those objects
+    first, or keep the layer.
+
+    preset instead of layers (generic builds, approximate, not a fabricator's
+    figures; 1.6 mm of copper and dielectric, plus Altium's 0.4 mil masks):
+      2_layer_1.6mm       1 oz (35 um) copper, 1.53 mm FR-4 core, Dk 4.6
+      4_layer_1.6mm_7628  1 oz outer, 0.5 oz (17.5 um) inner signal layers,
+                          0.2 mm 7628 prepreg (Dk 4.4) under each outer layer,
+                          1.095 mm FR-4 core (Dk 4.6)
+    For impedance work use the fabricator's own stack.
+
+    Args:
+        layers (list): The stack, as above.
+        preset (str): A preset's name, instead of layers.
+        dry_run (bool): Check and report what would change (layers to add and
+            remove, layers in use), changing nothing.
+        board_path (str): Full path of the .PcbDoc; empty for the focused
+            board, or the one the PCB tools last used.
+
+    Returns:
+        str: JSON with board, requested (the stack asked for), added and
+             removed (copper layers), changed (values written), board_modified,
+             stack (the stack read back from Altium, as get_pcb_layer_stackup
+             gives it) and differences (where the read differs from what was
+             asked; success is false then). With dry_run: would_add,
+             would_remove, would_change.
+    """
+    import layer_stack
+
+    board_path = long_path(board_path)
+    if (layers is None) == (not preset):
+        return json.dumps({"success": False, "error": "give layers or preset, one of the two"})
+    if preset:
+        layers, error = layer_stack.preset(preset)
+        if error:
+            return json.dumps({"success": False, "error": error})
+    wanted, error = layer_stack.parse_layers(layers)
+    if not error:
+        error = layer_stack.split(wanted)[4]
+    if error:
+        return json.dumps({"success": False, "error": error})
+
+    async def read_stack():
+        response = await altium_bridge.execute_command("get_pcb_layer_stackup", {"board_path": board_path})
+        result = response.get("result") if response.get("success", False) else None
+        if not isinstance(result, dict) or "layers" not in result:
+            return None, response.get("error") or (result or {}).get("error") or "no layer stack read"
+        return result, None
+
+    before, error = await read_stack()
+    if error:
+        return json.dumps({"success": False, "error": f"Could not read the board's stack: {error}"})
+    board = [{k: v for k, v in l.items() if k in ("material_type", "layer_name", "layer_id", "copper_type")}
+             for l in before["layers"]]
+    the_plan, error = layer_stack.plan(wanted, board)
+    if error:
+        return json.dumps({"success": False, "error": error})
+
+    logger.info(f"Setting the layer stack ({len(the_plan['add'])} added, {len(the_plan['remove'])} removed"
+                f"{', dry run' if dry_run else ''})")
+    response = await altium_bridge.execute_command("set_layer_stack", {
+        "stack_spec": layer_stack.encode(the_plan), "dry_run": bool(dry_run), "board_path": board_path})
+    if not response.get("success", False):
+        return json.dumps({"success": False, "error": f"Failed to set the stack: {response.get('error', 'unknown error')}"})
+    recs = _stack_records(response.get("result", ""))
+    file_name = recs.get("F", [[before.get("board_name", "")]])[0][0]
+    requested = [{k: v for k, v in e.items() if k not in ("keep", "new") and not (e.get("new") and k == "layer_id")}
+                 for e in the_plan["final"]]
+    removed = [{"layer_id": r["layer_id"], "layer_name": r.get("layer_name")} for r in the_plan["remove"]]
+
+    if "U" in recs:
+        in_use = [{"layer_id": f[0], "layer_name": f[1], "objects": int(f[2]), "net": f[3] or None}
+                  for f in recs["U"]]
+        what = ", ".join(f"{u['layer_name']} ({u['layer_id']}, {u['objects']} objects"
+                         f"{', net ' + u['net'] if u['net'] else ''})" for u in in_use)
+        return json.dumps({"success": False, "board": file_name, "layers_in_use": in_use,
+                           "error": f"Nothing changed: the stack asked for removes layers that are in use: {what}. "
+                                    f"Their objects would stay on a layer that is no longer in the stack; move or "
+                                    f"delete them first, or keep the layer (give its layer_id)."}, indent=2)
+    if "X" in recs and not ("S" in recs or "K" in recs):
+        return json.dumps({"success": False, "board": file_name,
+                           "error": "Nothing changed: " + "; ".join(f[0] for f in recs["X"])}, indent=2)
+    if dry_run:
+        return json.dumps({
+            "success": True, "dry_run": True, "board": file_name,
+            "would_add": [{"copper_type": a["copper_type"], "layer_name": a["layer_name"], "above": a["above"]}
+                          for a in the_plan["add"]],
+            "would_remove": removed,
+            "would_change": layer_stack.value_changes(the_plan["final"], before["layers"], the_plan["structural"]),
+            "requested": requested}, indent=2)
+
+    after, error = await read_stack()
+    result = {"success": True, "board": file_name, "requested": requested, "removed": removed,
+              "changed": int(recs.get("K", [["0"]])[0][0]), "board_modified": recs.get("M", [["0"]])[0][0] == "1"}
+    if "X" in recs:
+        result["success"] = False
+        result["error"] = "The stack was changed only in part: " + "; ".join(f[0] for f in recs["X"])
+    if error:
+        result.update(success=False, error=f"The stack was set but could not be read back: {error}")
+        return json.dumps(result, indent=2)
+    cu_after = [l for l in after["layers"] if l.get("material_type") == "Copper"]
+    cu_final = [e for e in the_plan["final"] if e["material_type"] == "Copper"]
+    result["added"] = [{"layer_id": got.get("layer_id"), "layer_name": got.get("layer_name"),
+                        "copper_type": got.get("copper_type")}
+                       for want, got in zip(cu_final, cu_after) if want.get("new")]
+    result["stack"] = after
+    result["differences"] = layer_stack.compare(requested, after["layers"])
+    if result["differences"]:
+        result["success"] = False
+        result.setdefault("error", "Altium's stack read back differs from the one asked for")
+    return json.dumps(result, indent=2)
+
+
+MUTATING_COMMANDS.add("set_layer_stack")
 
 @_tool(read_only=True)
 async def get_output_job_containers(ctx: Context, outjob_path: str = "") -> str:

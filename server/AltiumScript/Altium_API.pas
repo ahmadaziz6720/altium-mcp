@@ -1563,6 +1563,9 @@ begin
             Result := AddProjectDocument(RequestText(RequestData, 'project_path', ''),
                 RequestText(RequestData, 'document_path', ''), RequestText(RequestData, 'new_kind', ''),
                 RequestText(RequestData, 'source_document', ''));
+        'set_layer_stack':
+            Result := SetLayerStack(RequestText(RequestData, 'stack_spec', ''),
+                RequestText(RequestData, 'dry_run', 'false') = 'true');
         'set_board_outline':
             Result := SetBoardOutline(RequestText(RequestData, 'outline', ''));
         'board_layer_shapes':

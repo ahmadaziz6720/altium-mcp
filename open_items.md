@@ -36,6 +36,8 @@ A35, A13, A14 and A12 (group 4 of the run) went out together in `build-20261115-
 (the run, 2026-11-15): one scenario test covers them. It ran (stopped once by the usage limit
 and resumed) and held for A35, A13 and A12, and for A14 but its priority (findings
 2026-11-15, second entry); what it left is A37 to A39.
+A40 and A8 (group 5 of the run) went out together in `build-20261115-172812` (the run,
+2026-11-15): one scenario test covers them.
 
 A10 to A16 come from a review of the tools against a whole design flow (schematic and
 missing library parts, ERC; a board with its rules and layer stack; placement; routing,
@@ -301,7 +303,8 @@ unasked, and ending and restarting `X2.EXE` when Altium hangs.
 - [x] A15: committed (split: A15 (a) done as A40, in Waiting; A15 (b), the supplier lookup
   and vendor import, stays Open by the plan)
 - [x] A8: committed (found: `PCB:BuildPCBLibrary` run hidden; `make_pcblib_from_board`)
-- [ ] group 5: offline and live tests, pushed, released (build: …)
+- [x] group 5: offline and live tests, pushed, released (build: `build-20261115-172812`;
+  545 offline, 72 live; Altium restarted before the live tests)
 - [ ] group 5: scenario test (session id: …), entry committed and sorted, release page
 - [ ] the report
 
@@ -668,8 +671,8 @@ no rows from a failed query read as "no such part".
 Decided 2026-11-15 by the run, not the owner: the live test compiles its `.IntLib` from the
 example's libraries and uninstalls it again (Altium installs a library it compiles),
 because the `.IntLib`s AD25 installs carry no footprints to read back.
-Fixed in the commit that moves it here.
-Local: on `ad25`, in the commit that moves it here; not yet in a build. Upstream: not yet
+Fixed in `5c25999`.
+Local: on `ad25`, released in `build-20261115-172812`. Upstream: not yet
 decided.
 
 **A8. No tool to make a PcbLib from a board.** `RunProcess('PCB:MakeLibrary')` and
@@ -740,8 +743,8 @@ a footprint asked for, reported as success, is a wrong result.
 Decided 2026-11-15 by the run, not the owner: Altium's `<pattern>_<n>` footprints are kept,
 named with their pattern, and come with a pattern asked for, because each is the footprint
 of components on the board that differ from the first of that pattern.
-Fixed in the commit that moves it here.
-Local: on `ad25`, in the commit that moves it here; not yet in a build. Upstream: not yet
+Fixed in `de0620d`.
+Local: on `ad25`, released in `build-20261115-172812`. Upstream: not yet
 decided.
 
 ## Closed

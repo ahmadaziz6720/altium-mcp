@@ -268,8 +268,12 @@ unasked, and ending and restarting `X2.EXE` when Altium hangs.
 - [x] A30: committed (`f1b1559`)
 - [x] A29 and A30: offline and live tests, pushed, released (build:
   `build-20261115-114630`; 415 offline, 55 live through the resident)
-- [ ] A29 and A30: scenario test (session id: `7b30a860-4934-4fb9-9d6a-c5e1b88d69b2`), entry committed and sorted,
-  release page
+- [ ] A29 and A30: scenario test, entry committed and sorted, release page. A first run
+  (session id `7b30a860-4934-4fb9-9d6a-c5e1b88d69b2`, from 11:47) was stopped by the owner's
+  word after about 2 minutes, to be run again from the start in a new session with a new
+  session id; its copy `uji/0.7.0-20261115-114630/` in the owner's project may be partly
+  made. `reports/uji-skenario.md` there has a section J for A30 and A29 (written
+  2026-11-15 by the session that built A30).
 - [ ] A13: committed (or left Open, why written into it)
 - [ ] A14: committed (or left Open, why written into it)
 - [ ] A12: committed (or left Open, why written into it)
@@ -728,6 +732,11 @@ script by a launch (resident off in the test). All live modules, 55 tests, throu
 resident (114 calls taken by it, the A24 tests' 7 by launch): 54 passed, the one failure
 the replacement test's own (a blank line did not change the bundle; it now adds a
 routine), then 5/5. Offline: `tests/test_resident.py` (23); 415 OK.
+Found after the release (2026-11-15): the tag hashes the files' bytes before the line ends
+are made CRLF, so the release copy (`git archive`) and this checkout, at the same commit,
+give two tags (`0fd9980a5570`, `a4ea8490f7f3`): a live test from the checkout and a session
+on the release, on one Altium, close each other's resident and start their own (2 s and one
+launch each time). Hash the text after the CRLF step. Not changed yet.
 Fixed in `f1b1559`. Local: on `ad25`, released in `build-20261115-114630`. Upstream: not yet
 decided.
 

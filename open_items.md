@@ -10,7 +10,7 @@ Three sections: **Open**, not yet fixed; **Waiting**, fixed and not yet settled 
 merged, a fix not yet run in a session); **Closed**, merged upstream, run and held, or
 decided against, with the record.
 
-**Open: A11, A15, A23, A25 to A28, A31 to A34, A36 to A39.**
+**Open: A11, A15, A23, A25 to A28, A31 to A34, A36 to A39, A41 to A44.**
 
 A2, A7, A4 and A6 went out together in `build-20261112-120520` (owner, 2026-11-12), so one
 scenario test covers them; A3 and A8 were not waited for. That test ran and held for
@@ -37,7 +37,8 @@ A35, A13, A14 and A12 (group 4 of the run) went out together in `build-20261115-
 and resumed) and held for A35, A13 and A12, and for A14 but its priority (findings
 2026-11-15, second entry); what it left is A37 to A39.
 A40 and A8 (group 5 of the run) went out together in `build-20261115-172812` (the run,
-2026-11-15): one scenario test covers them.
+2026-11-15): one scenario test covers them. It ran once, not stopped, and held for both
+(findings 2026-11-15, third entry); what it left is A41 to A44, and A26 met again.
 
 A10 to A16 come from a review of the tools against a whole design flow (schematic and
 missing library parts, ERC; a board with its rules and layer stack; placement; routing,
@@ -305,8 +306,10 @@ unasked, and ending and restarting `X2.EXE` when Altium hangs.
 - [x] A8: committed (found: `PCB:BuildPCBLibrary` run hidden; `make_pcblib_from_board`)
 - [x] group 5: offline and live tests, pushed, released (build: `build-20261115-172812`;
   545 offline, 72 live; Altium restarted before the live tests)
-- [ ] group 5: scenario test (session id: `72025b3d-6b33-4d9b-867b-6c414f8185ed`), entry committed and
-  sorted, release page
+- [x] group 5: scenario test (session id: `72025b3d-6b33-4d9b-867b-6c414f8185ed`), entry committed and
+  sorted, release page; A40 and A8 held and Closed (A8 but the footprints' descriptions, A41),
+  A41 to A44 new (Open), A26 met again and widened. Ran once, not stopped, 111 turns, about
+  12 minutes.
 - [ ] the report
 
 ---
@@ -421,7 +424,7 @@ the board saved and reopened by the tool), or the call refused or flagged on a b
 saved. Usage until then: save, close and reopen a new board before setting its shape is
 relied on. (2026-11-14, fifth entry, 2.) For the next run.
 
-**A26. `build_schematic` with `project_path` leaves the focused project modified.** With
+**A26. `build_schematic` leaves the focused project modified, and puts its sheet in it.** With
 another project in focus, `build_schematic(project_path, sheet_path)` took its sheet back
 from that project (`project.detached_from` names it) but left that project's file flag set:
 unmodified before, modified after, twice in a row (its file not written);
@@ -434,6 +437,13 @@ Possibly met again (2026-11-15, second entry, 8): at the start of a session Alti
 project focused with its flag set and a `Sheet1.SchDoc` in it with no path (not open, not on
 disk), the file on disk unchanged; nothing in that session made it, and the source is not
 known (a new sheet taken into the focused project by an earlier call or live test).
+Met again and widened (2026-11-15, third entry, 3): without `project_path`, where the
+description promises a new free document, the new sheet (`Sheet1.SchDoc`, no path) went into
+the focused project and set its flag, `success` true, `detached_from` `""`; with
+`project_path` and a part missing the call failed and the unsaved sheet stayed in the focused
+project with its flag set, not mentioned. That is where the `Sheet1.SchDoc` above came from.
+Local, besides the above: the sheet in no project without `project_path`, taken out again
+after a failure, and the focused project's flag as found in all three cases.
 
 **A27. `build_schematic` with `footprint` on a symbol that has a current one gives two.**
 A part whose library symbol already has a current footprint, placed with `footprint`, gets
@@ -516,6 +526,8 @@ decide, with A31 and A32.
 (e) A resident project of an earlier build (another tag, no live form) stays listed in
 Altium's Projects panel (2026-11-15, second entry, 1): closing a resident could close its
 project too. Local. For the next run.
+(e) met again (2026-11-15, third entry, 8): two resident script projects of different tags
+open in one Altium.
 
 **A36. A board open under its short (8.3) path is opened a second time.** A tool given a
 `board_path` in the short form (`C:\Users\ABCDEF~1\...`) while that board is open under it
@@ -557,6 +569,36 @@ settings the same 10k; `set_pcb_layer_stackup` returns `requested` and `stack` b
 for a 2- or 4-layer board. Local: a summary (plotted layers as "every copper layer" plus the
 others by name; the stack only where it differs from what was asked) with the full read
 behind a flag. (2026-11-15, second entry, 7.) For the next run.
+
+**A41. `make_pcblib_from_board` loses the footprints' descriptions.** Six of the twelve
+components of a 2-layer board carry a footprint description
+(`IPCB_Component.FootprintDescription`), and the library Altium's menu makes from that board
+keeps them; in every library the tool made, read back with `get_footprint_primitives`, every
+description is empty, and `problems` stays [] because the comparison checks patterns and pads
+only. Reported success with less than the board has. Local: find where they are lost (the
+hidden run, the filter or the save), give each footprint the board's description before the
+save, and compare descriptions too; a live test that fails today. (2026-11-15, third entry,
+5.) For the next run.
+
+**A42. `edit_schematic` that applies nothing leaves the sheet modified.** With only a
+`place_component` whose symbol is not in the `.IntLib` (`applied` 0, `saved` false) the sheet
+was left marked modified, nothing on it changed. Also seen: a part placed from a `.SchLib` is
+saved with library name, library path and target file name `*` and no Design Item ID, where
+an `.IntLib` part (A40) is linked to its library, so the two ways differ. Local: the sheet's
+flag put back when no operation applied; the `.SchLib` link worth a probe (what Altium's own
+placement from a `.SchLib` stores). (2026-11-15, third entry, 6.) For the next run.
+
+**A43. `search_dblib` warns of `max_rows` at exactly `max_rows` matches.** With 20 matches
+and the default `max_rows` 20 it says a table reached max_rows (20) though there is no 21st;
+every reply repeats the `tables` list (about 0.3k characters), and a search of 20 matches is
+8k. Local: fetch one row more to tell; the tables list once, or only when asked. (2026-11-15,
+third entry, 7.) For the next run.
+
+**A44. A live test leaves a temporary `Parts.SchLib` open in Altium.** After the release's
+live tests a `Parts.SchLib` from a live test's temporary folder was still in Free Documents.
+Local: find the test (those that build a `.SchLib`) and close the library in its tear-down,
+so a scenario test starts from a clean Altium. (2026-11-15, third entry, 8.) For the next
+run.
 
 ## Waiting
 
@@ -604,149 +646,6 @@ Scenario test of that build held (2026-11-12, third entry, 2): 38 rules, the sco
 `filter2` only on binary rules. The reply went from 9.3k to 8.5k characters only (about
 9 %): what is left is mostly the key names and indentation repeated on every rule.
 Waits for the upstream PR.
-
-**A40. A15 (a), parts from an `.IntLib` and the DbLib search as a tool.** `build_schematic`
-and `edit_schematic`'s `place_component` refused any library but a `.SchLib`, in Python,
-before Altium was called: the bridge placed a part by opening its library as a document and
-copying the symbol, and a symbol inside an `.IntLib` cannot be opened that way. A `.DbLib`'s
-database could be searched only with `dev/db_search.py`, a command line, not a tool. (The
-review of 2026-11-12, A15; split from it by the run.) Local.
-Fix: `server/AltiumScript/schematic_utils.pas`, `PlaceIntLibComponent`: a part from an
-`.IntLib` is placed by Altium's own `IntegratedLibraryManager.PlaceLibraryComponent` (library
-reference, path, `Designator|Orientation|Location.X|Location.Y`), which places it on the
-schematic in front, so the sheet is brought to the front first; it returns no object, so the
-part is placed under a designator no part has, found by it, and then given its designator,
-mirror, exact place and comment as a `.SchLib` part is. `BuildCircuitFromSpec` (a `PART`
-record) and `PlaceSchComponent` (edit's `PLACE`) take that way for an `.IntLib` path; a part
-not in the library (`PlaceLibraryComponent` returns False) is reported as a missing part or
-an operation's error, as from a `.SchLib`. The Design Item ID, which links the part to its
-entry in the library, is kept unless `design_item_id` is given. `server/main.py` and
-`server/sch_edit.py` accept `.SchLib` or `.IntLib`. New `server/dblib.py`, the search from
-`dev/db_search.py` made a module: the DbLib's tables and part-number field (`Key=` or
-`UserWhereText`), its connection string (a relative Data Source resolved against the
-DbLib's folder), one SELECT at a time through OLE DB (anything else refused, names and
-terms quoted, LIKE wildcards in a term taken literally), a failed query reported with the
-database's message; a match names its symbol and footprint by the DbLib's own field
-mappings (`[Library Ref]`, `[Footprint Ref]`, ...) or by column name. New tools
-`search_dblib` (term, or a part number giving all its fields; read-only, needs no Altium)
-and `get_installed_libraries` (bridge command `get_installed_libraries`, from
-`IntegratedLibraryManager.InstalledLibraryPath`; `search_dblib` with no path takes the one
-DbLib installed). `dev/db_search.py` is now a command line over `server/dblib.py`. README's
-tool list updated.
-Test before: `tests/test_live_libraries.py` (`ALTIUM_LIVE=1`, AD25; an `.IntLib` compiled by
-Altium in a temporary folder from copies of the SpiritLevel-SL1 example's libraries, and a
-copy of the Atmel QTouch `.IntLib` Altium ships) failed 4 of 4 on the old code:
-`build_schematic` gave `symbol_library must be the full path of an existing .SchLib file
-(integrated libraries such as .IntLib are not supported)`, `edit_schematic` gave
-`operation 1: library must be the full path of a .SchLib file`, and
-`main.get_installed_libraries` did not exist.
-After: `test_live_libraries` 5/5 (a sheet built from two `.IntLib`s and a `.SchLib`, each
-part read back through Altium with its library reference, library name, Design Item ID,
-place, rotation, mirror and comment, and the `.IntLib` part's footprints equal to the
-symbol's in the library it was compiled from; a part missing from an `.IntLib` reported;
-`place_component` from both `.IntLib`s with a missing one reported, saved and read back
-from the reopened file; one undo takes back an edit that placed an `.IntLib` part and a
-wire; `get_installed_libraries` equal to Altium's list, a library installed by the test
-listed as `IntLib` and gone once uninstalled). The live tests of the tools touched:
-`test_live_project_setup.LiveProjectTest` 4/4 and `test_live_symbol_footprint` 9/9. Offline
-533 OK (was 519): new `tests/test_dblib.py` 14 (its 4 database tests search CSV files
-through the Access database engine's text driver, skipped where it is not installed, as on
-CI), `test_sch_edit` with an `.IntLib` placed and a `.PcbLib` refused; `tests.test_dblib`
-added to `.github/workflows/tests.yml`.
-Decided 2026-11-15 by the run, not the owner: the done part carries the code A40 and names
-A15 (a) in its title, A15 staying Open for (b), because a code can head one item only
-(`board.py --check`), as A34 (a) became A35.
-Decided 2026-11-15 by the run, not the owner: an `.IntLib` part is placed by
-`PlaceLibraryComponent`, not by extracting the library's symbols to a `.SchLib` and copying
-from there, because Altium then links the part as it links one it places itself (Design
-Item ID, library name, the library's models) and no extracted copy is left on disk. Altium
-sets the placed part's library path to `*` and its library name to the file's name; the
-tool keeps both.
-Decided 2026-11-15 by the run, not the owner: `get_installed_libraries` added, not named in
-the item, because `dev/db_search.py` found the DbLib among Altium's installed libraries
-when none was given, and a caller has no other way to learn the path of an installed
-`.IntLib` to place from; one read-only call.
-Decided 2026-11-15 by the run, not the owner: a database query that fails is an error with
-the database's message, where `dev/db_search.py` printed it and returned no rows, because
-no rows from a failed query read as "no such part".
-Decided 2026-11-15 by the run, not the owner: the live test compiles its `.IntLib` from the
-example's libraries and uninstalls it again (Altium installs a library it compiles),
-because the `.IntLib`s AD25 installs carry no footprints to read back.
-Fixed in `5c25999`.
-Local: on `ad25`, released in `build-20261115-172812`. Upstream: not yet
-decided.
-
-**A8. No tool to make a PcbLib from a board.** `RunProcess('PCB:MakeLibrary')` and
-`Client.SendMessage('PCB:MakeLibrary', ...)` from `run_altium_script` returned success and
-did nothing (no document, no dialog); it was done by hand through the menu. Local: find a
-way that works from a script (the process with its parameters, or building the library from
-the board's footprints through the PcbLib API), then a tool. (2026-11-12, 7.)
-Probe 2026-11-15 by the run, live in AD25, on a copy of the SpiritLevel-SL1 example project
-(its board: 115 components, 29 patterns). Cause: `PCB:MakeLibrary` is the menu item's
-process launcher id (`PLPCB:MakeLibrary` in `AdvPcb.rcs`), not a command; its command is
-`PCB:BuildPCBLibrary` with `AddLibraryToProject=True`, which hands over to
-`MakeLib:BuildPCBLibrary` (`Makelib.ins`, "Builds a PCB library from the current board").
-`Makelib.dll` reads three parameters: `RunHidden`, `AddLibraryToProject` and `FileName`.
-`RunProcess('PCB:BuildPCBLibrary')` with `RunHidden=True` and `AddLibraryToProject=False`,
-the board in front, made the library in about 20 s with no dialog: a new, unsaved PCB
-library document named `<board name>.PcbLib` in the board's folder (nothing written there),
-32 footprints (one per pattern, and `HDR1X2_2`, `CC2012-0805_2`, `CR2012-0805_2` where
-components of one pattern differ, as the menu does), the board and the project file left
-unmodified, the project's documents unchanged. With a file of that name already there it
-named the document `<board name>1.PcbLib` and left the file alone. `FileName` (a full path,
-with or without `.PcbLib`) was ignored. `DoSafeChangeFileNameAndSave` then wrote the
-library at another path in one save, and the file reopened held 32 footprints;
-`IPCB_Library.RemoveComponent` took footprints out before the save (the one shown
-included), and the file reopened held the 2 kept. So the API way (copying each footprint's
-primitives) was not needed.
-Fix: `make_pcblib_from_board(board_path, library_path, footprints)` (`main.py`,
-`board_library.py`, `MakePcbLibFromBoard` in `other_utils.pas`). The script notes the
-document in front and whether the board is open and modified, opens the board when it is
-not, reads its components (pattern and pad count), refuses a name in `footprints` that is
-not a pattern of the board before anything is made, runs the process as above, takes the
-PCB library that was not open before as Altium's, removes the footprints not asked for
-(a pattern keeps its `_<n>` variants), saves it at `library_path` and closes it, then opens
-the saved file again and reads each footprint's pads and primitives, and closes it. The
-board is left as found: closed again when it was not open, its flag cleared when the call
-marked a board that had no unsaved change (the process did not), the document that was in
-front shown again. `board_library.summarise` compares the file read back with the board:
-a pattern in scope with no footprint, a footprint whose pad count no component of its
-pattern has, a component pad count no footprint of its pattern has, a footprint kept but not
-in the file; any of these fails the call, the file kept and named. Refused before Altium: a
-file at `library_path` (nothing overwritten), not a `.PcbLib`, a board not found or not a
-`.PcbDoc`. One call on the example board: 26 s, 32 footprints from 29 patterns (PQ208 with
-210 pads), 2.1k characters.
-Live test `tests/test_live_pcblib_from_board.py` (copy of the SpiritLevel-SL1 project
-folder, each library read back by `get_footprint_primitives` on the saved file and compared
-with the tool's result and with the board's components read by a board iterator): before
-the tool, 3/3 failed, "AttributeError: module 'main' has no attribute
-'make_pcblib_from_board'". After, 4/4: the board open in its project with a sheet in front
-(32 footprints read back equal, every pattern there with its pad counts; the open documents,
-the document in front, the board's and the project file's flags, the project's documents
-and the project folder's files all as before); the board not open and three patterns asked
-for (4 footprints, `CR2012-0805_2` with its pattern, 28 removed, the board closed again);
-a board with unsaved changes still marked after; refusals (a file there unchanged, a name
-not on the board, a board not found: no file written, no document left open). With
-`test_live_symbol_footprint` (the footprint tools; 9/9): 13/13 in 222 s. Offline 545 OK
-(was 533): new `tests/test_board_library.py` 12, added to `.github/workflows/tests.yml`.
-Decided 2026-11-15 by the run, not the owner: Altium's own Make PCB Library, not a copy of
-each footprint's primitives through the API, because the process run hidden worked from a
-script and copies every primitive kind and 3D body as the menu does, with less code to be
-wrong.
-Decided 2026-11-15 by the run, not the owner: the board goes to the bridge as
-`source_board`, not `board_path`, because `board_path` makes the bridge open and remember
-the board before the command runs, and the command could then not know it had to close it
-again.
-Decided 2026-11-15 by the run, not the owner: a name in `footprints` that is not a pattern of
-the board refuses the call with nothing made, and a library that does not agree with the
-board after the save fails the call with the file kept and named, because a library missing
-a footprint asked for, reported as success, is a wrong result.
-Decided 2026-11-15 by the run, not the owner: Altium's `<pattern>_<n>` footprints are kept,
-named with their pattern, and come with a pattern asked for, because each is the footprint
-of components on the board that differ from the first of that pattern.
-Fixed in `de0620d`.
-Local: on `ad25`, released in `build-20261115-172812`. Upstream: not yet
-decided.
 
 ## Closed
 
@@ -2081,3 +1980,160 @@ place in mm; the OutJob edited (Gerber inch, pick and place mil) while open was 
 (`outjob_reloaded` true); `make_assembly_files` gave the same Mid X/Y from the mil file as
 from the mm file, applied a two-row rotation table and zipped flat; refusals named. The size
 of its result (same entry, 7) is A39.
+
+**A40. A15 (a), parts from an `.IntLib` and the DbLib search as a tool.** `build_schematic`
+and `edit_schematic`'s `place_component` refused any library but a `.SchLib`, in Python,
+before Altium was called: the bridge placed a part by opening its library as a document and
+copying the symbol, and a symbol inside an `.IntLib` cannot be opened that way. A `.DbLib`'s
+database could be searched only with `dev/db_search.py`, a command line, not a tool. (The
+review of 2026-11-12, A15; split from it by the run.) Local.
+Fix: `server/AltiumScript/schematic_utils.pas`, `PlaceIntLibComponent`: a part from an
+`.IntLib` is placed by Altium's own `IntegratedLibraryManager.PlaceLibraryComponent` (library
+reference, path, `Designator|Orientation|Location.X|Location.Y`), which places it on the
+schematic in front, so the sheet is brought to the front first; it returns no object, so the
+part is placed under a designator no part has, found by it, and then given its designator,
+mirror, exact place and comment as a `.SchLib` part is. `BuildCircuitFromSpec` (a `PART`
+record) and `PlaceSchComponent` (edit's `PLACE`) take that way for an `.IntLib` path; a part
+not in the library (`PlaceLibraryComponent` returns False) is reported as a missing part or
+an operation's error, as from a `.SchLib`. The Design Item ID, which links the part to its
+entry in the library, is kept unless `design_item_id` is given. `server/main.py` and
+`server/sch_edit.py` accept `.SchLib` or `.IntLib`. New `server/dblib.py`, the search from
+`dev/db_search.py` made a module: the DbLib's tables and part-number field (`Key=` or
+`UserWhereText`), its connection string (a relative Data Source resolved against the
+DbLib's folder), one SELECT at a time through OLE DB (anything else refused, names and
+terms quoted, LIKE wildcards in a term taken literally), a failed query reported with the
+database's message; a match names its symbol and footprint by the DbLib's own field
+mappings (`[Library Ref]`, `[Footprint Ref]`, ...) or by column name. New tools
+`search_dblib` (term, or a part number giving all its fields; read-only, needs no Altium)
+and `get_installed_libraries` (bridge command `get_installed_libraries`, from
+`IntegratedLibraryManager.InstalledLibraryPath`; `search_dblib` with no path takes the one
+DbLib installed). `dev/db_search.py` is now a command line over `server/dblib.py`. README's
+tool list updated.
+Test before: `tests/test_live_libraries.py` (`ALTIUM_LIVE=1`, AD25; an `.IntLib` compiled by
+Altium in a temporary folder from copies of the SpiritLevel-SL1 example's libraries, and a
+copy of the Atmel QTouch `.IntLib` Altium ships) failed 4 of 4 on the old code:
+`build_schematic` gave `symbol_library must be the full path of an existing .SchLib file
+(integrated libraries such as .IntLib are not supported)`, `edit_schematic` gave
+`operation 1: library must be the full path of a .SchLib file`, and
+`main.get_installed_libraries` did not exist.
+After: `test_live_libraries` 5/5 (a sheet built from two `.IntLib`s and a `.SchLib`, each
+part read back through Altium with its library reference, library name, Design Item ID,
+place, rotation, mirror and comment, and the `.IntLib` part's footprints equal to the
+symbol's in the library it was compiled from; a part missing from an `.IntLib` reported;
+`place_component` from both `.IntLib`s with a missing one reported, saved and read back
+from the reopened file; one undo takes back an edit that placed an `.IntLib` part and a
+wire; `get_installed_libraries` equal to Altium's list, a library installed by the test
+listed as `IntLib` and gone once uninstalled). The live tests of the tools touched:
+`test_live_project_setup.LiveProjectTest` 4/4 and `test_live_symbol_footprint` 9/9. Offline
+533 OK (was 519): new `tests/test_dblib.py` 14 (its 4 database tests search CSV files
+through the Access database engine's text driver, skipped where it is not installed, as on
+CI), `test_sch_edit` with an `.IntLib` placed and a `.PcbLib` refused; `tests.test_dblib`
+added to `.github/workflows/tests.yml`.
+Decided 2026-11-15 by the run, not the owner: the done part carries the code A40 and names
+A15 (a) in its title, A15 staying Open for (b), because a code can head one item only
+(`board.py --check`), as A34 (a) became A35.
+Decided 2026-11-15 by the run, not the owner: an `.IntLib` part is placed by
+`PlaceLibraryComponent`, not by extracting the library's symbols to a `.SchLib` and copying
+from there, because Altium then links the part as it links one it places itself (Design
+Item ID, library name, the library's models) and no extracted copy is left on disk. Altium
+sets the placed part's library path to `*` and its library name to the file's name; the
+tool keeps both.
+Decided 2026-11-15 by the run, not the owner: `get_installed_libraries` added, not named in
+the item, because `dev/db_search.py` found the DbLib among Altium's installed libraries
+when none was given, and a caller has no other way to learn the path of an installed
+`.IntLib` to place from; one read-only call.
+Decided 2026-11-15 by the run, not the owner: a database query that fails is an error with
+the database's message, where `dev/db_search.py` printed it and returned no rows, because
+no rows from a failed query read as "no such part".
+Decided 2026-11-15 by the run, not the owner: the live test compiles its `.IntLib` from the
+example's libraries and uninstalls it again (Altium installs a library it compiles),
+because the `.IntLib`s AD25 installs carry no footprints to read back.
+Fixed in `5c25999`.
+Local: on `ad25`, released in `build-20261115-172812`. Upstream: not yet
+decided.
+Closed: the scenario test of that build held (2026-11-15, third entry, 1 and 2):
+`search_dblib` on a test DbLib over CSV files (tables enabled and disabled, by `Key=` and by
+`UserWhereText`; a quote, `%` and `_` taken literally; a part number in an enabled and in a
+disabled table; refusals and the engine's error named); `get_installed_libraries` listed the
+seven installed libraries; `build_schematic` and `place_component` from two `.IntLib`s and a
+`.SchLib`, read back through Altium and from the saved file with library reference, library
+name, Design Item ID, place, rotation, mirror, comment and the library's models, every pin
+equal to `pin_map`; a missing symbol reported, a wrong library refused. What it left: A42
+(same entry, 6) and A43 (7).
+
+**A8. No tool to make a PcbLib from a board.** `RunProcess('PCB:MakeLibrary')` and
+`Client.SendMessage('PCB:MakeLibrary', ...)` from `run_altium_script` returned success and
+did nothing (no document, no dialog); it was done by hand through the menu. Local: find a
+way that works from a script (the process with its parameters, or building the library from
+the board's footprints through the PcbLib API), then a tool. (2026-11-12, 7.)
+Probe 2026-11-15 by the run, live in AD25, on a copy of the SpiritLevel-SL1 example project
+(its board: 115 components, 29 patterns). Cause: `PCB:MakeLibrary` is the menu item's
+process launcher id (`PLPCB:MakeLibrary` in `AdvPcb.rcs`), not a command; its command is
+`PCB:BuildPCBLibrary` with `AddLibraryToProject=True`, which hands over to
+`MakeLib:BuildPCBLibrary` (`Makelib.ins`, "Builds a PCB library from the current board").
+`Makelib.dll` reads three parameters: `RunHidden`, `AddLibraryToProject` and `FileName`.
+`RunProcess('PCB:BuildPCBLibrary')` with `RunHidden=True` and `AddLibraryToProject=False`,
+the board in front, made the library in about 20 s with no dialog: a new, unsaved PCB
+library document named `<board name>.PcbLib` in the board's folder (nothing written there),
+32 footprints (one per pattern, and `HDR1X2_2`, `CC2012-0805_2`, `CR2012-0805_2` where
+components of one pattern differ, as the menu does), the board and the project file left
+unmodified, the project's documents unchanged. With a file of that name already there it
+named the document `<board name>1.PcbLib` and left the file alone. `FileName` (a full path,
+with or without `.PcbLib`) was ignored. `DoSafeChangeFileNameAndSave` then wrote the
+library at another path in one save, and the file reopened held 32 footprints;
+`IPCB_Library.RemoveComponent` took footprints out before the save (the one shown
+included), and the file reopened held the 2 kept. So the API way (copying each footprint's
+primitives) was not needed.
+Fix: `make_pcblib_from_board(board_path, library_path, footprints)` (`main.py`,
+`board_library.py`, `MakePcbLibFromBoard` in `other_utils.pas`). The script notes the
+document in front and whether the board is open and modified, opens the board when it is
+not, reads its components (pattern and pad count), refuses a name in `footprints` that is
+not a pattern of the board before anything is made, runs the process as above, takes the
+PCB library that was not open before as Altium's, removes the footprints not asked for
+(a pattern keeps its `_<n>` variants), saves it at `library_path` and closes it, then opens
+the saved file again and reads each footprint's pads and primitives, and closes it. The
+board is left as found: closed again when it was not open, its flag cleared when the call
+marked a board that had no unsaved change (the process did not), the document that was in
+front shown again. `board_library.summarise` compares the file read back with the board:
+a pattern in scope with no footprint, a footprint whose pad count no component of its
+pattern has, a component pad count no footprint of its pattern has, a footprint kept but not
+in the file; any of these fails the call, the file kept and named. Refused before Altium: a
+file at `library_path` (nothing overwritten), not a `.PcbLib`, a board not found or not a
+`.PcbDoc`. One call on the example board: 26 s, 32 footprints from 29 patterns (PQ208 with
+210 pads), 2.1k characters.
+Live test `tests/test_live_pcblib_from_board.py` (copy of the SpiritLevel-SL1 project
+folder, each library read back by `get_footprint_primitives` on the saved file and compared
+with the tool's result and with the board's components read by a board iterator): before
+the tool, 3/3 failed, "AttributeError: module 'main' has no attribute
+'make_pcblib_from_board'". After, 4/4: the board open in its project with a sheet in front
+(32 footprints read back equal, every pattern there with its pad counts; the open documents,
+the document in front, the board's and the project file's flags, the project's documents
+and the project folder's files all as before); the board not open and three patterns asked
+for (4 footprints, `CR2012-0805_2` with its pattern, 28 removed, the board closed again);
+a board with unsaved changes still marked after; refusals (a file there unchanged, a name
+not on the board, a board not found: no file written, no document left open). With
+`test_live_symbol_footprint` (the footprint tools; 9/9): 13/13 in 222 s. Offline 545 OK
+(was 533): new `tests/test_board_library.py` 12, added to `.github/workflows/tests.yml`.
+Decided 2026-11-15 by the run, not the owner: Altium's own Make PCB Library, not a copy of
+each footprint's primitives through the API, because the process run hidden worked from a
+script and copies every primitive kind and 3D body as the menu does, with less code to be
+wrong.
+Decided 2026-11-15 by the run, not the owner: the board goes to the bridge as
+`source_board`, not `board_path`, because `board_path` makes the bridge open and remember
+the board before the command runs, and the command could then not know it had to close it
+again.
+Decided 2026-11-15 by the run, not the owner: a name in `footprints` that is not a pattern of
+the board refuses the call with nothing made, and a library that does not agree with the
+board after the save fails the call with the file kept and named, because a library missing
+a footprint asked for, reported as success, is a wrong result.
+Decided 2026-11-15 by the run, not the owner: Altium's `<pattern>_<n>` footprints are kept,
+named with their pattern, and come with a pattern asked for, because each is the footprint
+of components on the board that differ from the first of that pattern.
+Fixed in `de0620d`.
+Local: on `ad25`, released in `build-20261115-172812`. Upstream: not yet
+decided.
+Closed: the scenario test of that build held for what it asked (2026-11-15, third entry,
+4): 12 footprints, each equal to a library made by hand from the menu in pads, tracks, arcs,
+texts and 3D bodies; the filter in lower case, a board not open (closed again), a board with
+an unsaved move (still modified), the document in front restored, the folder unchanged, six
+refusals. The footprints' descriptions lost with `problems` [] (same entry, 5) is A41.

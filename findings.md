@@ -665,3 +665,6 @@ resident bridge of this build was already running (`this_build` true). Short che
 64 calls, 0 errors, 54.5k characters (18 `run_altium_script`: opening, closing, checks
 through Altium; the largest `search_dblib` 8k). The reference project's
 `.PrjPcbStructure`, written by Altium on close, was deleted (A5's usage).
+
+Sorted into A40 (1, 2), A8 (4), Closed; A26 (3), met again and widened; A41 (5), A42 (6),
+A43 (7), A44 (8, the temporary library), new; A34 (e) (8, the resident projects), met again.

@@ -128,6 +128,33 @@ class PrepareTest(unittest.TestCase):
         self.r.prepare(self.src / "P.PrjScr")
         self.assertNotEqual(self.r.tag, first)
 
+    def test_tag_is_the_same_for_lf_and_crlf_copies(self):
+        """A release copy (git archive: LF) and a checkout (core.autocrlf:
+        CRLF) at one commit must give one tag, or two servers on one Altium
+        close each other's resident (A34 a). Covers the form's templates and
+        the bridge's units and project file."""
+        def tree(name, eol):
+            base = self.tmp / name
+            (base / "tpl").mkdir(parents=True)
+            for src in (resident.TEMPLATE_DIR / "MCPResident.pas", resident.TEMPLATE_DIR / "MCPResident.dfm"):
+                text = src.read_bytes().replace(b"\r\n", b"\n").replace(b"\n", eol)
+                (base / "tpl" / src.name).write_bytes(text)
+            for n, body in (("a.pas", "procedure Run;\nbegin\nend;\n"), ("b.pas", "procedure B;\nbegin\nend;\n"),
+                            ("P.PrjScr", "[Document1]\nDocumentPath=a.pas\n\n[Document2]\nDocumentPath=b.pas\n")):
+                (base / n).write_bytes(body.replace("\n", eol.decode()).encode())
+            return base
+
+        tags = []
+        for name, eol in (("lf", b"\n"), ("crlf", b"\r\n")):
+            base = tree(name, eol)
+            with mock.patch.object(resident, "TEMPLATE_DIR", base / "tpl"):
+                r = resident.Resident(self.tmp / f"root_{name}")
+                r.prepare(base / "P.PrjScr")
+                tags.append(r.tag)
+                form = (r.project.parent / "MCPResident.pas").read_bytes()
+                self.assertNotIn(b"\n", form.replace(b"\r\n", b""))
+        self.assertEqual(tags[0], tags[1], "LF and CRLF copies of one commit gave two tags")
+
     def test_old_projects_are_pruned(self):
         tags = []
         for i in range(5):

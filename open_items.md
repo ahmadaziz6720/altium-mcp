@@ -283,7 +283,7 @@ unasked, and ending and restarting `X2.EXE` when Altium hangs.
   moved aside to `uji/0.7.0-20261115-114630.run1-dihentikan/` in the owner's project,
   Altium started fresh. The second run ran once, not stopped, 93 turns. The record
   commits (the entry, the sort) are not pushed: they go out with the next push of `ad25`.
-- [ ] A34 (a): committed (or left Open, why written into it)
+- [x] A34 (a): committed (as A35 in Waiting; Altium started by the run and left running)
 - [ ] A13: committed (or left Open, why written into it)
 - [ ] A14: committed (or left Open, why written into it)
 - [ ] A12: committed (or left Open, why written into it)
@@ -506,9 +506,8 @@ sixth entry, 7.) For the next run.
 
 **A34. Small points left by the resident bridge and the message tool.** From A30's work
 and the scenario test of `build-20261115-114630` (2026-11-15, first entry, 2, 3 and 5).
-(a) The resident's tag hashes the files' bytes before the line ends are made CRLF, so a
-release copy and a checkout at the same commit give two tags and, on one Altium, close
-each other's resident (found after the release, A30): hash the text after the CRLF step.
+(a) Moved to Waiting (2026-11-15, the run): the resident's tag hashed from the text after
+the CRLF step; it is item A35 there.
 (b) Calls the resident served still brought Altium in front briefly, each given back by
 A22's guard: the first `get_board_summary` after the start, 25 ms (the same call again:
 never; a guess, the board brought to view the first time a tool uses it), and after
@@ -565,6 +564,35 @@ Scenario test of that build held (2026-11-12, third entry, 2): 38 rules, the sco
 `filter2` only on binary rules. The reply went from 9.3k to 8.5k characters only (about
 9 %): what is left is mostly the key names and indentation repeated on every rule.
 Waits for the upstream PR.
+
+**A35. A34 (a), the resident's tag differed between a release copy and a checkout.** The tag
+(`Resident.prepare`) hashed the form's `.pas` and `.dfm` as read from disk, and made the
+line ends CRLF only afterwards, when writing them. A release copy (`git archive`: LF) and a
+checkout (`core.autocrlf`: CRLF) at one commit therefore gave two tags (`0fd9980a5570` and
+`a4ea8490f7f3`), and on one Altium each closed the other's resident and started its own
+(2 s and one launch each time). The bundle (`script_bundle.bundle_text`) already splits
+and joins its units' lines and writes CRLF, and `project_units` reads the project file by
+regex, so neither differs by line ends: only the two templates did. (Found after A30's
+release, 2026-11-15.) Local.
+Fix: `server/resident.py`, `prepare`: every file's text (the bundle and the two templates)
+is made CRLF, as it is written, before the hash; the `%TAG%`/`%DIR%` fill comes after the
+tag is known, as before.
+Test before: `test_resident.PrepareTest.test_tag_is_the_same_for_lf_and_crlf_copies`
+(the form's templates and the bridge's units and project file, once with LF and once with
+CRLF line ends) failed on the old code: `AssertionError: 'ee2c90ff7ed6' != 'd19c84dbe662'`
+("LF and CRLF copies of one commit gave two tags"). After: it passes; offline 416 OK (was
+415). Live, `ALTIUM_LIVE=1` from this checkout in AD25: `test_live_resident` 5/5, and the
+other live modules (`windows`, `drc`, `layer_stackup`, `layout`, `pcb_rules`,
+`project_setup`, `symbol_footprint`, `unrouted`) 50/50, so 55 of 55 passed; the checkout's
+resident now has the release copy's tag, `0fd9980a5570`.
+Decided 2026-11-15 by the run, not the owner: this entry carries the code A35 and names
+A34 (a) in its title, because a code can head one item only (`board.py --check` rejects a
+second `A34` heading) and A34 stays Open for (b), (c), (d).
+Decided 2026-11-15 by the run, not the owner: the test builds its LF and CRLF trees from
+the shipped form templates in temporary folders, with `TEMPLATE_DIR` patched, because the
+real files' line ends depend on the clone's `core.autocrlf` and the test must not.
+Fixed in the commit that moves it here. Local: on `ad25`, in the commit that moves it
+here; not yet in a build. Upstream: not yet decided.
 
 ## Closed
 

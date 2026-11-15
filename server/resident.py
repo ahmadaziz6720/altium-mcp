@@ -210,6 +210,12 @@ class Resident:
             return self.project
         texts = [(f"{BRIDGE_UNIT}.pas", script_bundle.bundle_text(units).encode("latin-1"))]
         texts += [(p.name, p.read_bytes()) for p in templates]
+        # Altium compiles CRLF only ("Error in declaration block"). The tag is
+        # hashed from the text as it is written, so a copy with LF line ends
+        # (git archive) and a checkout with CRLF (core.autocrlf) at one commit
+        # give one tag and do not close each other's resident (A34 a).
+        texts = [(name, data.replace(b"\r\n", b"\n").replace(b"\n", b"\r\n"))
+                 for name, data in texts]
         digest = hashlib.sha256()
         for name, data in texts:
             digest.update(name.encode() + b"\0" + data + b"\0")
@@ -227,8 +233,6 @@ class Resident:
                     for k, v in fill.items():
                         text = text.replace(k, v)
                     data = text.encode("latin-1")
-                # Altium compiles CRLF only ("Error in declaration block")
-                data = data.replace(b"\r\n", b"\n").replace(b"\n", b"\r\n")
                 (tmp / name).write_bytes(data)
             docs = [f"{BRIDGE_UNIT}.pas", f"{UNIT}.pas"]
             prj = "[Design]\nVersion=1.0\n\n" + "".join(

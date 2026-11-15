@@ -587,3 +587,81 @@ usage).
 Sorted into A35 (1), A13 (2), A12 (6), Closed; A14 (4), Closed but its priority; A34 (e)
 (1, the resident project of an earlier build listed); A37 (3), A38 (5), A39 (7), new; A26
 (8), possibly met again.
+
+**2026-11-15: scenario test of a release placing parts from integrated libraries, searching a database library and making a PCB library from a board (A40, A8), on copies of a small 2-layer board, with short checks**
+
+Release `bin\0.7.0-20261115-172812` (build line `0.7.0-ad25-20261115-172812 de0620d`). The
+resident bridge of this build was already running (`this_build` true). Short checks held:
+`get_project_info`, `get_board_summary` (same as the baseline), `get_layout` of an area,
+`check_silkscreen`, `get_outjob_settings`.
+
+1. A40, held for the search. `search_dblib` on a test DbLib over CSV files (Access engine):
+   three tables (two enabled, one by `UserWhereText`, one by `Key=`), listed with their key;
+   a term found in the enabled tables only, with `all_tables` also in the disabled one; a
+   quote (`O'Brien`), a `%` and an `_` in the term taken literally; `part_number` found in an
+   enabled and in a disabled table, all fields; an unknown part number `null` with a note; an
+   unknown `table` refused naming the tables; a table the database lacks reported with the
+   engine's message; no path with no DbLib installed refused ("no DbLib is installed in
+   Altium"). `get_installed_libraries` listed Altium's seven installed libraries, all
+   `IntLib`, `exists` true.
+2. A40, held for placing. `build_schematic` with `project_path`: two parts from one installed
+   `.IntLib` (one rotated 180 and mirrored, with a comment), one from another `.IntLib`, one
+   from a `.SchLib`. Read back through Altium and from the saved file: each `.IntLib` part
+   has its library reference, the library's file name as library name, the Design Item ID,
+   the place, rotation, mirror and comment asked for, and the library's models (footprint
+   current, simulation, signal integrity); every pin's connection point equal to `pin_map`.
+   `edit_schematic` `place_component` from both `.IntLib`s (rotation 90 with mirror, a
+   comment), saved, reopened: equal. A symbol not in the `.IntLib` reported per operation
+   ("not found in …"), the others applied; a `.PcbLib` refused before Altium, a missing
+   `.IntLib` and a bare file name reported as "library not found". `build_schematic` with a
+   missing `.IntLib` refused before Altium.
+3. **Found, A26 and its "possibly met again" explained: `build_schematic` puts its new sheet
+   into whatever project is focused, also without `project_path`.** With a saved, unmodified
+   project focused (its board in front), `build_schematic(parts)` with no `project_path`, the
+   case the description calls "a new, unsaved free document", left a `Sheet1.SchDoc` (no
+   path) in that project's documents and its file flag set (0 → -1); `success` true,
+   `detached_from` "". The same with `project_path` but a part missing: the call failed
+   (`missing_parts` in the error string), and the unsaved sheet stayed in the focused project
+   with the flag set, not mentioned. With `project_path` and every part found, the sheet was
+   taken out of the focused project (`project.detached_from` names it) but that project's
+   flag stayed set (A26 as reported). This is the `Sheet1.SchDoc` met at the start of this
+   session and of the last one in the reference project: a sheet built by an earlier call
+   or live test while it was focused. Expected: the sheet in no project (Free Documents)
+   without `project_path`, in none after a failure, and the focused project's flag as found
+   in all three cases.
+4. A8, held. `make_pcblib_from_board` on the open board in front (16 components, 12
+   patterns): 12 footprints in the saved file, pads and primitive counts per footprint equal
+   to a library made by hand with Design > Make PCB Library from the same board (pads,
+   tracks, arcs, texts, 3D bodies), `problems` []; the board and project file unmodified, the
+   project folder's files unchanged, nothing written beside the board, the library closed.
+   `footprints` in lower case, two names: 2 footprints, `removed_by_filter` 10, the document
+   that was in front (another library) in front again. A board with an unsaved move:
+   `board_modified` true after. A board not open, its project not open: 3 footprints asked,
+   3 written, the board closed again, nothing left open, its folder unchanged. Refused: a file
+   already at `library_path`, a pattern not on the board ("Not on the board: …. Nothing was
+   made."), a board not found, a `.SchDoc` as board, a path without `.PcbLib`, a board with
+   no components ("The board has no components. Nothing was made.").
+5. **A8, reported success with less than the board has: the footprints' descriptions are
+   lost.** Six of the twelve components carry a footprint description on the board
+   (`IPCB_Component.FootprintDescription`, e.g. "Chip Resistor, 2-Leads, Body …"), and the
+   library made by hand from the menu has them; in every library the tool made, read back
+   with `get_footprint_primitives`, every description is "". The result's comparison with
+   the board checks pads and patterns only, so `problems` stays []. Expected: each
+   footprint's description as the board has it (set before the save), or the difference
+   listed.
+6. Minor, A40: `edit_schematic` with only a `place_component` whose symbol is not in the
+   `.IntLib` (`applied` 0, `saved` false) left the sheet marked modified; nothing on it
+   changed. A part placed from a `.SchLib` is still saved with library name, library path
+   and target file name `*` and no Design Item ID, where an `.IntLib` part is now linked to
+   its library: the two ways differ.
+7. Minor, A40: `search_dblib` with exactly 20 matches and the default `max_rows` 20 says "a
+   table reached max_rows (20): narrow the term or raise max_rows", though there is no
+   21st (fetching one row more would tell). Every reply repeats the `tables` list (about
+   0.3k characters); a search of 20 matches is 8k.
+8. Seen in Altium, from tests run before this session: a temporary `Parts.SchLib` of a
+   live test's folder in Free Documents, and two resident script projects of different
+   tags open (A34 (e)).
+
+64 calls, 0 errors, 54.5k characters (18 `run_altium_script`: opening, closing, checks
+through Altium; the largest `search_dblib` 8k). The reference project's
+`.PrjPcbStructure`, written by Altium on close, was deleted (A5's usage).

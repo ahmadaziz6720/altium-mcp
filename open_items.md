@@ -180,6 +180,10 @@ files; `run_drc` first, as A3's way out uses it):
      `get_outjob_settings`; an offline step that turns Altium's BOM and pick and place into
      a named service's columns (JLCPCB first) and zips the Gerbers and drills. The
      per-footprint rotation corrections are a table the owner fills, empty to start.
+   - A34 (a), added by the owner on 2026-11-15: the resident's tag hashed from the text
+     after the CRLF step, so a release copy and a checkout at the same commit give one
+     tag; first in the group, as its live tests run from the checkout. A31 to A33 and the
+     rest of A34 stay Open for the next run.
 5. **Libraries**: A15, A8.
    - A15: `.IntLib` parts in `build_schematic` and `place_component`; the DbLib search as
      a tool. A supplier lookup and a vendor model import are not in this run (an outside
@@ -279,6 +283,7 @@ unasked, and ending and restarting `X2.EXE` when Altium hangs.
   moved aside to `uji/0.7.0-20261115-114630.run1-dihentikan/` in the owner's project,
   Altium started fresh. The second run ran once, not stopped, 93 turns. The record
   commits (the entry, the sort) are not pushed: they go out with the next push of `ad25`.
+- [ ] A34 (a): committed (or left Open, why written into it)
 - [ ] A13: committed (or left Open, why written into it)
 - [ ] A14: committed (or left Open, why written into it)
 - [ ] A12: committed (or left Open, why written into it)

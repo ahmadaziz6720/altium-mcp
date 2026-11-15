@@ -16,10 +16,14 @@ Altium's PCB/SCH API and writes the response. A fix is therefore in Python, in D
 or both. Several tools (OutJob, `.PcbLib` reading) read files on disk without Altium.
 
 **Read [`open_items.md`](open_items.md) before assuming the server works for a task.** What
-sessions found is in [`findings.md`](findings.md). `python board.py` shows both as a page
-(read-only, on `127.0.0.1:8767`); `python board.py --check` lists what does not parse,
-including an `**Open: …**` line that no longer matches the Open section: run it after
-editing either file.
+sessions found is in [`findings.md`](findings.md), and the items closed in
+[`closed_items.md`](closed_items.md). The three files are in the `backlog` plugin's format
+(its `format.md`, v0.1), configured in `.claude/backlog.json`. Its board shows them as a
+page (read-only, on `127.0.0.1:8768`):
+`python "<plugin>/scripts/board.py"`, where `<plugin>` is the installed copy under
+`~/.claude/plugins/cache/claude-workflow/backlog/<version>`. `board.py --check` lists what
+is out of the format, including an `**Open: …**` line that no longer matches the Open
+section: run it after editing any of the three.
 
 ## Branches and remotes
 
@@ -32,12 +36,12 @@ fork: the owner opens it from the compare link
 - `origin` = the fork `ahmadaziz6720/altium-mcp`, `upstream` = `coffeenmusic/altium-mcp`.
 - `main` tracks `upstream/main` and carries nothing of ours.
 - `ad25` is what is released and run here: upstream plus local fixes, and this file,
-  `findings.md`, `open_items.md` and `board.py`.
+  `findings.md`, `open_items.md`, `closed_items.md` and `.claude/backlog.json`.
 - **A PR branch starts from `upstream/main`** and holds only the fix (cherry-picked or
   squashed from `ad25`). It is named in `.claude/git-workflow.json`'s `branches` before
-  the first commit on it. These three files, `board.py` and `.claude/git-workflow.json`
-  never go upstream. Upstream's `.gitignore` ignores `*.json`, so that one is added with
-  `git add -f`.
+  the first commit on it. These four files, `.claude/backlog.json` and
+  `.claude/git-workflow.json` never go upstream. Upstream's `.gitignore` ignores `*.json`,
+  so the two configs are added with `git add -f`.
 - Update: `git fetch upstream`, `git rebase upstream/main` on `ad25`, run the offline tests
   (below), then release.
 
@@ -116,5 +120,6 @@ other repos and never commit here (the owner's global `CLAUDE.md`).
   it alone on `ad25` with a message that says whose entries they are, then start.
 - **Sort the entries into items**, as `findings.md`'s top says: each point to an A-item in
   `open_items.md`, new or existing, and a `Sorted into …` line under the entry.
-- **An item that is fixed** moves to Waiting with its commit; to Closed when the fix ran and
-  held in a session and, if it was sent upstream, the PR is settled.
+- **An item that is fixed** moves to Waiting with its commit, its status `BUILT <date>,
+  proof: <who>`; to `closed_items.md` when the fix ran and held in a session and, if it
+  was sent upstream, the PR is settled (`CLOSED <date>`, `, merged upstream` when merged).

@@ -1,0 +1,9 @@
+{
+  "prefix": "A",
+  "writers": "outside",
+  "tests": "CLAUDE.md#Tests",
+  "release": "CLAUDE.md#Release and run",
+  "check": "CLAUDE.md#Release and run",
+  "serial": true,
+  "public": true
+}

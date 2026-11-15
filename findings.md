@@ -34,7 +34,7 @@ not say where the problem was met:
 It describes the design in general terms ("a 4-layer board with a split ground plane",
 "a schematic symbol with 120 pins on four sides"). It gives the tool calls and the numbers
 that show the fault, and nothing that identifies the design. The same holds for the items
-in `open_items.md` and for an issue or PR sent upstream.
+in `open_items.md` and `closed_items.md` and for an issue or PR sent upstream.
 
 **Sorting.** A session in this repo sorts the entries into `open_items.md`, and adds a line
 under each entry it sorted, naming where each point went by the entry's own numbers:

@@ -32,6 +32,8 @@ test covers both. That test ran and held for both (findings 2026-11-14, second e
 A29 and A30 went out together in `build-20261115-114630` (owner, 2026-11-15): one scenario
 test covers both. It ran, the second time from the start, and held for both (findings
 2026-11-15, first entry); what it left is A31, A32 and A34.
+A35, A13, A14 and A12 (group 4 of the run) went out together in `build-20261115-143551`
+(the run, 2026-11-15): one scenario test covers them.
 
 A10 to A16 come from a review of the tools against a whole design flow (schematic and
 missing library parts, ERC; a board with its rules and layer stack; placement; routing,
@@ -287,7 +289,8 @@ unasked, and ending and restarting `X2.EXE` when Altium hangs.
 - [x] A13: committed (A36 new from it, Open)
 - [x] A14: committed (priority by remove and re-add; JLCPCB preset read 2026-11-15)
 - [x] A12: committed
-- [ ] group 4: offline and live tests, pushed, released (build: …)
+- [x] group 4: offline and live tests, pushed, released (build: `build-20261115-143551`;
+  519 offline, 63 live; Altium restarted before the live tests)
 - [ ] group 4: scenario test (session id: …), entry committed and sorted, release page
 - [ ] A15: committed (or left Open, why written into it)
 - [ ] A8: committed (or left Open, why written into it)
@@ -579,8 +582,8 @@ second `A34` heading) and A34 stays Open for (b), (c), (d).
 Decided 2026-11-15 by the run, not the owner: the test builds its LF and CRLF trees from
 the shipped form templates in temporary folders, with `TEMPLATE_DIR` patched, because the
 real files' line ends depend on the clone's `core.autocrlf` and the test must not.
-Fixed in the commit that moves it here. Local: on `ad25`, in the commit that moves it
-here; not yet in a build. Upstream: not yet decided.
+Fixed in `a1d9606`. Local: on `ad25`, released in `build-20261115-143551`. Upstream: not yet
+decided.
 
 **A13. The layer stack can only be read.** `get_pcb_layer_stackup` reads it; nothing adds
 or removes layers or sets copper weight, dielectric thickness, material or constant. Local:
@@ -669,8 +672,8 @@ only object was deleted and would refuse a removal that is safe.
 Decided 2026-11-15 by the run, not the owner: the read gives `copper_type` (Signal or Plane),
 because the set takes the read's form and a plane must come back a plane; the `layer_id` told
 it only by its wording.
-Fixed in the commit that moves it here. Local: on `ad25`, in the commit that moves it here;
-not yet in a build. Upstream: not yet decided.
+Fixed in `a389c2a`. Local: on `ad25`, released in `build-20261115-143551`. Upstream: not yet
+decided.
 
 **A14. `create_pcb_rule` covers seven rule kinds.** Clearance, width, hole size, routing
 via, solder and paste mask expansion, polygon connect. Not differential pairs, length or
@@ -784,8 +787,8 @@ Decided 2026-11-15 by the run, not the owner: every call reads the values back a
 `success` false on a difference, because the descriptor of a routing layers rule names no
 layer and a differential pair's shows only the extremes over all layers, so it cannot show
 what was stored.
-Fixed in the commit that moves it here. Local: on `ad25`, in the commit that moves it here;
-not yet in a build. Upstream: not yet decided.
+Fixed in `4c8b5c0`. Local: on `ad25`, released in `build-20261115-143551`. Upstream: not yet
+decided.
 
 **A12. Output jobs can be run and read, not made.** `run_output_jobs` runs containers of
 an OutJob that exists and `get_outjob_settings` reads one from disk; nothing creates an
@@ -936,8 +939,8 @@ bottom side, and the owner fills the table from what JLCPCB's review shows.
 Decided 2026-11-15 by the run, not the owner: `write_outjob` does not add the file to the
 project; the caller does it with `add_project_document`, because that tool already does it and
 checks it, and `write_outjob` then needs no Altium.
-Fixed in the commit that moves it here. Local: on `ad25`, in the commit that moves it here;
-not yet in a build. Upstream: not yet decided.
+Fixed in `cc1015d`. Local: on `ad25`, released in `build-20261115-143551`. Upstream: not yet
+decided.
 
 ## Closed
 

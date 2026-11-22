@@ -377,8 +377,32 @@ is written down before it.
     again; A76 new, out of this run; A34 met again. A46 began beside the sort.
 - [x] A46: committed (a441051)
 - [x] A58: committed (cc27c73)
-- [x] A45: committed
+- [x] A45: committed (007672a)
 - [ ] A26: committed
+  - **Blocked 2026-11-23 04:17, every step that needs Altium** (A26, A27, A71, A56 (a), A57,
+    A66, A41, A70, A28, A60 (a), each group's tests, release and scenario test). A probe's
+    clean-up of A26 left Altium (pid 17308) behind a crash message, and its subagent's
+    `Stop-Process` on it was denied by the auto mode classifier ("[Destructive or Unwanted
+    Actions]"). Not retried, and not done another way by the main session (no kill, no
+    close of the window, no press of the message, whose button sends a crash report): the
+    owner's word of 02:18 grants a restart, and a denial by the permission system is still
+    the owner's to lift.
+  - For the owner: end Altium by hand (the message's button, or Task Manager). The 28 open
+    documents read unmodified at 04:21. Then, if the session is gone, the sentence
+    `backlog:run open_items.md "## Run 2026-11-22", dari langkah pertama yang belum dicentang. Tanpa nanya apa-apa.`
+    A26's fix is in the stash `run 2026-11-22 A26`, never run in Altium: its item says what
+    to run.
+  - Found at the block, by hashes of the owner's 399 files: the run's restart of 03:12 (the
+    main session closing Altium's window before the scenario test, nothing modified) was not
+    free of writes. Altium wrote one generated `.PrjPcbStructure` again (1401 to 1298 bytes,
+    now with no diff against that repo's last commit; the 1401 bytes were not committed and
+    no copy was looked for or restored), and touched 12 other generated files, same content.
+    No change of content since 04:14. So "nothing modified" does not mean that closing
+    Altium writes nothing: hash before a restart and compare after it, and tell the owner.
+  - Decided 2026-11-23 by the run, not the owner: the two steps that need no Altium (the
+    recipes, A75) taken now, out of their order, offline, because the owner asked at 02:18
+    that the run not stop and neither reaches Altium; their proof stays the scenario test.
+    Nothing is pushed or released until the live tests can run.
 - [ ] A27: committed
 - [ ] A71: committed
 - [ ] A56 (a): committed
@@ -550,6 +574,52 @@ description says, put its `Sheet1.SchDoc` into the focused project and left it m
 Met again 2026-11-23 (findings 2026-11-23, point 7), build `0.7.0-20261123-001227`, at the
 start of its scenario test: the project Altium had in focus, not a test project, modified
 and holding a `Sheet1.SchDoc` with no path, unsaved. Left as found.
+
+Tried 2026-11-23, backlog run: the cause found, a fix written and not run in Altium, so
+still Open. Its code is in the stash `run 2026-11-22 A26` (`git stash list`), untracked
+test included.
+
+Cause, from a probe in AD25 on a temporary project that had the focus: `DM_CreateNewDocument('SCH')`
+puts the sheet into the focused project and sets its flag, and from then on
+`DM_FocusedProject` is Free Documents. `build_schematic` reads the focused project only
+after that, so it finds nothing to take out and `detached_from` is `""`; with `project_path`
+the add takes the sheet out later (by the code, not probed), when the flag is already set,
+and so leaves it set.
+Read before the sheet is made, the project is the right one: `DM_RemoveSourceDocument` by
+the sheet's bare name then left it listed under Free Documents only, and `SetModified(False)`
+left the project unmodified, both still so in the next script. Closing a sheet never saved
+takes it out of neither list, a project's or Free Documents' (the `Sheet1.SchDoc` with no
+path, not open, met above).
+
+The fix in the stash, unproven: the focused project and its flag read before the sheet is
+made, the sheet taken out and the flag put back in the same script; one `detached_from`, at
+the top; `sheet` the path saved; a build with parts missing says in its error where the
+sheet is. The tool listing with it 158,879 to 159,035 characters, 80 tools, no new argument.
+
+Decided 2026-11-23 by the run, not the owner:
+- after a failure the sheet is taken out of the project and stays open as a free document,
+  named in the error, not closed, because a close leaves its entry in the list and the
+  partial sheet is what shows what was placed;
+- `detached_from` is the project's full path, because that is what `add_project_document`
+  gives and two projects can share a file name.
+
+Tests: offline, `test_project_setup`'s new test failed before ("'Sheet1.SchDoc' != ...
+sheet is not the name the sheet was saved as"); with the stash the offline list 580, OK.
+Live, the probe met the defect (the temporary project unmodified before; after, modified
+and listing `Sheet1.SchDoc`); `tests/test_live_build_focus.py` (4 tests, in the stash) never
+ran, before or after, and the DelphiScript was never compiled.
+
+What stopped it: the probe's clean-up closed its project before the project's sheet, which
+left the project listed in the workspace with no document. Opening that project again to
+close it listed it twice, and Altium then showed "COM object that has been separated from
+its underlying RCW cannot be used", whose one button sends a crash report. It was not
+pressed, and the restart of Altium was refused by the permission system, so the bridge's
+commands are refused behind that message (a read by `run_altium_script` still ran).
+
+Left: Altium restarted by someone allowed to; `test_live_build_focus` seen failing on the
+code without the stash's `.pas` and `main.py`, then passing with them; the live tests that
+build (`test_live_project_setup`, `test_live_multipart`, `test_live_pin_map`,
+`test_live_spec_file`, `test_live_libraries`, `test_live_symbol_footprint`); then Waiting.
 
 ### A27 - `build_schematic` with `footprint` on a symbol that has a current one gives two - OPEN 2026-11-14
 

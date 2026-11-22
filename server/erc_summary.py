@@ -5,7 +5,9 @@ when every one is listed in full, past what a client takes in one tool
 result; most of them are a few kinds repeated (a sheet's duplicate nets, a
 copied block's duplicate designators). So the reply is grouped here, after
 Altium returns it: one group per level and type, with its count and its
-first few details, and the full list goes to a file the reply names.
+first few distinct details (a detail names no sheet, so repeated sheets give
+the same one over and over), and the full list goes to a file the reply
+names.
 
 A violation Altium suppresses (a no-ERC marker on its pin) is marked
 suppressed by the bridge and counted apart there (suppressed, outside total);
@@ -17,7 +19,7 @@ import json
 import re
 from pathlib import Path
 
-# Details kept per group in the reply
+# Distinct details kept per group in the reply
 FIRST = 3
 
 # Groups in this order of level, then the largest first
@@ -35,15 +37,15 @@ def full_list_path(folder: Path, project_path: str) -> Path:
 
 def group(violations: list, first: int = FIRST) -> list:
     """[{level, type, count, first}] of violations [{level, type, detail}],
-    first holding the details of the group's first violations in Altium's
-    order."""
+    first holding the group's first distinct details in Altium's order."""
     groups = {}
     for v in violations:
         key = (v.get("level", ""), v.get("type", ""))
         g = groups.setdefault(key, {"level": key[0], "type": key[1], "count": 0, "first": []})
         g["count"] += 1
-        if len(g["first"]) < first:
-            g["first"].append(v.get("detail", ""))
+        detail = v.get("detail", "")
+        if len(g["first"]) < first and detail not in g["first"]:
+            g["first"].append(detail)
     return sorted(groups.values(), key=lambda g: (_LEVELS.get(g["level"], len(_LEVELS)), -g["count"]))
 
 

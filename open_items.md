@@ -12,7 +12,7 @@ upstream, run and held, or decided against moves with its record to
 [`closed_items.md`](closed_items.md), and so does a run's section once every step of it is
 ticked. The layout is the `backlog` plugin's `format.md` (v0.1, since 2026-11-15).
 
-**Open: A11, A15, A23, A25 to A28, A31 to A34, A36 to A39, A41 to A48, A51 to A75.** Sorted
+**Open: A11, A15, A23, A25 to A28, A31 to A34, A36 to A39, A41 to A48, A51 to A73, A75.** Sorted
 2026-11-23, the entry of 2026-11-23 (the scenario test of group 1's build,
 `build-20261123-001227`): A49 and A50 held and closed; A48 back to Open, held for edits and
 not for objects a script removed, taken again as A48 (b); A74 and A75, new; A26, A34 and
@@ -347,7 +347,7 @@ is written down before it.
   - Ran 00:14 to 00:22, `EXIT 0`, its entry committed alone (`eeaacd2`), sorted 2026-11-23 (`613fa9a`):
     A49 and A50 held (closed), A48 back to Open as A48 (b), new A74 and A75, A26, A34 and
     A44 met again.
-- [x] A48 (b) again: committed
+- [x] A48 (b) again: committed (71514df)
   - Ended 2026-11-23 02:29 still Open, partly built (the description's line, the tests): no
     safe re-read found, no `stale_sheets` (the item). About 154k tokens, 14 minutes.
   - **Stopped here 2026-11-23 about 02:11 on the owner's word, to move to a new session**
@@ -359,7 +359,7 @@ is written down before it.
     from its exe at 02:15 (pid 21380). The owner's documents came back open and read
     unmodified at 02:29 (the subagent's report). `ad25` is pushed at group 1 again's
     release, not before.
-- [ ] A74: committed
+- [x] A74: committed
 - [ ] Group 1 again: tests and release (build: )
 - [ ] Group 1 again: scenario test (session id: ), its outcome sorted
 - [ ] A46: committed
@@ -1388,22 +1388,6 @@ Not tried, for whoever takes it next: prevention where
 the removal is written, `run_altium_script` warning of a `RemoveSchObject` with no
 `SCHM_PrimitiveRegistration` in the same script; it is outside what the plan decided.
 
-### A74 - `get_erc_violations`' `first` repeats one text - OPEN 2026-11-23
-
-Sorted out of the entry of 2026-11-23, point 2, the scenario test of build `0.7.0-20261123-001227`: a
-violation's detail does not name its sheet, so on a project of repeated sheets a group's
-first three often read the same ("Net X has only one pin (Pin J1-4)" three times,
-"Duplicate Net Names Wire X" three times), two of the three lines telling nothing. Reported
-success, rightly: the counts are right, the lines wasted.
-
-Local: `first` holds the group's first three *distinct* details (A49's grouping,
-`server/erc_summary.py`). The entry also proposed the sheet with each detail.
-
-Decided 2026-11-23 by the run, not the owner: taken into group 1 again, by the run's rule
-for a new point small and in the group's files (*The scenario test of a group*, 7), because
-it is A49's grouping; the first three distinct details, not the sheet with each, because
-the token rule asks for the smaller change.
-
 ### A75 - `run_altium_script`'s `List1..3` keep strings, not objects - OPEN 2026-11-23
 
 Sorted out of the entry of 2026-11-23, point 6, the scenario test of build `0.7.0-20261123-001227`: an
@@ -1474,3 +1458,34 @@ Scenario test of that build held (2026-11-12, third entry, 2): 38 rules, the sco
 9 %): what is left is mostly the key names and indentation repeated on every rule.
 Waits for the upstream PR.
 
+### A74 - `get_erc_violations`' `first` repeats one text - BUILT 2026-11-23, proof: the scenario test
+
+Sorted out of the entry of 2026-11-23, point 2, the scenario test of build `0.7.0-20261123-001227`: a
+violation's detail does not name its sheet, so on a project of repeated sheets a group's
+first three often read the same ("Net X has only one pin (Pin J1-4)" three times,
+"Duplicate Net Names Wire X" three times), two of the three lines telling nothing. Reported
+success, rightly: the counts are right, the lines wasted.
+
+Local: `first` holds the group's first three *distinct* details (A49's grouping,
+`server/erc_summary.py`). The entry also proposed the sheet with each detail.
+
+Decided 2026-11-23 by the run, not the owner: taken into group 1 again, by the run's rule
+for a new point small and in the group's files (*The scenario test of a group*, 7), because
+it is A49's grouping; the first three distinct details, not the sheet with each, because
+the token rule asks for the smaller change.
+
+Cause: `erc_summary.group` kept the first three details as they came, and a detail that
+Altium gives for each of several copies of a sheet is the same text each time. Fixed in
+the commit that moves it here: a detail already in the group's `first` is not added again,
+so `first` is the first three distinct ones in Altium's order, fewer when the group has
+fewer; `count` still counts the repeats. The description and the README say "first 3
+distinct details" (the tool listing 157,971 to 157,962 characters, 80 tools).
+Tests first: two offline in `tests/test_erc_summary.py` (failed, `['A', 'A', 'A'] !=
+['A', 'B', 'C']` and the same of a group with one distinct detail) and a live one in
+`tests/test_live_erc.py` on four copies of the SpiritLevel-SL1 example's power sheet
+(failed, "Lists differ", the group Duplicate nets starting with one text twice). After,
+2026-11-23: `test_erc_summary` 14/14; live in AD25 `test_live_erc` 3/3 (that project 1,066
+characters before and 1,067 after, the third line now a new one; A49's 207 violations
+2,163 both times, the counts summing to the total), `test_live_compile_refresh` and
+`test_live_drc`'s `LiveCompileFolderTest` 9 run, OK with A48 (b)'s two expected failures;
+the offline list 559, OK.

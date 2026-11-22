@@ -7296,8 +7296,8 @@ async def get_erc_violations(ctx: Context, compile: bool = True, project_path: s
         str: JSON with project_path, unsaved_in_altium, missing_on_disk,
              total, suppressed (violations Altium suppresses, e.g. by a
              no-ERC marker: not in total or groups), fatal, errors,
-             warnings, groups [{level, type, count, first}] (first: the
-             details of its first 3 violations) and full_list, the path of
+             warnings, groups [{level, type, count, first}] (first: its
+             first 3 distinct details) and full_list, the path of
              a JSON file holding every violation [{level, type, detail,
              suppressed}]
     """

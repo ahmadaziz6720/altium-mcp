@@ -1,5 +1,6 @@
 """get_erc_violations' reply grouped by level and type (A49), the suppressed
-violations left out of the groups (A50), offline."""
+violations left out of the groups (A50), each group's first details distinct
+(A74), offline."""
 import asyncio
 import json
 import os
@@ -39,6 +40,19 @@ class GroupTest(unittest.TestCase):
         self.assertEqual(groups[0]["first"], ["Duplicate nets #0", "Duplicate nets #1", "Duplicate nets #2"])
         self.assertEqual(groups[1]["first"], ["Unconnected pin #0", "Unconnected pin #1"])
         self.assertEqual(sum(g["count"] for g in groups), len(vs))
+
+    def test_first_holds_the_first_three_distinct_details(self):
+        # A74: a detail names no sheet, so repeated sheets repeat it word for word
+        details = ["A"] * 4 + ["B", "A", "C", "B", "D"]
+        vs = [{"level": "error", "type": "Duplicate nets", "detail": d} for d in details]
+        (g,) = erc_summary.group(vs)
+        self.assertEqual(g["first"], ["A", "B", "C"])
+        self.assertEqual(g["count"], len(details), "the repeats are still counted")
+
+    def test_fewer_distinct_details_than_three_are_each_given_once(self):
+        vs = [{"level": level, "type": "Single pin net", "detail": "A"}
+              for level in ("error", "warning") for _ in range(3)]
+        self.assertEqual([(g["count"], g["first"]) for g in erc_summary.group(vs)], [(3, ["A"]), (3, ["A"])])
 
     def test_fatal_first_and_an_unknown_level_last(self):
         vs = [violation("odd", "X", 0), violation("warning", "W", 0), violation("fatal", "F", 0)]

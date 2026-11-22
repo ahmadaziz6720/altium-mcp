@@ -1,8 +1,8 @@
 """Live test of get_erc_violations in a running Altium Designer. A49: on a
 project with some hundreds of violations of a few kinds the result is a
 summary, not every violation in full: one group per level and type with its
-count and its first three details, the counts summing to the total, and the
-full list in a file the result names.
+count and its first three distinct details (A74), the counts summing to the
+total, and the full list in a file the result names.
 
 See tests/live_altium.py for how to run it. It works on a copy of the
 SpiritLevel-SL1 example Altium installs (skipped when it is not there): its
@@ -13,6 +13,9 @@ designator and net is there twice (276 violations of six kinds on AD25,
 A50: a violation Altium suppresses (a no-ERC marker on its pin) is left out
 of the groups and counted as suppressed; on a one-sheet copy of the same
 example's power sheet, a test point moved so its input pin floats.
+
+A74: a detail names no sheet, so on repeated sheets (four copies of that
+power sheet) it repeats word for word; a group gives it once.
 """
 import asyncio
 import json
@@ -78,7 +81,7 @@ class LiveErcSummaryTest(unittest.TestCase):
         self.assertGreaterEqual(len(groups), 4, groups)
         self.assertEqual(sum(g["count"] for g in groups), erc["total"], groups)
         for g in groups:
-            self.assertEqual(len(g["first"]), min(3, g["count"]), g)
+            self.assertTrue(1 <= len(g["first"]) <= 3, g)
             self.assertTrue(all(isinstance(d, str) and d for d in g["first"]), g)
         self.assertEqual(len({(g["level"], g["type"]) for g in groups}), len(groups), "a group twice")
         for level, key in (("fatal", "fatal"), ("error", "errors"), ("warning", "warnings")):
@@ -94,10 +97,48 @@ class LiveErcSummaryTest(unittest.TestCase):
         for g in groups:
             mine = [v["detail"] for v in listed if (v["level"], v["type"]) == (g["level"], g["type"])]
             self.assertEqual(len(mine), g["count"], g["type"])
-            self.assertEqual(mine[:3], g["first"], g["type"])
+            self.assertEqual(g["first"], list(dict.fromkeys(mine))[:3], g["type"])
         print(f"\nA49: {erc['total']} violations ({erc['suppressed']} more suppressed) in {len(groups)} "
               f"groups, {len(text)} characters; "
               f"the file {path.stat().st_size} bytes")
+
+
+@unittest.skipUnless(LIVE, SKIP_REASON)
+@unittest.skipUnless((SL1 / "SL_Power.SchDoc").exists(), f"Altium's example sheet is not in {SL1}")
+class LiveErcRepeatedSheetsTest(unittest.TestCase):
+    """A74: first holds a group's first three distinct details."""
+
+    @classmethod
+    def setUpClass(cls):
+        check_scripts_are_this_checkouts()
+
+    def setUp(self):
+        tmp = Path(win32api.GetLongPathName(tempfile.mkdtemp(prefix="erc_live_")))
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        text = "[Design]\r\nVersion=1.0\r\n\r\n"
+        for n in range(1, 5):
+            shutil.copyfile(SL1 / "SL_Power.SchDoc", tmp / f"Power{n}.SchDoc")
+            text += f"[Document{n}]\r\nDocumentPath=Power{n}.SchDoc\r\n\r\n"
+        self.project = tmp / "Repeated.PrjPcb"
+        self.project.write_text(text, encoding="latin-1")
+        self.addCleanup(close_all_under, str(tmp))
+
+    def test_a_repeated_detail_is_given_once(self):
+        text = asyncio.run(main.get_erc_violations(None, project_path=str(self.project)))
+        erc = json.loads(text)
+        path = Path(erc["full_list"])
+        self.addCleanup(path.unlink, missing_ok=True)
+        listed = [v for v in json.loads(path.read_text(encoding="utf-8"))["violations"] if not v["suppressed"]]
+        self.assertEqual(sum(g["count"] for g in erc["groups"]), erc["total"], erc)
+        repeats = 0
+        for g in erc["groups"]:
+            mine = [v["detail"] for v in listed if (v["level"], v["type"]) == (g["level"], g["type"])]
+            self.assertEqual(g["first"], list(dict.fromkeys(mine))[:3], g["type"])
+            repeats += len(set(mine[:3])) < len(mine[:3])
+        self.assertTrue(repeats, f"the fixture made no group starting with a repeated detail: {erc}")
+        self.assertLess(len(text), MAX_CHARS)
+        print(f"\nA74: {erc['total']} violations in {len(erc['groups'])} groups, {repeats} of them "
+              f"starting with a repeat, {len(text)} characters")
 
 
 @unittest.skipUnless(LIVE, SKIP_REASON)

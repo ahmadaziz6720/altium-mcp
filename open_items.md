@@ -12,7 +12,7 @@ upstream, run and held, or decided against moves with its record to
 [`closed_items.md`](closed_items.md), and so does a run's section once every step of it is
 ticked. The layout is the `backlog` plugin's `format.md` (v0.1, since 2026-11-15).
 
-**Open: A11, A15, A23, A25 to A28, A31 to A34, A36 to A39, A41 to A45, A47, A48, A51 to A73, A75, A76.** Sorted
+**Open: A11, A15, A23, A25 to A28, A31 to A34, A36 to A39, A41 to A45, A47, A48, A51 to A57, A59 to A73, A75, A76.** Sorted
 2026-11-23, the second entry of 2026-11-23 (the scenario test of group 1's second build,
 `build-20261123-031122`): A74 held and closed; A48 (b) checked, the part built held and the
 rest still open; A76, new, not taken into the run; A34, met again. Sorted
@@ -375,8 +375,8 @@ is written down before it.
   - Ran 03:14 to 03:21, `EXIT 0`, no resume, its entry committed alone (`f6eedbc`): A74
     held (closed); A48 (b)'s built part held, the item still Open as written, so no fix
     again; A76 new, out of this run; A34 met again. A46 began beside the sort.
-- [x] A46: committed
-- [ ] A58: committed
+- [x] A46: committed (a441051)
+- [x] A58: committed
 - [ ] A45: committed
 - [ ] A26: committed
 - [ ] A27: committed
@@ -889,20 +889,6 @@ from seventeen sessions' transcripts: `get_symbol_primitives` and `get_footprint
 20k to 44k characters of results in a session each. The same point names
 `get_project_components`, 63k in one session (7 calls), filed here as the entry did: it is a
 project read, not a library one, and no item yet covers its size.
-
-### A58 - `build_schematic` and `edit_schematic` take no spec file - OPEN 2026-11-22
-
-Sorted out of the entry of 2026-11-18 (first), point 3, seen before drawing: a sheet of some
-60 parts and 150 wires goes in as inline JSON, about 20k characters a sheet;
-`create_symbols_batch` takes a spec file, the sheet tools none.
-
-Proposed: local; a `spec_file` on both. Not decided.
-
-Met again 2026-11-22 (findings 2026-11-22, point 1), build `0.7.0-20261115-172812`, measured
-from seventeen sessions' transcripts: 171k characters of `build_schematic` input over 14
-calls in one session, the inline sheet sent each time (with A46: 142k of results).
-
-Decided 2026-11-22 by the owner (the opening answer of `## Run 2026-11-22`): taken, a `spec_file` argument on `build_schematic` and `edit_schematic`, the one new argument of that run.
 
 ### A59 - No tool places sheet symbols, ports, harness connectors or signal harnesses - OPEN 2026-11-22
 
@@ -1551,3 +1537,56 @@ Seen and left: a build with a missing part comes back as the error text, with no
 `pin_map.txt` in the exchange folder is read after the bridge's lock is released, so two
 sessions building at once could read each other's map (both by reading the code, not
 tested). A part on a multi-part symbol is A45's.
+
+### A58 - `build_schematic` and `edit_schematic` take no spec file - BUILT 2026-11-23, proof: the scenario test
+
+Sorted out of the entry of 2026-11-18 (first), point 3, seen before drawing: a sheet of some
+60 parts and 150 wires goes in as inline JSON, about 20k characters a sheet;
+`create_symbols_batch` takes a spec file, the sheet tools none.
+
+Proposed: local; a `spec_file` on both. Not decided.
+
+Met again 2026-11-22 (findings 2026-11-22, point 1), build `0.7.0-20261115-172812`, measured
+from seventeen sessions' transcripts: 171k characters of `build_schematic` input over 14
+calls in one session, the inline sheet sent each time (with A46: 142k of results).
+
+Decided 2026-11-22 by the owner (the opening answer of `## Run 2026-11-22`): taken, a `spec_file` argument on `build_schematic` and `edit_schematic`, the one new argument of that run.
+
+Cause: both tools took the sheet only as call arguments, `parts`, or `sheet_path` and
+`operations`, required there.
+
+Fixed in the commit that moves it here: both take `spec_file`, the full path of a JSON file
+of their other arguments, read by the new `server/spec_args.py` and checked as the same
+types. An argument in both places is refused, and nothing is sent to Altium. The
+descriptions, the README and the manifest's two lines say so. The tool listing 158,036 to
+158,565 characters (0.3%), 80 tools.
+
+Decided 2026-11-23 by the run, not the owner:
+- arguments that are not in the file may be given inline beside it, because the decision
+  refuses the argument given twice, and two different ones need no merge rule;
+- the other arguments of both tools default to none, `parts`, `sheet_path` and `operations`
+  asked for by the tool and no longer by the schema, because the file may hold them, and
+  because a default value given inline (`unit` mil, `save` false) is otherwise not told from
+  one not given and would lose to the file's unnoticed;
+- a name the tool does not have, in the file, is refused, because a misspelled `wires` would
+  build a sheet without wires and report success;
+- a relative path is refused, because it would be read from the server's folder.
+
+Tests first. Offline, `tests/test_spec_args.py`, called through the server as a client
+calls it, all failing on the code before (40 failures in 10 tests): "'spec_file' not found
+in ['parts', 'wires', ...]", "1 validation error for build_schematicArguments parts Field
+required", and with `parts` inline beside a file "True is not false": the unknown argument
+was dropped and success reported. Live, `tests/test_live_spec_file.py`, 1 failed with the
+same "parts Field required".
+
+After, 2026-11-23: offline 10/10, and the list with the new module 577, OK. Live in AD25,
+`test_live_spec_file` 1/1: a build from a file into a project (two parts, a parameter that
+is not ASCII, two wires, a junction, a label, a power port, a note) read back from the
+saved .SchDoc, then an edit from a file in mm read back the same way, and one with `unit`
+in both places refused, the sheet's bytes unchanged. The callers' live tests:
+`test_live_pin_map` 2/2, `test_live_libraries` 5/5, `test_live_project_setup` 9/9,
+`test_live_compile_refresh` 7 (2 of them expected failures), `test_live_erc` 3/3, and the
+one test of `test_live_symbol_footprint` that builds a sheet. The other live tests not run.
+
+Seen and left: on every tool the server drops an inline argument it does not know, without
+a word (the mcp package's argument model; how the test before got its false success).

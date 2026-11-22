@@ -44,6 +44,7 @@ import functools
 import altium_messages
 import pin_map
 import resident
+import spec_args
 from outjob_parser import parse_outjob
 
 # Set MCP_DIR to the directory of the current Python file
@@ -2512,10 +2513,11 @@ MUTATING_COMMANDS.add("make_pcblib_from_board")
 
 
 @_tool()
-async def build_schematic(ctx: Context, parts: list, wires: list = None,
+async def build_schematic(ctx: Context, parts: list = None, wires: list = None,
                           junctions: list = None, net_labels: list = None,
                           power_ports: list = None, notes: list = None,
-                          project_path: str = "", sheet_path: str = "") -> str:
+                          project_path: str = None, sheet_path: str = None,
+                          spec_file: str = "") -> str:
     """
     Build a wired schematic on a NEW sheet from a circuit description.
 
@@ -2568,6 +2570,9 @@ async def build_schematic(ctx: Context, parts: list, wires: list = None,
             (create one with create_project). Needs sheet_path.
         sheet_path: full path the sheet is saved at, a .SchDoc that does not
             exist yet. Only with project_path.
+        spec_file: full path of a JSON file holding any of the arguments
+            above, as inline (parts is required, here or there). One given
+            in both places is refused.
 
         All coordinates are mils and keep their fractions, so a metric sheet
         can be drawn exactly (1 mm = 39.3700787 mil). The pin_map has the
@@ -2583,6 +2588,13 @@ async def build_schematic(ctx: Context, parts: list, wires: list = None,
         the saved project file lists the sheet). A sheet with missing parts
         is not saved into the project (project_note says so).
     """
+    args, error = spec_args.resolve(spec_file, build_schematic, dict(
+        parts=parts, wires=wires, junctions=junctions, net_labels=net_labels,
+        power_ports=power_ports, notes=notes, project_path=project_path, sheet_path=sheet_path),
+        required=("parts",))
+    if error:
+        return json.dumps({"success": False, "error": error})
+    parts, wires, junctions, net_labels, power_ports, notes, project_path, sheet_path = args.values()
     logger.info(f"Building schematic: {len(parts)} parts")
 
     if bool(project_path) != bool(sheet_path):
@@ -2705,8 +2717,8 @@ async def build_schematic(ctx: Context, parts: list, wires: list = None,
     return json.dumps(result, separators=(",", ":"))
 
 @_tool()
-async def edit_schematic(ctx: Context, sheet_path: str, operations: list, unit: str = "mil",
-                         save: bool = False) -> str:
+async def edit_schematic(ctx: Context, sheet_path: str = None, operations: list = None, unit: str = None,
+                         save: bool = None, spec_file: str = "") -> str:
     """
     Change an existing schematic sheet: move, rotate, delete or place parts,
     set parameters, move designators and parameter text, add wires, net
@@ -2755,12 +2767,23 @@ async def edit_schematic(ctx: Context, sheet_path: str, operations: list, unit: 
         save (bool): Save the sheet afterwards (needed before
             check_schematic, which reads the saved file). Otherwise it is
             left modified for the user to review and save.
+        spec_file (str): Full path of a JSON file holding any of the
+            arguments above, as inline (sheet_path and operations are
+            required, here or there). One given in both places is refused.
 
     Returns:
         str: JSON with how many operations were applied and the errors.
     """
     import sch_edit
 
+    args, error = spec_args.resolve(spec_file, edit_schematic, dict(
+        sheet_path=sheet_path, operations=operations, unit=unit, save=save),
+        required=("sheet_path", "operations"))
+    if error:
+        return json.dumps({"success": False, "error": error})
+    sheet_path, operations, unit, save = args.values()
+    if unit is None:
+        unit = "mil"
     # Long paths, or Altium opens a second copy of a sheet or library that
     # is already open
     sheet_path = long_path(sheet_path)

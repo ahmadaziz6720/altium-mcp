@@ -93,7 +93,7 @@
     },
     {
       "name": "build_schematic",
-      "description": "Build a wired schematic on a new sheet from .SchLib parts, wires, junctions, net labels and power ports; without wires, returns each placed pin's connection point"
+      "description": "Build a wired schematic on a new sheet from .SchLib parts, wires, junctions, net labels and power ports; without wires, returns each placed pin's connection point; takes its arguments inline or from a JSON file"
     },
     {
       "name": "check_schematic",
@@ -101,7 +101,7 @@
     },
     {
       "name": "edit_schematic",
-      "description": "Change an existing schematic sheet as one undo step: move, place or delete parts, set parameters, move text, add wires, labels, power ports and junctions"
+      "description": "Change an existing schematic sheet as one undo step: move, place or delete parts, set parameters, move text, add wires, labels, power ports and junctions; takes its arguments inline or from a JSON file"
     },
     {
       "name": "get_symbol_placement_rules",

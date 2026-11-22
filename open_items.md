@@ -12,7 +12,7 @@ upstream, run and held, or decided against moves with its record to
 [`closed_items.md`](closed_items.md), and so does a run's section once every step of it is
 ticked. The layout is the `backlog` plugin's `format.md` (v0.1, since 2026-11-15).
 
-**Open: A11, A15, A23, A25 to A28, A31 to A34, A36 to A39, A41 to A72.** Sorted
+**Open: A11, A15, A23, A25 to A28, A31 to A34, A36 to A39, A41 to A73.** Sorted
 2026-11-22, the entry of 2026-11-22 (token cost of seventeen design sessions): A49, A46, A58
 and A57, met again, the four where the server's results weigh most. Sorted
 2026-11-22, the eighteen entries of 2026-11-18 to 2026-11-20 (schematic and library work on
@@ -66,18 +66,17 @@ missing library parts, ERC; a board with its rules and layer stack; placement; r
 DRC; fabrication outputs for an assembly service), not from a session's entry: what the
 flow needs that no tool does (2026-11-12). They are features, not faults.
 
-A run is planned below, `## Run 2026-11-22`: three groups on the owner's token rule. Its
-phase 1 is not finished: two of the opening questions are still to be answered.
+A run is planned below, `## Run 2026-11-22`: three groups on the owner's token rule, its
+opening question answered, phase 2 to go.
 
 ## Run 2026-11-22
 
-Planned 2026-11-22 under the owner's token rule above. Fifteen items in three groups, the
-items that report success with a wrong result and those whose results are largest, then
-phase 2 unattended across as many sessions as it needs, from the first step not ticked
-below. **Phase 1 is not finished**: the owner moved to a new session before answering
-two of the four opening questions (*Opening answer*). The next session asks those two
-again, worded as below, writes the answers here and in the items, ticks Phase 1, commits
-the plan, and only then starts phase 2.
+Planned 2026-11-22 under the owner's token rule above. Sixteen items in three groups (the
+items that report success with a wrong result, those whose results are largest, and the
+four missing tools met most, as small changes to existing tools), and a recipes file for
+thirteen more, then phase 2 unattended across as many sessions as it needs, from the first
+step not ticked below. The opening question was asked in two sessions of 2026-11-22
+(*Opening answer*).
 
 ### How it runs
 
@@ -85,8 +84,9 @@ the plan, and only then starts phase 2.
   the run's: the option that keeps the server's checks honest and its results true, the
   smaller change when two are equal, written into its item as "Decided <date> by the run,
   not the owner: ..., because ..." and listed in the report.
-- **The token rule.** No new tool. No new argument, unless the opening answer takes one
-  (A58's `spec_file`). A result made smaller is made so by default, not behind a flag.
+- **The token rule.** No new tool. No new argument but A58's `spec_file`, which the
+  opening answer took; A56's op is one more kind of entry in an existing list. A result
+  made smaller is made so by default, not behind a flag.
   Each group's release measures the tool listing (names, descriptions and schemas, as
   `main.mcp.list_tools()` gives them) before and after: 80 tools, 164,529 characters at
   `f120b3f` (2026-11-22). A group that grows it by more than 1% says why in its release
@@ -189,9 +189,13 @@ release just registered, by the procedure in its `reports/uji-skenario.md`.
     no wires, because it is the smaller change with no new argument and keeps the read the
     description advises. Test: offline on the keying (pins sharing a name kept), live on
     the result's size with wires.
-  - A58: waits on the opening answer (question 3). Taken: a `spec_file` (a JSON file
-    holding the call's arguments) on `build_schematic` and `edit_schematic`; offline test
-    and a live build from a file. Not taken: stays Open, out of the run.
+  - A58, taken by the opening answer: a `spec_file` (the path of a JSON file holding the
+    call's other arguments, as the call would give them inline) on `build_schematic` and
+    `edit_schematic`; an argument given inline as well as in the file is refused, not
+    merged. Decided 2026-11-22 in the plan, not the owner: refused, not merged, because a
+    merge rule is one more thing the description must explain. Test first: offline, the
+    argument unknown today; then a live build from a file, read back from the saved sheet.
+    Files: `server/main.py`, tests.
   - A45: a part entry may carry `part` (letter or number), in `build_schematic`'s parts
     and in `place_component`; an entry with none on a multi-part symbol places part A,
     and the result lists the parts not placed under `warnings`, no longer silent;
@@ -210,9 +214,21 @@ release just registered, by the procedure in its `reports/uji-skenario.md`.
     8-pin symbol (rectangle and line) and a 2-pin one (four arcs), the saved file read for
     `IsNotAccesible=T` on every child; the fault was intermittent (3 of 6), so a test that
     does not fail leaves the item Open with the count, not Closed.
-- **Group 3, the library tools** (`get_symbol_primitives`, `get_footprint_primitives`,
-  `create_schematic_symbol`, `make_pcblib_from_board`, `run_altium_script`'s helpers):
-  A57, A66, A41, A70, and the usage notes if the opening answer takes them.
+  - A56 (a), taken by the opening answer: an `edit_schematic` op `set_footprint`
+    (designator, footprint name, library path), which replaces the part's current PCB
+    implementation (`RemoveSchImplementation`, then `AddSchImplementation`, `ModelType
+    'PCBLIB'`, `AddDataFileLink`, `IsCurrent`, inside `SCHM_BeginModify`/`EndModify`, saved),
+    the way five sessions did it by script. Test first: a placed part, its footprint
+    unchanged by any call today (the op refused as unknown); after, the saved sheet read
+    back for the new footprint and its library, one implementation current. (b), which
+    library a placed part links to: a recipe (group 3) if a session's script is in the
+    record, else stays Open. Decided 2026-11-22 in the plan, not the owner: no
+    `footprint_library` field in `get_project_components`, because the token rule asks for
+    the smaller change. Files: `server/main.py`, the schematic `.pas`.
+- **Group 3, the library tools and the recipes** (`get_symbol_primitives`,
+  `get_footprint_primitives`, `create_schematic_symbol`, `make_pcblib_from_board`,
+  `add_project_document`, `get_screenshot`, `run_altium_script`'s helpers and description):
+  A57, A66, A41, A70, A28, A60 (a), the recipes.
   - A57: the inventory mode (no name given) returns each symbol's or footprint's name,
     description and pin or pad count only; the name argument takes several names
     (comma-separated) for details of several in one call; no new argument. Test first: the
@@ -228,7 +244,34 @@ release just registered, by the procedure in its `reports/uji-skenario.md`.
   - A70: `OpenSchDoc` opens a `.SchLib` as a library (by extension), and
     `create_symbols_batch`'s "could not open and focus" names the kind it found. Offline
     test, and a live one opening a `.SchLib` through the helper.
-  - Usage notes: wait on the opening answer (question 4).
+  - A28, taken by the opening answer: `add_project_document(create=True)` also makes an
+    empty `.SchLib` or `.PcbLib` (by `document_path`'s extension) and adds it to the
+    project named, not the one in focus; the `.PcbLib` holds no default `PCBComponent_1`.
+    No new argument. Test first: `create=True` on a `.SchLib` path refused today; after,
+    the file on disk, in the project, and for a `.PcbLib` no footprint in it. Files:
+    `server/main.py`, the project `.pas`.
+  - A60 (a), taken by the opening answer: a `sch` capture fits the whole sheet first
+    (`Client.SendMessage('SCH:Zoom', 'Action=Document', ...)`, the way that held), by
+    default; `zoom_to` on `sch` answered with a warning that it is for PCB only. Decided
+    2026-11-22 in the plan, not the owner: fit by default, not `zoom_to="fit"`, because
+    `zoom_to` is a list of designators and the token rule asks that a result be right by
+    default. Test first: an A3 sheet zoomed in, its capture cut today; after, the whole
+    sheet's border in the image. (b), a `.PcbLib` footprint's view, out of the run (a new
+    argument). Files: `server/main.py`, the screenshot `.pas`.
+  - The recipes, taken by the opening answer: `docs/recipes.md`, one section per item, each
+    a DelphiScript a session proved (from the item's record and the `findings.md` entries
+    it cites) with the `run_altium_script` call it needs, in English, naming no design of
+    the owner's (`findings.md`'s top); one line in `run_altium_script`'s description naming
+    the file by its path, computed from `main.py`'s folder at import. The items: A47, A51,
+    A52, A54, A55, A59, A62 to A65, A67, A69, A34 (f), A56 (b), and A48's note if its probe
+    finds no call. An item whose record holds no script a session proved stays Open, what
+    is missing written into it. Each item written goes to Waiting, `BUILT <date>, proof: the
+    scenario test`, and to `closed_items.md` as usage (`CLOSED <date>, usage`) when the
+    scenario test held for the file: the description line read, the file opened, and three
+    recipes run, the run's choice of the most met. Decided 2026-11-22 in the plan, not the
+    owner: three recipes run and not all, because a scenario test of thirteen scripts would
+    double its time, and the path computed, because a release's folder differs each time.
+    Model: the default. Files: `docs/recipes.md`, `server/main.py`'s description.
 - **For the owner, prepared**: A11, whether the ECO done by hand (Import Changes,
   Validate, Execute, Close), then new projects made, brings Altium's RCW error too; if it
   does, it is Altium's and the stashed tool may go in with a usage note (the item, its
@@ -236,11 +279,12 @@ release just registered, by the procedure in its `reports/uji-skenario.md`.
   (upstream's own foreground guard, #100, against A22's; new tools such as
   `dismiss_dialog` and `list_open_documents`, which grow the listing): the owner's call,
   its own session, not in this run.
-- **Out of this run**: A23, A25, A31 to A34, A36 to A39, A42 to A44, A53, A61, A68, A72
-  (faults of the bridge, the board and the schematic's smaller points: the owner chose
-  three groups); A47, A51, A52, A54 to A56, A59, A60, A62 to A65, A67, A69 (missing
-  tools: question 3 and 4's answers say which become small changes or usage notes);
-  A15 (b) (question 4); A1, A2, A7 (waiting on upstream).
+- **Out of this run**: A23, A25, A31 to A34 (but A34 (f)), A36 to A39, A42 to A44, A53,
+  A61, A68, A72 (faults of the bridge, the board and the schematic's smaller points: the
+  owner chose three groups); A60 (b) (a new argument); A73, the tool descriptions' size
+  (written 2026-11-22 by the opening answer, for a later run); A15 (b), not taken by the
+  opening answer, stays Open as it was; A1, A2, A7 (waiting on upstream; A2's following of
+  upstream PR #113 not taken by the opening answer).
 
 ### Opening answer
 
@@ -253,51 +297,38 @@ The owner, 2026-11-22, two of four:
   test's entry unasked; restart `X2.EXE` when it hangs.
 - Scope: "Token-first, 3 groups".
 
-Not answered: the owner did not understand the two below as first asked ("op", "recipe"
-and "usage file" unexplained). The next session asks them again in one `AskUserQuestion`,
-in Indonesian with the technical terms in English, each term explained in its question:
+The other two, asked again 2026-11-22 in a new session, in Indonesian with each term
+explained (the first asking left "op", "recipe" and "usage file" unexplained):
 
-3. Of four missing tools met most often, which are built as a small change to a tool
-   that exists (no new tool), the rest written as a script example instead: A58
-   `spec_file`, a new argument on `build_schematic` and `edit_schematic` taking the sheet
-   from a JSON file (saves about 171k characters of input in the session measured); A28,
-   `add_project_document(create=True)` also making an empty `.SchLib` or `.PcbLib`, no new
-   argument; A60, `get_screenshot` with `zoom_to="fit"` on a schematic, no new argument;
-   A56, a new op (one more kind of entry in `edit_schematic`'s `operations` list, like
-   `place_component`) setting a placed part's footprint.
-4. Extras, multiSelect: the "no tool for X" items (A47, A51, A52, A54, A55, A59, A62 to
-   A65, A67, A69, A34 (f)) written as recipes (a DelphiScript example for
-   `run_altium_script` that a session already proved, with the call it needs) in one file
-   shipped with each release, `docs/recipes.md`, pointed to by one line of
-   `run_altium_script`'s description, so they cost nothing until read, and the items
-   closed as usage; a new item to trim the tool descriptions, the listing being 164,529
-   characters (about 41k tokens; whether Claude Code sends it every turn or defers it to
-   tool search was not measured); A2 to follow upstream PR #113 (another author's, open,
-   fixing the same `get_pcb_layer_stackup` fault) and close when it merges, no PR of
-   ours; A15 (b) not taken (an outside service and new tools), to Closed as DECIDED
-   AGAINST.
+- Small changes to existing tools (multiSelect): "A28 empty library, A60 fit schematic,
+  A56 set footprint op, A58 spec_file", all four.
+- Extras (multiSelect): "Recipes file, Item: trim descriptions". Not taken: A2 to follow
+  upstream PR #113; A15 (b) to Closed as DECIDED AGAINST.
 
 ### Where the run stands
 
-- [ ] Phase 1: the opening question asked and answered (two of four answered 2026-11-22)
+- [x] Phase 1: the opening question asked and answered (2026-11-22, in two sessions)
 - [ ] A49: committed
 - [ ] A50: committed
 - [ ] A48: committed
 - [ ] Group 1: tests and release (build: )
 - [ ] Group 1: scenario test (session id: ), its outcome sorted
 - [ ] A46: committed
-- [ ] A58: committed, or out by the opening answer
+- [ ] A58: committed
 - [ ] A45: committed
 - [ ] A26: committed
 - [ ] A27: committed
 - [ ] A71: committed
+- [ ] A56 (a): committed
 - [ ] Group 2: tests and release (build: )
 - [ ] Group 2: scenario test (session id: ), its outcome sorted
 - [ ] A57: committed
 - [ ] A66: committed
 - [ ] A41: committed
 - [ ] A70: committed
-- [ ] Usage notes: committed, or out by the opening answer
+- [ ] A28: committed
+- [ ] A60 (a): committed
+- [ ] The recipes (A47, A51, A52, A54, A55, A59, A62 to A65, A67, A69, A34 (f), A56 (b)): committed
 - [ ] Group 3: tests and release (build: )
 - [ ] Group 3: scenario test (session id: ), its outcome sorted
 - [ ] The report
@@ -480,6 +511,8 @@ made by script with no project in focus joined none, and `add_project_document(c
 then added it cleanly; it holds Altium's empty default footprint `PCBComponent_1` beside the
 one made, and no tool deletes a footprint (A63), so a `create` should make it empty.
 
+Decided 2026-11-22 by the owner (the opening answer of `## Run 2026-11-22`): taken, `add_project_document(create=True)` makes an empty `.SchLib` or `.PcbLib` too, no new argument.
+
 ### A31 - A22's guard misses a call that starts with no window in front - OPEN 2026-11-14
 
 `ForegroundGuard`
@@ -565,6 +598,8 @@ later. The `stop` file stays in the folder, and the next call started the reside
 without a problem. Local: a `stop_resident` tool (or a `get_server_status` option) that
 closes it and reports it gone, or at least a line in `get_server_status`'s description
 saying how. Not decided.
+
+Decided 2026-11-22 by the owner (the opening answer of `## Run 2026-11-22`), for (f) only: no tool; written as a recipe in `docs/recipes.md` (a DelphiScript a session proved, with its `run_altium_script` call), pointed to by one line of `run_altium_script`'s description, and closed as usage once the scenario test held for the file. A record with no proven script leaves the item Open.
 
 ### A36 - A board open under its short (8.3) path is opened a second time - OPEN 2026-11-15
 
@@ -688,6 +723,8 @@ one `TStringList` (`Names`, `ValueFromIndex`) failed with "Could not convert var
 Proposed: local; `sheet_style` and `parameters` on `build_schematic`, and an
 `edit_schematic` op for an existing sheet. Not decided.
 
+Decided 2026-11-22 by the owner (the opening answer of `## Run 2026-11-22`): no tool; written as a recipe in `docs/recipes.md` (a DelphiScript a session proved, with its `run_altium_script` call), pointed to by one line of `run_altium_script`'s description, and closed as usage once the scenario test held for the file. A record with no proven script leaves the item Open.
+
 ### A48 - The project compile reads stale sheets after a script's edit - OPEN 2026-11-22
 
 Three sessions read in the compile what the saved sheets no longer held, each reported
@@ -752,6 +789,8 @@ second call through `edit_schematic`'s `add_net_label`.
 
 Proposed: local; a `justification` key on `net_labels`. Not decided.
 
+Decided 2026-11-22 by the owner (the opening answer of `## Run 2026-11-22`): no tool; written as a recipe in `docs/recipes.md` (a DelphiScript a session proved, with its `run_altium_script` call), pointed to by one line of `run_altium_script`'s description, and closed as usage once the scenario test held for the file. A record with no proven script leaves the item Open.
+
 ### A52 - No tool takes a sheet out of a project, so a sheet cannot be built again in place - OPEN 2026-11-22
 
 Sorted out of the entries of 2026-11-18 (second), point 10, and 2026-11-19 (thirteenth),
@@ -764,6 +803,8 @@ removed by script (title block parameters and notes kept), then the sheet placed
 
 Proposed: local; `build_schematic` with `replace: true` on a sheet of the project, keeping
 its sheet style and parameters, and a remove in `add_project_document`. Not decided.
+
+Decided 2026-11-22 by the owner (the opening answer of `## Run 2026-11-22`): no tool; written as a recipe in `docs/recipes.md` (a DelphiScript a session proved, with its `run_altium_script` call), pointed to by one line of `run_altium_script`'s description, and closed as usage once the scenario test held for the file. A record with no proven script leaves the item Open.
 
 ### A53 - `run_altium_script`'s lint refuses scripts that run - OPEN 2026-11-22
 
@@ -789,6 +830,8 @@ name, done in each session by `run_altium_script` (`DM_Compile`, `DM_DocumentFla
 Proposed: local; a read of the flattened netlist (net, designator, pin number, pin name), to
 a file when large. Not decided.
 
+Decided 2026-11-22 by the owner (the opening answer of `## Run 2026-11-22`): no tool; written as a recipe in `docs/recipes.md` (a DelphiScript a session proved, with its `run_altium_script` call), pointed to by one line of `run_altium_script`'s description, and closed as usage once the scenario test held for the file. A record with no proven script leaves the item Open.
+
 ### A55 - `get_project_info` takes no `project_path` - OPEN 2026-11-22
 
 Sorted out of the entry of 2026-11-19 (first), point 4: with no project focused it returned
@@ -796,6 +839,8 @@ Sorted out of the entry of 2026-11-19 (first), point 4: with no project focused 
 `get_project_components`, which take a path.
 
 Proposed: local; a `project_path` argument. Not decided.
+
+Decided 2026-11-22 by the owner (the opening answer of `## Run 2026-11-22`): no tool; written as a recipe in `docs/recipes.md` (a DelphiScript a session proved, with its `run_altium_script` call), pointed to by one line of `run_altium_script`'s description, and closed as usage once the scenario test held for the file. A record with no proven script leaves the item Open.
 
 ### A56 - No tool sets a placed part's footprint or says which library it links to - OPEN 2026-11-22
 
@@ -815,6 +860,8 @@ Proposed: local; an `edit_schematic` op setting a placed part's footprint (name 
 library), or one updating placed parts from their library symbol; a `footprint_library`
 field in `get_project_components`, flagged when the linked file lacks the footprint. Not
 decided.
+
+Decided 2026-11-22 by the owner (the opening answer of `## Run 2026-11-22`): (a) taken, an `edit_schematic` op setting a placed part's footprint. (b), which library a part links to: a recipe in `docs/recipes.md` if a session's script is in the record, no field in `get_project_components` (the plan, not the owner).
 
 ### A57 - Library reads return too much, or one symbol per call - OPEN 2026-11-22
 
@@ -848,6 +895,8 @@ Met again 2026-11-22 (findings 2026-11-22, point 1), build `0.7.0-20261115-17281
 from seventeen sessions' transcripts: 171k characters of `build_schematic` input over 14
 calls in one session, the inline sheet sent each time (with A46: 142k of results).
 
+Decided 2026-11-22 by the owner (the opening answer of `## Run 2026-11-22`): taken, a `spec_file` argument on `build_schematic` and `edit_schematic`, the one new argument of that run.
+
 ### A59 - No tool places sheet symbols, ports, harness connectors or signal harnesses - OPEN 2026-11-22
 
 2026-11-19 (second), point 1, and (fourteenth), point 3: making a schematic hierarchical
@@ -866,6 +915,8 @@ property; `Mirror` after registration sets the side, and the type label then nee
 Proposed: local; `edit_schematic` ops (or a tool) for these objects, the harness width set as
 Altium's default. Not decided.
 
+Decided 2026-11-22 by the owner (the opening answer of `## Run 2026-11-22`): no tool; written as a recipe in `docs/recipes.md` (a DelphiScript a session proved, with its `run_altium_script` call), pointed to by one line of `run_altium_script`'s description, and closed as usage once the scenario test held for the file. A record with no proven script leaves the item Open.
+
 ### A60 - `get_screenshot` cannot fit or zoom a schematic, nor show a library footprint - OPEN 2026-11-22
 
 (a) `zoom_to` is for PCB only, and a sheet is captured at its current zoom, the bottom of an
@@ -878,6 +929,8 @@ with `Action=Document` did not); (thirteenth), point 4 (`Client.SendMessage('SCH
 
 Proposed: local; `fit` and `zoom_to` designators for `sch`, and a view of a `.PcbLib`
 footprint by name. Not decided.
+
+Decided 2026-11-22 by the owner (the opening answer of `## Run 2026-11-22`): (a) taken, a `sch` capture fitted to the sheet, no new argument (the run's plan: by default). (b) not in that run.
 
 ### A61 - `edit_schematic` leaves Altium's focus or selection changed - OPEN 2026-11-22
 
@@ -900,6 +953,8 @@ file Altium writes is LF only; an edit that adds a CR leaves it mixed.
 
 Proposed: local; a tool setting project options by key, closing and reopening the project
 itself. Not decided.
+
+Decided 2026-11-22 by the owner (the opening answer of `## Run 2026-11-22`): no tool; written as a recipe in `docs/recipes.md` (a DelphiScript a session proved, with its `run_altium_script` call), pointed to by one line of `run_altium_script`'s description, and closed as usage once the scenario test held for the file. A record with no proven script leaves the item Open.
 
 ### A63 - No tool copies, deletes or extracts library parts - OPEN 2026-11-22
 
@@ -925,6 +980,8 @@ Proposed: local; tools to extract an `.IntLib`, copy a symbol or footprint (3D b
 included) between libraries and delete one, and `get_footprint_primitives` taking an
 `.IntLib` path. Not decided.
 
+Decided 2026-11-22 by the owner (the opening answer of `## Run 2026-11-22`): no tool; written as a recipe in `docs/recipes.md` (a DelphiScript a session proved, with its `run_altium_script` call), pointed to by one line of `run_altium_script`'s description, and closed as usage once the scenario test held for the file. A record with no proven script leaves the item Open.
+
 ### A64 - No tool edits an existing footprint's primitives, pads or 3D body - OPEN 2026-11-22
 
 `create_footprints_batch` `EDITFOOTPRINT` takes only `MODEL3D`. Met:
@@ -946,6 +1003,8 @@ Proposed: local; `EDITFOOTPRINT` records to add, move and delete primitives, set
 stack and a body's rotation and offset; `bodies_3d` read live, with the body's extent. Not
 decided.
 
+Decided 2026-11-22 by the owner (the opening answer of `## Run 2026-11-22`): no tool; written as a recipe in `docs/recipes.md` (a DelphiScript a session proved, with its `run_altium_script` call), pointed to by one line of `run_altium_script`'s description, and closed as usage once the scenario test held for the file. A record with no proven script leaves the item Open.
+
 ### A65 - The symbol tools cannot set colours, Comment, parameters or text positions, nor move a pin - OPEN 2026-11-22
 
 2026-11-19 (tenth), point 1: `create_symbols_batch`'s GRAPHIC `rectangle` takes no line or
@@ -959,6 +1018,8 @@ designator prefix and no part number.
 Proposed: local; a colour on the rectangle and polygon records,
 `DESIGNATOR|x|y|justification` and `COMMENT` with x|y, `MOVEPIN|<number>|x|y` and a rectangle
 resize in `EDITSYMBOL`; `comment` and `parameters` on `create_schematic_symbol`. Not decided.
+
+Decided 2026-11-22 by the owner (the opening answer of `## Run 2026-11-22`): no tool; written as a recipe in `docs/recipes.md` (a DelphiScript a session proved, with its `run_altium_script` call), pointed to by one line of `run_altium_script`'s description, and closed as usage once the scenario test held for the file. A record with no proven script leaves the item Open.
 
 ### A66 - `create_schematic_symbol` reports a footprint linked by name that no library of the project holds - OPEN 2026-11-22
 
@@ -986,6 +1047,8 @@ entry, point 4).
 
 Proposed: usage; a line in each of the three descriptions. Not decided.
 
+Decided 2026-11-22 by the owner (the opening answer of `## Run 2026-11-22`): no tool; written as a recipe in `docs/recipes.md` (a DelphiScript a session proved, with its `run_altium_script` call), pointed to by one line of `run_altium_script`'s description, and closed as usage once the scenario test held for the file. A record with no proven script leaves the item Open.
+
 ### A68 - `edit_schematic` `delete_at` removes every object at the point - OPEN 2026-11-22
 
 Sorted out of the entry of 2026-11-19 (third), point 7: with `kind: no_erc` at points
@@ -1012,6 +1075,8 @@ point 5, 21 parts by setting `LibReference`, `DesignItemId`, `SourceLibraryName`
 
 Proposed: local; ops for a note (add and edit), a part's Comment, a parameter removed,
 `move_component` with `drag: true` or a `move_region`, and a swap. Not decided.
+
+Decided 2026-11-22 by the owner (the opening answer of `## Run 2026-11-22`): no tool; written as a recipe in `docs/recipes.md` (a DelphiScript a session proved, with its `run_altium_script` call), pointed to by one line of `run_altium_script`'s description, and closed as usage once the scenario test held for the file. A record with no proven script leaves the item Open.
 
 ### A70 - `run_altium_script`'s `OpenSchDoc` opens a `.SchLib` as a sheet - OPEN 2026-11-22
 
@@ -1055,6 +1120,10 @@ wires, pins, parts and other text, but not a port's graphic against another's te
 Proposed: local; a `pin_name_overlap` issue (each shown pin name's box against the part's
 others, the library symbol named as the fix), and each power port's box (symbol and shown
 name) against the other ports and part bodies. Not decided.
+
+### A73 - The tool listing weighs about 41k tokens - OPEN 2026-11-22
+
+The tools' names, descriptions and schemas, as `main.mcp.list_tools()` gives them, were 80 tools and 164,529 characters at `f120b3f` (about 41k tokens). Whether Claude Code sends it in every turn or defers it to tool search was not measured. Written 2026-11-22 by the owner's choice (the opening answer of `## Run 2026-11-22`), for a later run, not that one: measure what a session is sent, then trim the descriptions (examples and repeated advice first) where it is sent.
 
 ## Waiting
 

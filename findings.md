@@ -691,6 +691,8 @@ Release `bin\0.7.0-20261115-172812`.
 
 4 calls, 0 errors, about 100k characters (91k of them point 1's result).
 
+Sorted into A57 (1, 2), new; A58 (3), new.
+
 **2026-11-18: a 9-sheet schematic of 294 parts drawn from a connection table, checked against it**
 
 Release `0.7.0-20261115-172812`.
@@ -742,6 +744,8 @@ Release `0.7.0-20261115-172812`.
 About 150 calls, 4 failed or refused (point 11's twice, a property missing on an interface, the
 ERC result's size).
 
+Sorted into A45 (1), new; A46 (2, 9), new; A26 (3), met again; A28 (4), met again; A47 (5), new; A48 (6), new; A49 (7), new; A51 (8), new; A52 (10), new; A53 (11), new; A54 (12), new. Not filed (13): a lesson, `check_schematic` after every sheet.
+
 **2026-11-19: audit of a 9-sheet schematic already drawn: ERC, netlist against its source table, drafting check, footprints**
 
 Release `bin\0.7.0-20261115-172812`.
@@ -773,6 +777,8 @@ Release `bin\0.7.0-20261115-172812`.
    library side) and A11. New.
 
 11 calls, none failed.
+
+Sorted into A48 (1), new; A49 (2), new; A54 (3), new; A55 (4), new; A56 (6), new; A57 (6), new. Not filed (5): a lesson, `max_issues_per_sheet: 0` on the project.
 
 **2026-11-19: a ten-sheet schematic made hierarchical with signal harnesses**
 
@@ -823,6 +829,8 @@ About 50 calls, 6 failed (script errors on the API names in 2 and 7).
    (`WorkspaceManager:CloseObject`, ObjectKind Project), its file edited, and reopened by
    `get_erc_violations(project_path)`; `Client.OpenDocument('PrjPcb', path)` in a script did not
    put it back in the workspace (the next call found no project). New.
+
+Sorted into A59 (1, 3), new; A26 (4), met again; A49 (5), new; A60 (6), new; A62 (9), new. Not filed (2, 7, 8): DelphiScript and `check_schematic` lessons, point 2's API notes kept in A59.
 
 **2026-11-19: a module footprint made in a new project footprint library and given to a symbol and its placed parts**
 
@@ -881,6 +889,8 @@ Release `bin\0.7.0-20261115-172812`.
 
 35 calls, 4 failed (point 4, the script of point 5, two scripts on DM violation names).
 
+Sorted into A28 (1), met again; A48 (3), new; A56 (3), new; A67 (4), new; A68 (7), new; A50 (8), new; A69 (9), new. Not filed (2, 5, 6): lessons.
+
 **2026-11-19: no-ERC markers that seemed not to suppress, traced to the ERC reader**
 
 Release `bin\0.7.0-20261115-172812`.
@@ -903,6 +913,8 @@ Release `bin\0.7.0-20261115-172812`.
    change: the owner chooses to save or revert. Lesson.
 
 11 calls (6 `run_altium_script`, 2 `edit_schematic`, 2 `get_erc_violations`, 1 status), 1 failed: a script reading `Location` on every object kind ("Undeclared identifier: Location", the sandbox caught it).
+
+Sorted into A50 (1), new. Not filed (2): a lesson.
 
 **2026-11-19: a vendor part (symbol and footprint with an embedded 3D model) copied from an extracted `.IntLib` into a project's own libraries**
 
@@ -948,6 +960,8 @@ Release `bin\0.7.0-20261115-172812`.
 
 37 calls (23 `run_altium_script`, 3 `get_symbol_primitives`, 2 `get_footprint_primitives`, 2 `create_symbols_batch`, 7 other), 8 failed: 1 script of the session's own error, 5 scripts and 1 `create_symbols_batch` from point 1, 1 script refused by point 6.
 
+Sorted into A70 (1), new; A63 (2, 3, 4), new; A56 (5), new; A53 (6), new.
+
 **2026-11-19: releasing Altium for the owner's own library search, between sessions**
 
 Release: not read (no tool called this session); the live resident's tag `07987973414d`.
@@ -961,6 +975,8 @@ Release: not read (no tool called this session); the live resident's tag `079879
    `get_server_status` to check was not tried for fear it starts the resident again. A
    tool, or a `get_server_status` option, that closes the resident and reports it gone
    would serve. Bears on A34 (e), the resident's project left in the Projects panel.
+
+Sorted into A34 (1), part (f).
 
 **2026-11-19: footprints put on placed placeholder parts, and footprint sources surveyed**
 
@@ -1012,6 +1028,8 @@ failed in the server; one script's `GetState` read was useless (point 4). Readin
 whole footprint library's inventory (`get_footprint_primitives` without a name) overflowed the
 client's result limit at about 60 KB; a name filter would serve.
 
+Sorted into A56 (1, 2, 5), new; A63 (5, 6), new; A64 (4, 6), new; A34 (7), part (f). Not filed (3): the client's own permission check, not the server.
+
 **2026-11-19: placeholder parts swapped to library parts, a part added to a sheet, symbols deleted from a library**
 
 Release `0.7.0-20261115-172812`.
@@ -1059,6 +1077,8 @@ About 30 calls (17 `run_altium_script`, 4 `edit_schematic`, 4 `get_footprint_pri
 `get_symbol_primitives`, 4 screenshots, 2 `check_schematic`, 1 `get_erc_violations`, 2
 `get_project_components`); none failed in the server.
 
+Sorted into A61 (1), new; A67 (2, 4), new; A56 (3), new; A63 (3), new; A69 (3, 5), new; A34 (6), part (f).
+
 **2026-11-19: comparing a vendor footprint against a stand-in, then releasing Altium**
 
 Release `0.7.0-20261115-172812`.
@@ -1098,6 +1118,8 @@ Release `0.7.0-20261115-172812`.
 About 15 calls (`get_server_status`, `get_installed_libraries`, 3 `get_footprint_primitives`,
 8 `run_altium_script`, 1 `get_screenshot`); none failed in the server, one pattern lost its
 work silently (point 4).
+
+Sorted into A34 (1), part (f); A63 (2, 3), new; A64 (4), new; A60 (5), new.
 
 **2026-11-19: three terminal symbols made, eight placed parts moved onto them, a symbol deleted from a library**
 
@@ -1141,6 +1163,8 @@ About 15 calls (`get_server_status`, 2 `get_symbol_primitives`, `get_schematic_d
 `get_footprint_primitives`,
 `get_erc_violations`); none failed in the server.
 
+Sorted into A65 (1), new; A69 (2), new; A67 (3), new; A63 (5), new; A64 (6), new. Not filed (4): the lint refused as meant, its message naming the fix.
+
 **2026-11-19: placed parts selected as a rectangle; two connectors swapped onto another symbol**
 
 Release `0.7.0-20261115-172812`.
@@ -1169,6 +1193,8 @@ Release `0.7.0-20261115-172812`.
 
 About 17 calls (`get_server_status`, 11 `run_altium_script`, `get_project_components`,
 `edit_schematic`, `check_schematic`, `get_erc_violations`); none failed in the server.
+
+Sorted into A71 (1), new. Not filed (2, 3): a lesson (`PinsMoveable` is the Lock Primitives box); a swap that held again.
 
 **2026-11-19: a second project's libraries made from another's, a symbol and footprint added, one sheet drawn**
 
@@ -1206,6 +1232,8 @@ Release `bin\0.7.0-20261115-172812`.
 
 About 30 calls, 4 failed (points 1 and 5, the replicate's two runs reported success).
 
+Sorted into A70 (1), new; A63 (2, 3), new; A64 (4), new; A47 (5), new.
+
 **2026-11-19: a sheet drawn, a library symbol's pins moved, the sheet drawn again**
 
 Release `bin\0.7.0-20261115-172812`.
@@ -1239,6 +1267,8 @@ Release `bin\0.7.0-20261115-172812`.
 About 20 calls (`get_server_status`, `get_symbol_primitives` 3, `build_schematic`,
 `edit_schematic` 3, `check_schematic` 3, `get_screenshot` 2, 7 `run_altium_script`); none
 failed in the server.
+
+Sorted into A72 (1), new; A65 (2), new; A52 (3), new; A69 (3), new; A60 (4), new.
 
 **2026-11-19: a sub-sheet of eight repeated output channels drawn, then a five-sheet hierarchy with two signal harnesses**
 
@@ -1286,6 +1316,8 @@ About 25 calls (`build_schematic` 2, `edit_schematic`, `check_schematic` 4, `get
 4, `get_erc_violations` 3, `get_project_info` 3, `add_project_document`, 9
 `run_altium_script`); one refused by the lint (point 2), none failed in Altium.
 
+Sorted into A26 (1), met again; A53 (2), new; A59 (3), new; A48 (4), new; A62 (5), new; A60 (7), new. Not filed (6): a lesson.
+
 **2026-11-19: an isolator sub-sheet drawn in place on an existing sheet, one block of it moved**
 
 Release `bin\0.7.0-20261115-172812`.
@@ -1317,6 +1349,8 @@ About 22 calls (`get_server_status`, `search_library_symbol`, `get_symbol_primit
 `get_project_info`, `get_schematic_data`, `edit_schematic` 3, `check_schematic` 3,
 `get_screenshot` 3, `get_erc_violations` 2, 4 `run_altium_script`); none failed in the
 server.
+
+Sorted into A72 (1), new; A69 (2, 3), new; A61 (4), new; A60 (5), new.
 
 **2026-11-20: two library symbols drawn again in a project's style, three parts swapped onto them, a connector symbol restyled in two libraries**
 
@@ -1373,3 +1407,5 @@ About 40 calls (`get_server_status` 2, `get_symbol_primitives` 6, `get_schematic
 `create_schematic_symbol` 2, `edit_schematic` 2, `check_schematic` 2,
 `get_erc_violations`, `get_screenshot` 4, 13 `run_altium_script`); one script failed on
 "Undeclared identifier: IsNotAccesible", as the earlier entry said it would.
+
+Sorted into A71 (1, 6), new; A65 (2), new; A60 (3), new; A66 (5), new; A34 (7), part (f). Not filed (4): a swap that held, a lesson.

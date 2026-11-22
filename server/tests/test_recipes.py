@@ -69,6 +69,13 @@ class DescriptionTest(unittest.TestCase):
         self.assertTrue(path.is_file(), f"no file at {path}")
         self.assertEqual(path, RECIPES)
 
+    def test_the_description_says_the_lists_keep_strings_not_objects(self):
+        # An object kept by List1.AddObject reads back as no interface, and a
+        # removal through it does nothing with no error (A75)
+        tools = {t.name: t for t in asyncio.run(main.mcp.list_tools())}
+        self.assertRegex(" ".join(tools["run_altium_script"].description.split()),
+                         r"List1\.\.3 keep strings, not objects")
+
 
 class RecipesTest(unittest.TestCase):
     def test_each_script_is_the_one_its_proof_ran(self):

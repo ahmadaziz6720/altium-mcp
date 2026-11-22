@@ -12,7 +12,7 @@ upstream, run and held, or decided against moves with its record to
 [`closed_items.md`](closed_items.md), and so does a run's section once every step of it is
 ticked. The layout is the `backlog` plugin's `format.md` (v0.1, since 2026-11-15).
 
-**Open: A11, A15, A23, A25 to A28, A31 to A34, A36 to A39, A41 to A44, A47, A48, A51 to A54, A56, A57, A59 to A73, A75, A76.** Sorted
+**Open: A11, A15, A23, A25 to A28, A31 to A34, A36 to A39, A41 to A44, A47, A48, A51 to A54, A56, A57, A59 to A73, A76.** Sorted
 2026-11-23, the second entry of 2026-11-23 (the scenario test of group 1's second build,
 `build-20261123-031122`): A74 held and closed; A48 (b) checked, the part built held and the
 rest still open; A76, new, not taken into the run; A34, met again. Sorted
@@ -420,7 +420,7 @@ is written down before it.
     that start processes or call the real status tool are to run before the release (the
     subagent's report; two of its first runs did call `get_server_status`'s test by mistake).
     The scenario test runs first A55, A34 (f) and A52's removal.
-- [ ] A75: committed
+- [x] A75: committed
   - **Stopped here 2026-11-23 about 04:55 at the usage limit**, A75 not started: it needs no
     Altium and is the next step that can be done while Altium is blocked (A26's line). With
     Altium ended by the owner, the run goes on from A26 instead.
@@ -1540,23 +1540,6 @@ the sheet, close it and open it again) cured both, so for a part too: the caveat
 the next compile. The refresh for edits held again (a footprint and a sheet size set with
 no notice, the modified flags still 0).
 
-### A75 - `run_altium_script`'s `List1..3` keep strings, not objects - OPEN 2026-11-23
-
-Sorted out of the entry of 2026-11-23, point 6, the scenario test of build `0.7.0-20261123-001227`: an
-object stored by `List1.AddObject` and read back as `List1.Objects[j]` is not the
-interface. `Doc.RemoveSchObject(List1.Objects[j])` ran with no error and removed nothing
-(the script reported 23 removed per sheet, and the sheets were saved with all 23), and
-`List1.Objects[j].I_ObjectAddress` failed "Undeclared identifier: I_ObjectAddress", the
-sandbox's diagnosis reading it as a call on nil. Iterating again for the first object each
-time worked. Reported success with nothing done.
-
-Local: a line in `run_altium_script`'s description beside the recipes: `List1..3` keep
-strings, not objects; a loop that removes objects takes the first one again each time.
-
-Decided 2026-11-23 by the run, not the owner: taken into group 3, a step before its tests,
-by the run's rule for a new point small and in the group's files (*The scenario test of a
-group*, 7), because `run_altium_script`'s description and the recipes are group 3's.
-
 ### A76 - Component revision warnings come and go between compiles, and `total` with them - OPEN 2026-11-23
 
 Sorted out of the second entry of 2026-11-23, point 5, the scenario test of build
@@ -1860,3 +1843,39 @@ scratch exchange and data folder, the real ones unchanged.
 For the scenario test, the three to run: this script (A55, its proof), the step of A34 (f)
 (met in five entries) and A52's removal (two entries, and A48 b's notice). Next, when there
 is room: A56 (b), whose library field on a placed part no test asserted.
+
+### A75 - `run_altium_script`'s `List1..3` keep strings, not objects - BUILT 2026-11-23, proof: the scenario test
+
+Sorted out of the entry of 2026-11-23, point 6, the scenario test of build `0.7.0-20261123-001227`: an
+object stored by `List1.AddObject` and read back as `List1.Objects[j]` is not the
+interface. `Doc.RemoveSchObject(List1.Objects[j])` ran with no error and removed nothing
+(the script reported 23 removed per sheet, and the sheets were saved with all 23), and
+`List1.Objects[j].I_ObjectAddress` failed "Undeclared identifier: I_ObjectAddress", the
+sandbox's diagnosis reading it as a call on nil. Iterating again for the first object each
+time worked. Reported success with nothing done.
+
+Local: a line in `run_altium_script`'s description beside the recipes: `List1..3` keep
+strings, not objects; a loop that removes objects takes the first one again each time.
+
+Decided 2026-11-23 by the run, not the owner: taken into group 3, a step before its tests,
+by the run's rule for a new point small and in the group's files (*The scenario test of a
+group*, 7), because `run_altium_script`'s description and the recipes are group 3's.
+
+Cause: the sandbox's `List1..3` are `TStringList`s, and in Altium's DelphiScript an
+object kept by `AddObject` does not come back as the interface it was; the description
+called them `TStringList` and said nothing more.
+
+Fixed in the commit that moves it here, as usage, the sandbox unchanged: two lines of
+`run_altium_script`'s description, after the recipes line: `List1..3` keep strings, not
+objects; `Objects[j]` is no interface, so a removal through it does nothing; take the first
+object again each time. Not run in Altium: the step was offline, Altium blocked (A26's
+line in the run).
+
+Test first, `tests/test_recipes.py`'s
+`test_the_description_says_the_lists_keep_strings_not_objects` (offline), before: 1
+failure of 5, `AssertionError: Regex didn't match: 'List1\.\.3 keep strings, not objects'
+not found in 'Run a DelphiScript snippet ...'`. After: 5/5. The offline list: 573 of 584
+run, OK; 11 not run, as they start or stop processes or look for Altium's windows
+(`test_start_server`'s `InUseTest` 2, `ExchangeLockTest` 4, `test_dblib`'s
+`SearchDatabaseTest` 4, `ServerStatusTest` 1). The tool listing: 80 tools, 159,000 to
+159,149 characters (+0.09%), from this checkout.

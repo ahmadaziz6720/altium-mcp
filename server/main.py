@@ -2022,6 +2022,8 @@ async def run_altium_script(ctx: Context, script: str, timeout_seconds: int = 12
       ends here, and run check_routing after moving tracks, vias or parts.
 
     Recipes for jobs no tool does, read before writing one: {RECIPES}
+    List1..3 keep strings, not objects: Objects[j] is no interface, so a
+    removal through it does nothing; take the first object again each time.
 
     For API guidance - interfaces, object models, worked examples - use the
     "altium-script" skill. ensure_altium_script_skill reports whether that

@@ -312,7 +312,7 @@ explained (the first asking left "op", "recipe" and "usage file" unexplained):
 - [x] A50: committed (49ecf2f)
 - [x] A48: committed (891ee59)
 - [x] Group 1: tests and release (build: 0.7.0-20261123-001227, tag build-20261123-001227)
-- [ ] Group 1: scenario test (session id: ), its outcome sorted
+- [ ] Group 1: scenario test (session id: af570230-bb0a-49b3-aac8-e3f16361ede9, started 2026-11-23, free memory 1237 MB after the restart), its outcome sorted
 - [ ] A46: committed
 - [ ] A58: committed
 - [ ] A45: committed

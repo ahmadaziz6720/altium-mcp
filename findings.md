@@ -1430,3 +1430,59 @@ Release `bin\0.7.0-20261115-172812` (the sessions of 2026-11-18 to 20).
    detail on request (A49's proposal) is the pattern for each.
 
 Sorted into A49 (1), met again; A46 (1), met again; A58 (1), met again; A57 (1), met again.
+
+**2026-11-23: scenario test of a release grouping ERC results, leaving out suppressed violations and refreshing the compile (A49, A50, A48)**
+
+Release `bin\0.7.0-20261123-001227` (build `0.7.0-ad25-20261123-001227 891ee59`), Altium
+Designer 25, resident bridge `this_build` from the first call. 30 calls, 0 errors, 30.4k
+characters of results (10 `get_erc_violations` 1.1k to 1.8k each, 15 `run_altium_script`).
+
+1. A49, held. A test project of eight copies of one small sheet (net scope set so each
+   sheet keeps its own nets): 400 violations, 239 listed in 5 groups, 161 suppressed.
+   `get_erc_violations` returned 1.6k to 1.8k characters; the same reply in the old
+   format, built from the full-list file, is 45k. Group counts sum to `total` and to
+   `errors` (235) and `warnings` (4); `compile=false` gives the same groups; the full-list
+   file holds all 400, each marked. Reported success, rightly.
+2. A49, small: `first` often holds one text three times. A violation's detail does not
+   name its sheet, so on repeated sheets the first three of a group read the same
+   ("Net X has only one pin (Pin J1-4)" x3, "Duplicate Net Names Wire X" x3): two of the
+   three lines tell nothing. Local: the first three distinct details, or the sheet with
+   each. New.
+3. A50, held. A sheet with 23 active no-ERC markers (`SuppressAll`) on unused connector
+   pins: earlier releases listed 23 "Nets with only one pin" errors there (27 in all), and
+   a test baseline had counted them as real; now `total` 4, `suppressed` 23, and Altium
+   counts exactly 23 active markers. With the markers removed from four of the eight
+   copies of item 1 (and the project reopened, see 5), 92 of those errors moved from
+   `suppressed` to the list. A second project with no markers: 5 warnings, 0 suppressed,
+   as before.
+4. A48, held for edits. A placed part's current footprint renamed through its
+   implementation by script, no notices, modified flag left false:
+   `get_project_components` gave the new name; the control, the same edit read through a
+   script's own `DM_Compile`, gave the old one. A custom sheet size of 2000 x 2000 mil set
+   directly: `get_erc_violations` gave 100 "Object not completely within sheet
+   boundaries". The sheet's and the project's modified flags stayed 0 through both tools.
+5. A48 does not reach objects a script removed. A no-ERC marker removed with
+   `RemoveSchObject` inside `PreProcess`/`PostProcess` and no notice for the removed
+   object, sheet open: `get_erc_violations` still compiled it in, its violation still
+   suppressed. At scale: 92 markers removed from four open sheets and the sheets saved,
+   `suppressed` stayed 345 over two calls; only after the project was closed and reopened
+   did it read 161 with 92 more listed. A marker removed with
+   `SchServer.RobotManager.SendMessage(Doc.I_ObjectAddress, c_BroadCast,
+   SCHM_PrimitiveRegistration, O.I_ObjectAddress)` after the removal came through at once.
+   Reported success with a stale result. The refresh sends end notices for the objects the
+   sheet still holds, so a removed one is never named. Local: the removal notice in
+   `run_altium_script`'s description beside the one for new objects, and a usage line
+   under A48; or a check of the compile's object count against the sheet's. New.
+6. Lesson, sandbox: an object stored in `List1.AddObject` and read back as
+   `List1.Objects[j]` is not the interface. `Doc.RemoveSchObject(List1.Objects[j])` ran
+   with no error and removed nothing (the script reported 23 removed per sheet, the sheets
+   saved with all 23), and `List1.Objects[j].I_ObjectAddress` failed "Undeclared
+   identifier: I_ObjectAddress", the sandbox's diagnosis reading it as a call on nil.
+   Re-iterating for the first object each time worked. Reported success with nothing done.
+   Local: a line in the description that `List1..3` keep strings, not objects. New.
+7. At the start, the project Altium had in focus, a user's design (not a test project),
+   was modified, its document list holding three `PCBn.PcbDoc` and one `Sheet1.SchDoc`
+   with no path, unsaved; and the Projects panel held two `MCPResident.PrjScr`, this
+   build's and an earlier tag's. Left as found. The pathless sheet is A26's leftover again;
+   the three pathless boards are new of their kind (some tool or test made boards while a
+   user's project had focus). A26, A34, met again.

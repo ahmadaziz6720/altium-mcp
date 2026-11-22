@@ -12,7 +12,7 @@ upstream, run and held, or decided against moves with its record to
 [`closed_items.md`](closed_items.md), and so does a run's section once every step of it is
 ticked. The layout is the `backlog` plugin's `format.md` (v0.1, since 2026-11-15).
 
-**Open: A11, A15, A23, A25 to A28, A31 to A34, A36 to A39, A41 to A73.** Sorted
+**Open: A11, A15, A23, A25 to A28, A31 to A34, A36 to A39, A41 to A48, A50 to A73.** Sorted
 2026-11-22, the entry of 2026-11-22 (token cost of seventeen design sessions): A49, A46, A58
 and A57, met again, the four where the server's results weigh most. Sorted
 2026-11-22, the eighteen entries of 2026-11-18 to 2026-11-20 (schematic and library work on
@@ -308,7 +308,7 @@ explained (the first asking left "op", "recipe" and "usage file" unexplained):
 ### Where the run stands
 
 - [x] Phase 1: the opening question asked and answered (2026-11-22, in two sessions)
-- [ ] A49: committed
+- [x] A49: committed
 - [ ] A50: committed
 - [ ] A48: committed
 - [ ] Group 1: tests and release (build: )
@@ -751,22 +751,6 @@ Proposed: local; a `reload` option on `get_erc_violations` and `get_project_comp
 project's sheets closed and reopened first), and a probe for the call that refreshes the
 compile. Not decided.
 
-### A49 - `get_erc_violations` returns every violation in full, past the result limit - OPEN 2026-11-22
-
-Sorted out of the entries of 2026-11-18 (second), point 7: 155k characters (capped at 1000
-violations), failed the tool-result limit, read from the saved file; 2026-11-19 (first),
-point 2: 273 violations, about 150 of them one sheet's "Duplicate nets"; 2026-11-19
-(second), point 5: 199 violations, about 100,000 characters, over the client's limit three
-times, most of it 99 warnings of one kind and 30 of another.
-
-Proposed: local; a summary by default (counts by type and level, the first few of each),
-with `type`, `level` and `limit` filters for the details. Not decided.
-
-Met again 2026-11-22 (findings 2026-11-22, point 1), build `0.7.0-20261115-172812`, measured
-from the transcripts of seventeen schematic and library sessions: up to 105k characters of
-results in one session (6 calls) and 76k in another (2 calls), the largest of the server's
-own share of a session's cost.
-
 ### A50 - `get_erc_violations` lists violations Altium has suppressed - OPEN 2026-11-22
 
 Sorted out of the entry of 2026-11-19 (fourth), point 1, which found the cause of
@@ -1177,3 +1161,59 @@ Scenario test of that build held (2026-11-12, third entry, 2): 38 rules, the sco
 `filter2` only on binary rules. The reply went from 9.3k to 8.5k characters only (about
 9 %): what is left is mostly the key names and indentation repeated on every rule.
 Waits for the upstream PR.
+
+### A49 - `get_erc_violations` returns every violation in full, past the result limit - BUILT 2026-11-22, proof: the scenario test
+
+Sorted out of the entries of 2026-11-18 (second), point 7: 155k characters (capped at 1000
+violations), failed the tool-result limit, read from the saved file; 2026-11-19 (first),
+point 2: 273 violations, about 150 of them one sheet's "Duplicate nets"; 2026-11-19
+(second), point 5: 199 violations, about 100,000 characters, over the client's limit three
+times, most of it 99 warnings of one kind and 30 of another.
+
+Proposed: local; a summary by default (counts by type and level, the first few of each),
+with `type`, `level` and `limit` filters for the details. Not decided.
+
+Met again 2026-11-22 (findings 2026-11-22, point 1), build `0.7.0-20261115-172812`, measured
+from the transcripts of seventeen schematic and library sessions: up to 105k characters of
+results in one session (6 calls) and 76k in another (2 calls), the largest of the server's
+own share of a session's cost.
+
+Decided 2026-11-22 in the plan (the owner's token rule): by default grouped by type and
+level, each with its count and its first three violations in full, the full list in a file
+whose path the result gives; no new argument.
+
+Cause: the bridge's `GetERCViolations` (`other_utils.pas`) puts every `DM_Violations(I)` in
+the reply as `{level, type, detail}`, and the tool passed the reply on whole; a few kinds
+repeated by the hundred make up most of it. The tool wrote no file to point to: the
+bridge's `WriteJSONToFile` only returns its text.
+
+Fix (`server/erc_summary.py`, `get_erc_violations` in `server/main.py`): Altium's reply is
+grouped in Python, `violations` replaced by `groups [{level, type, count, first}]`
+(`first`: the details of the group's first three violations, in Altium's order; fatal, then
+error, then warning, the largest group first) and `full_list`, the path of a JSON file
+holding Altium's whole reply; `total`, `fatal`, `errors`, `warnings` and the sheet status
+as before. A file that cannot be written gives `full_list: null` and `full_list_error`. An
+error reply passes through unchanged. A50's `suppressed` count goes beside `total`; not
+done here. The description, `manifest.json` and `README.md` say so.
+
+Decided 2026-11-22 by the run, not the owner: the full list written into the server's own
+per-user folder (`%USERPROFILE%\.altium-mcp`, beside `config.json` and the log), one file
+per project, `erc_<project>_<hash of its path>.json`, overwritten by the next call, because
+the tool wrote no file and the public exchange folder was cleared of design data on
+purpose (`LEFTOVER_TEMP_FILES`), and one file per project keeps two sessions on two
+projects from overwriting each other's list.
+
+Decided 2026-11-22 by the run, not the owner: `first` holds the details only, the level and
+type being the group's, because it keeps each violation's text whole at the smallest size.
+
+Test before: `tests/test_live_erc.py` (a copy of the SpiritLevel-SL1 example's four child
+sheets as a flat project with a second copy of each: 276 violations, six kinds), on the old
+code: `AssertionError: 38833 not less than 10000 : the result is 38833 characters, over
+10000`. After: 1/1 pass in AD25, 276 violations in 6 groups, 2,146 characters, the counts
+summing to the total and to each level's count, the file's list matching each group's count
+and first three (36,626 bytes); `test_live_drc.LiveCompileFolderTest`, which calls the tool,
+2/2 pass (it now deletes the file it made). Offline: `tests/test_erc_summary.py`, 11 tests,
+added to `tests.yml`; the whole list 556/556 pass. Tool listing: 80 tools, 164,529
+characters before, 164,709 after (+180, 0.1 %).
+
+Fixed in the commit that moves it here.

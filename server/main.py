@@ -7283,8 +7283,8 @@ async def get_erc_violations(ctx: Context, compile: bool = True, project_path: s
     unsaved_in_altium. Save it (or close it unsaved) for the file to count.
     Sheets the project lists but that are not on disk are in
     missing_on_disk. Compiling does not save any document and writes no
-    file (Altium writes <project>.PrjPcbStructure when the project is
-    closed, compiled or not).
+    file beside the project (Altium writes <project>.PrjPcbStructure when
+    the project is closed, compiled or not).
 
     Args:
         compile (bool): Compile before reading (default True). False returns
@@ -7293,14 +7293,28 @@ async def get_erc_violations(ctx: Context, compile: bool = True, project_path: s
 
     Returns:
         str: JSON with project_path, unsaved_in_altium, missing_on_disk,
-             total, fatal, errors, warnings and violations
+             total, fatal, errors, warnings, groups [{level, type, count,
+             first}] (first: the details of its first 3 violations) and
+             full_list, the path of a JSON file holding every violation
              [{level, type, detail}]
     """
+    import erc_summary
+
     project_path, error = _project_path(project_path)
     if error:
         return json.dumps({"success": False, "error": error})
-    return await _simple_command("get_erc_violations", {"compile": compile, "project_path": project_path},
+    text = await _simple_command("get_erc_violations", {"compile": compile, "project_path": project_path},
                                  "ERC violations")
+    try:
+        data = json.loads(text, strict=False)
+    except ValueError:
+        return text
+    if not isinstance(data, dict) or "violations" not in data:
+        return text
+    path = erc_summary.full_list_path(_data_dir(), data.get("project_path", ""))
+    error = erc_summary.write_full_list(data, path)
+    return json.dumps(erc_summary.summarize(data, "" if error else str(path), error),
+                      indent=1, ensure_ascii=False)
 
 
 def _new_document_path(path: str, extensions: tuple):

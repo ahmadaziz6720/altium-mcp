@@ -277,6 +277,7 @@ class LiveCompileFolderTest(unittest.TestCase):
     def compile_calls(self):
         # Opened by the first call, as a caller giving project_path does
         erc = tool(main.get_erc_violations(None, project_path=self.project))
+        self.addCleanup(Path(erc["full_list"]).unlink, missing_ok=True)  # in the server's folder
         self.assertEqual(erc["project_path"].lower(), self.project.lower(), erc)
         self.assertTrue(erc["compiled"], erc)
         parts = tool(main.get_project_components(None, project_path=self.project))

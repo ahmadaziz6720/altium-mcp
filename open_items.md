@@ -359,7 +359,7 @@ is written down before it.
     from its exe at 02:15 (pid 21380). The owner's documents came back open and read
     unmodified at 02:29 (the subagent's report). `ad25` is pushed at group 1 again's
     release, not before.
-- [x] A74: committed
+- [x] A74: committed (12ce1ca)
 - [ ] Group 1 again: tests and release (build: )
 - [ ] Group 1 again: scenario test (session id: ), its outcome sorted
 - [ ] A46: committed

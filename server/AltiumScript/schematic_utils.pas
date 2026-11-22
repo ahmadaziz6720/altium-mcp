@@ -1710,12 +1710,13 @@ end;
 { Spec records (pipe-delimited, one per line). Coordinates are Altium coords  }
 { (10000 per mil), not mils: whole mils miss a metric grid, and a wire a few  }
 { microns out of level turns diagonal when the part is dragged.               }
-{   PART|desig|symlib|symbol|designitemid|x|y|orient|mirror                     }
+{   PART|desig|symlib|symbol|designitemid|x|y|orient|mirror|part number         }
 {   COMMENT|t   DESCRIPTION|t   FOOTPRINT|n   PARAM|name|value                  }
 {   WIRE|x1|y1|x2|y2[|...]      JUNCTION|x|y                                    }
 {   NETLABEL|x|y|orient|text    POWER|x|y|orient|style|text|shownetname         }
 {   NOTE|x|y|text                                                               }
-{ pin_map.txt gives each pin's connection point in coords too, a line a pin: }
+{ pin_map.txt gives each placed pin's connection point in coords too, one a  }
+{ line (the pins of a symbol's parts not placed are not in it):               }
 {   PIN|desig|number|x|y|name    (the name last: it may hold a pipe)          }
 {                                                                              }
 { Uses LOCAL variables throughout, deliberately. The dev sandbox shares scratch }
@@ -1928,21 +1929,118 @@ begin
     Comp.SchIterator_Destroy(Iter);
 end;
 
+// The letter Altium shows for a part of a multi-part component: A to Z, AA...
+function PartLetter(Part: Integer): String;
+begin
+    if Part <= 26 then
+        Result := Chr(64 + Part)
+    else
+        Result := Chr(64 + ((Part - 1) div 26)) + Chr(65 + ((Part - 1) mod 26));
+end;
+
+// Why Comp has no part Part, or '' when it has one
+function NoSuchPart(Comp: ISch_Component; Part: Integer): String;
+begin
+    Result := '';
+    if (Part >= 1) and (Part <= Comp.PartCount) then Exit;
+    Result := Comp.LibReference + ' has no part ' + PartLetter(Part);
+    if Comp.PartCount > 1 then
+        Result := Result + ' (its parts are A to ' + PartLetter(Comp.PartCount) + ')'
+    else
+        Result := Result + ' (it has one part)';
+end;
+
+// Whether a pin is one the placed component shows: of its current part or
+// of all parts (0 or less), in its display mode. A component's iterator
+// returns the pins of every part.
+function IsPlacedPin(Comp: ISch_Component; Pin: ISch_Pin): Boolean;
+begin
+    Result := ((Pin.OwnerPartId <= 0) or (Pin.OwnerPartId = Comp.CurrentPartID)) and
+              (Pin.OwnerPartDisplayMode = Comp.DisplayMode);
+end;
+
+// Add to Warnings, as JSON strings, one line for each multi-part component
+// that has parts not on Doc. Designators limits it to those, nil is all.
+// Parts are one component by designator and library reference.
+procedure AddUnplacedParts(Doc: ISch_Document; Designators: TStringList; Warnings: TStringList);
+var
+    Iter : ISch_Iterator;
+    Comp : ISch_Component;
+    Keys, Counts, Names, Placed : TStringList;
+    Key, Absent, Noun : String;
+    i, Part : Integer;
+    Wanted : Boolean;
+begin
+    Keys := TStringList.Create;
+    Counts := TStringList.Create;
+    Names := TStringList.Create;
+    Placed := TStringList.Create;
+    try
+        Iter := Doc.SchIterator_Create;
+        Iter.AddFilter_ObjectSet(MkSet(eSchComponent));
+        Comp := Iter.FirstSchObject;
+        while Comp <> nil do
+        begin
+            Wanted := Comp.PartCount > 1;
+            if Wanted and (Designators <> nil) then
+                Wanted := Designators.IndexOf(Comp.Designator.Text) >= 0;
+            if Wanted then
+            begin
+                Key := Comp.Designator.Text + '|' + Comp.LibReference;
+                if Keys.IndexOf(Key) < 0 then
+                begin
+                    Keys.Add(Key);
+                    Counts.Add(IntToStr(Comp.PartCount));
+                    Names.Add(Comp.Designator.Text + ' (' + Comp.LibReference + ')');
+                end;
+                Placed.Add(Key + '|' + IntToStr(Comp.CurrentPartID));
+            end;
+            Comp := Iter.NextSchObject;
+        end;
+        Doc.SchIterator_Destroy(Iter);
+
+        for i := 0 to Keys.Count - 1 do
+        begin
+            Absent := '';
+            Noun := 'part';
+            for Part := 1 to StrToInt(Counts[i]) do
+                if Placed.IndexOf(Keys[i] + '|' + IntToStr(Part)) < 0 then
+                begin
+                    if Absent <> '' then
+                    begin
+                        Absent := Absent + ', ';
+                        Noun := 'parts';
+                    end;
+                    Absent := Absent + PartLetter(Part);
+                end;
+            if Absent <> '' then
+                Warnings.Add('"' + JSONEscapeString(Names[i] + ': ' + Noun + ' ' + Absent +
+                                                    ' not placed on this sheet') + '"');
+        end;
+    finally
+        Keys.Free;
+        Counts.Free;
+        Names.Free;
+        Placed.Free;
+    end;
+end;
+
 // Whether a library path names an integrated library (.IntLib)
 function IsIntLibPath(LibPath: String): Boolean;
 begin
     Result := UpperCase(ExtractFileExt(LibPath)) = '.INTLIB';
 end;
 
-// Place a part from an integrated library (.IntLib) on Doc at X, Y
-// (internal units) and return it, or nil with Msg saying why. A symbol in
+// Place part Part of a symbol from an integrated library (.IntLib) on Doc at
+// X, Y (internal units) and return it, or nil with Msg saying why. A symbol in
 // an .IntLib cannot be opened as a document; Altium's
 // IntegratedLibraryManager.PlaceLibraryComponent places it as the
 // Components panel does, linked to the library (Design Item ID, the
 // library's name) with the models it holds, on the schematic in front, so
 // Doc is brought to the front first. It returns no object: the part is
-// placed under a designator no part has and found by it.
-function PlaceIntLibComponent(Doc: ISch_Document; LibPath, LibRef: String; X, Y, Orientation: Integer;
+// placed under a designator no part has and found by it. Its part count is
+// known only then, so one without that part is taken off the sheet again.
+function PlaceIntLibComponent(Doc: ISch_Document; LibPath, LibRef: String; X, Y, Orientation, Part: Integer;
                               var Msg: String): ISch_Component;
 var
     ServerDoc : IServerDocument;
@@ -1978,12 +2076,28 @@ begin
     end;
     Doc.SchIterator_Destroy(Iterator);
     if Result = nil then
+    begin
         Msg := 'Altium reported ' + LibRef + ' placed from ' + LibPath + ', but it is not on the sheet';
+        Exit;
+    end;
+    Msg := NoSuchPart(Result, Part);
+    if Msg <> '' then
+    begin
+        Doc.RemoveSchObject(Result);
+        SchServer.RobotManager.SendMessage(Doc.I_ObjectAddress, c_BroadCast, SCHM_PrimitiveRegistration,
+                                           Result.I_ObjectAddress);
+        Result := nil;
+        Exit;
+    end;
+    // Altium places the part the library was saved showing
+    SchServer.RobotManager.SendMessage(Result.I_ObjectAddress, c_BroadCast, SCHM_BeginModify, c_NoEventData);
+    Result.CurrentPartID := Part;
+    SchServer.RobotManager.SendMessage(Result.I_ObjectAddress, c_BroadCast, SCHM_EndModify, c_NoEventData);
 end;
 
 function BuildCircuitFromSpec(SpecPath: String; PlacementPath: String): String;
 var
-    Spec, Placement, PinMap : TStringList;
+    Spec, Placement, PinMap, Warnings : TStringList;
     TargetDoc, LibDoc : ISch_Document;
     Comp, Found, Replica : ISch_Component;
     Iter, ChildIter : ISch_Iterator;
@@ -1991,7 +2105,7 @@ var
     Impl : ISch_Implementation;
     Rec, Kind, CurLib, PName, PVal, Adopted, Missing, Ok, Msg : String;
     Proj : IProject;
-    i, fld, vtx, PartCount, GfxCount, PinCount : Integer;
+    i, fld, vtx, Part, PartCount, GfxCount, PinCount : Integer;
     HotX, HotY : Integer;
     Exists : Boolean;
 begin
@@ -2059,7 +2173,8 @@ begin
         begin
             Replica := PlaceIntLibComponent(TargetDoc, GetFieldFromPipeString(Rec, 2),
                 GetFieldFromPipeString(Rec, 3), StrToInt(GetFieldFromPipeString(Rec, 5)),
-                StrToInt(GetFieldFromPipeString(Rec, 6)), StrToInt(GetFieldFromPipeString(Rec, 7)), Msg);
+                StrToInt(GetFieldFromPipeString(Rec, 6)), StrToInt(GetFieldFromPipeString(Rec, 7)),
+                StrToInt(GetFieldFromPipeString(Rec, 9)), Msg);
             // The sheet is in front now, not the library CurLib names
             CurLib := '';
             if (Replica = nil) then
@@ -2106,18 +2221,24 @@ begin
             end;
             LibDoc.SchIterator_Destroy(Iter);
 
+            Part := StrToInt(GetFieldFromPipeString(Rec, 9));
             if (Found = nil) then
+                Msg := GetFieldFromPipeString(Rec, 3) + ' not found in ' + CurLib
+            else
+                Msg := NoSuchPart(Found, Part);
+            if (Msg <> '') then
             begin
                 // Report it: skipping silently gave an empty sheet that
                 // claimed success (issue #19)
                 Comp := nil;
                 if (Missing <> '') then Missing := Missing + ', ';
-                Missing := Missing + '"' + JSONEscapeString(GetFieldFromPipeString(Rec, 1) + ': ' +
-                    GetFieldFromPipeString(Rec, 3) + ' not found in ' + CurLib) + '"';
+                Missing := Missing + '"' + JSONEscapeString(GetFieldFromPipeString(Rec, 1) + ': ' + Msg) + '"';
             end
             else
             begin
                 Replica := ReplicateLibSymbol(Found);
+                // A symbol comes with the part its library shows, not always A
+                Replica.CurrentPartID   := Part;
                 Replica.Designator.Text := GetFieldFromPipeString(Rec, 1);
                 Replica.DesignItemID    := GetFieldFromPipeString(Rec, 4);
                 Replica.Orientation     := StrToInt(GetFieldFromPipeString(Rec, 7));
@@ -2324,10 +2445,13 @@ begin
         Param := ChildIter.FirstSchObject;
         while (Param <> nil) do
         begin
-            GetPinHotEnd(Param, HotX, HotY);
-            PinMap.Add('PIN|' + Prim.Designator.Text + '|' + Param.Designator + '|' +
-                       IntToStr(HotX) + '|' + IntToStr(HotY) + '|' + Param.Name);
-            PinCount := PinCount + 1;
+            if IsPlacedPin(Prim, Param) then
+            begin
+                GetPinHotEnd(Param, HotX, HotY);
+                PinMap.Add('PIN|' + Prim.Designator.Text + '|' + Param.Designator + '|' +
+                           IntToStr(HotX) + '|' + IntToStr(HotY) + '|' + Param.Name);
+                PinCount := PinCount + 1;
+            end;
             Param := ChildIter.NextSchObject;
         end;
         Prim.SchIterator_Destroy(ChildIter);
@@ -2342,7 +2466,12 @@ begin
               '", "parts": ' + IntToStr(PartCount) +
               ', "graphics": ' + IntToStr(GfxCount) +
               ', "pins": ' + IntToStr(PinCount) +
-              ', "missing_parts": [' + Missing + ']}';
+              ', "missing_parts": [' + Missing + ']';
+    Warnings := TStringList.Create;
+    AddUnplacedParts(TargetDoc, nil, Warnings);
+    if (Warnings.Count > 0) then Result := Result + ', ' + BuildJSONArray(Warnings, 'warnings');
+    Result := Result + '}';
+    Warnings.Free;
     Spec.Free;
     Placement.Free;
 end;
@@ -3446,9 +3575,11 @@ var
     Prim     : ISch_GraphicalObject;
     Found, Replica : ISch_Component;
     LibPath  : String;
+    Part     : Integer;
 begin
     Result := False;
     LibPath := GetFieldFromPipeString(Rec, 2);
+    Part := StrToInt(GetFieldFromPipeString(Rec, 9));
     if not FileExists(LibPath) then
     begin
         Msg := 'library not found: ' + LibPath;
@@ -3458,7 +3589,7 @@ begin
     begin
         Replica := PlaceIntLibComponent(Doc, LibPath, GetFieldFromPipeString(Rec, 3),
             StrToInt(GetFieldFromPipeString(Rec, 4)), StrToInt(GetFieldFromPipeString(Rec, 5)),
-            StrToInt(GetFieldFromPipeString(Rec, 6)), Msg);
+            StrToInt(GetFieldFromPipeString(Rec, 6)), Part, Msg);
         if Replica = nil then Exit;
         Replica.Designator.Text := GetFieldFromPipeString(Rec, 1);
         if GetFieldFromPipeString(Rec, 7) = '1' then
@@ -3491,7 +3622,10 @@ begin
         Msg := GetFieldFromPipeString(Rec, 3) + ' not found in ' + LibPath;
         Exit;
     end;
+    Msg := NoSuchPart(Found, Part);
+    if Msg <> '' then Exit;
     Replica := ReplicateLibSymbol(Found);
+    Replica.CurrentPartID := Part;
     Replica.Designator.Text := GetFieldFromPipeString(Rec, 1);
     Replica.LibraryPath := LibPath;
     Replica.SourceLibraryName := ExtractFileName(LibPath);
@@ -3673,7 +3807,7 @@ function EditSchematic(SheetPath: String; SpecPath: String; Save: Boolean): Stri
 var
     Doc       : ISch_Document;
     ServerDoc : IServerDocument;
-    Spec, Errors, Props : TStringList;
+    Spec, Errors, Props, PlacedNames, Warnings : TStringList;
     i, Applied : Integer;
     Msg       : String;
     Ok        : Boolean;
@@ -3704,6 +3838,8 @@ begin
     Spec := TStringList.Create;
     Errors := TStringList.Create;
     Props := TStringList.Create;
+    PlacedNames := TStringList.Create;
+    Warnings := TStringList.Create;
     try
         Spec.LoadFromFile(SpecPath);
         Applied := 0;
@@ -3721,7 +3857,11 @@ begin
                     Msg := 'failed: ' + ExceptionMessage;
                 end;
                 if Ok then
-                    Applied := Applied + 1
+                begin
+                    Applied := Applied + 1;
+                    if GetFieldFromPipeString(Spec[i], 0) = 'PLACE' then
+                        PlacedNames.Add(GetFieldFromPipeString(Spec[i], 1));
+                end
                 else
                     Errors.Add('"' + JSONEscapeString('operation ' + IntToStr(i + 1) + ': ' + Msg) + '"');
             end;
@@ -3748,10 +3888,14 @@ begin
         AddJSONInteger(Props, 'applied', Applied);
         AddJSONBoolean(Props, 'saved', Save);
         Props.Add(BuildJSONArray(Errors, 'errors'));
+        if PlacedNames.Count > 0 then AddUnplacedParts(Doc, PlacedNames, Warnings);
+        if Warnings.Count > 0 then Props.Add(BuildJSONArray(Warnings, 'warnings'));
         Result := BuildJSONObject(Props);
     finally
         Spec.Free;
         Errors.Free;
         Props.Free;
+        PlacedNames.Free;
+        Warnings.Free;
     end;
 end;

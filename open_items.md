@@ -12,7 +12,7 @@ upstream, run and held, or decided against moves with its record to
 [`closed_items.md`](closed_items.md), and so does a run's section once every step of it is
 ticked. The layout is the `backlog` plugin's `format.md` (v0.1, since 2026-11-15).
 
-**Open: A11, A15, A23, A25 to A28, A31 to A34, A36 to A39, A41 to A45, A47, A48, A51 to A57, A59 to A73, A75, A76.** Sorted
+**Open: A11, A15, A23, A25 to A28, A31 to A34, A36 to A39, A41 to A44, A47, A48, A51 to A57, A59 to A73, A75, A76.** Sorted
 2026-11-23, the second entry of 2026-11-23 (the scenario test of group 1's second build,
 `build-20261123-031122`): A74 held and closed; A48 (b) checked, the part built held and the
 rest still open; A76, new, not taken into the run; A34, met again. Sorted
@@ -376,8 +376,8 @@ is written down before it.
     held (closed); A48 (b)'s built part held, the item still Open as written, so no fix
     again; A76 new, out of this run; A34 met again. A46 began beside the sort.
 - [x] A46: committed (a441051)
-- [x] A58: committed
-- [ ] A45: committed
+- [x] A58: committed (cc27c73)
+- [x] A45: committed
 - [ ] A26: committed
 - [ ] A27: committed
 - [ ] A71: committed
@@ -763,17 +763,6 @@ Met again 2026-11-23 (findings 2026-11-23, point 7), build `0.7.0-20261123-00122
 kind: at the start of its scenario test the project in focus, not a test project, held three
 `PCBn.PcbDoc` with no path, unsaved: a live test made boards while that project had focus.
 A live test leaves boards behind as well as a library.
-
-### A45 - `build_schematic` places only part A of a multi-part symbol - OPEN 2026-11-22
-
-Sorted out of the entry of 2026-11-18 (second), point 1, build `0.7.0-20261115-172812`. A
-symbol of six parts was placed with part A only; `pin_map` listed the pins of all six parts,
-all at part A's origin, and `success` was true. Nothing said the other parts were not
-placed, and `edit_schematic`'s `place_component` takes no `part` either. Workaround: the
-symbol made single-part. Reported success with a wrong result.
-
-Proposed: local; every part placed (or the parts asked, a `part` key on both tools), and
-`pin_map` per placed part; a live test with a multi-part symbol. Not decided.
 
 ### A47 - No tool sets a sheet's size, title block or document parameters - OPEN 2026-11-22
 
@@ -1590,3 +1579,66 @@ one test of `test_live_symbol_footprint` that builds a sheet. The other live tes
 
 Seen and left: on every tool the server drops an inline argument it does not know, without
 a word (the mcp package's argument model; how the test before got its false success).
+
+### A45 - `build_schematic` places only part A of a multi-part symbol - BUILT 2026-11-23, proof: the scenario test
+
+Sorted out of the entry of 2026-11-18 (second), point 1, build `0.7.0-20261115-172812`. A
+symbol of six parts was placed with part A only; `pin_map` listed the pins of all six parts,
+all at part A's origin, and `success` was true. Nothing said the other parts were not
+placed, and `edit_schematic`'s `place_component` takes no `part` either. Workaround: the
+symbol made single-part. Reported success with a wrong result.
+
+Proposed: local; every part placed (or the parts asked, a `part` key on both tools), and
+`pin_map` per placed part; a live test with a multi-part symbol. Not decided.
+
+Decided 2026-11-22 in the plan, not the owner: a `part` key (letter or number) in a part
+entry of both tools, part A when there is none, the parts not placed under `warnings`, and
+`pin_map` with the placed parts' pins only; a key inside an existing list, not an argument.
+
+Cause: both tools replicated the symbol and never set its current part, so the part placed
+was the one the library was saved showing: A mostly, but part C for a symbol last shown at
+C (one of the SpiritLevel-SL1 example's symbols is saved so). The pin map took every pin
+the component's iterator gives, which is every part's. Nothing read the part count.
+
+Fixed in the commit that moves it here: `part` in `build_schematic`'s parts and in
+`place_component`, set on each placed part, from a `.SchLib` and from an `.IntLib`; the pin
+map and `pins` count what each placed part shows (its part's pins and those of all parts,
+in its display mode); `warnings` has a line per component with parts not on the sheet
+(`U1 (<symbol>): parts B, C not placed on this sheet`), absent when there is none. The
+descriptions and the README say so (the tool listing 158,565 to 158,879 characters, 80
+tools, no new argument).
+
+Decided 2026-11-23 by the run, not the owner:
+- `place_component` gets the key as `build_schematic` does, with nothing left for the token
+  rule, because it is an operation inside `edit_schematic`'s `operations` list: its values
+  are keys there, not arguments of the tool;
+- the other operations' `part` takes a letter too, because one key with two forms in one
+  tool would need explaining, and they read it in the same line of code;
+- a part the symbol does not have is not placed and is reported as a missing part or a
+  failed operation, because placing another in its place would be a wrong result again; from
+  an `.IntLib` it is placed and taken off again, as the count is known only then;
+- `warnings` goes by what the sheet holds after the call and says "on this sheet", given a
+  `part` or not, because a part may sit on another sheet, which the tools do not read, and
+  a part placed by an earlier edit is placed.
+
+Tests first. Live, `tests/test_live_multipart.py`, a six-part symbol with a pin all parts
+share, made in a copy of the example's library and compiled into an `.IntLib`, 7 of 7
+failed: "silent on parts B, C, D, E, F of U1, which are not placed" (success, 13 pins for
+part A's 3), "not the parts asked" (six entries, six times part A), a symbol shown at part
+C placed as part 3, and a part G placed with success. Offline, `test_sch_edit` and
+`test_pin_map`, 3 failed ("place_component does not take part", no part in the bridge's
+line).
+
+After, 2026-11-23, live in AD25: `test_live_multipart` 8/8 (an undo test added; places,
+parts and pins read from the saved file; six entries compile to one component),
+`test_live_pin_map` 2/2, `test_live_spec_file` 1/1, `test_live_libraries` 5/5,
+`test_live_project_setup` 9/9, `test_live_compile_refresh` 7 (two expected failures,
+A48 (b)), `test_live_erc`'s test that edits a sheet 1/1, `test_live_symbol_footprint`'s
+test that builds one 1/1. A one-off build of all 39 symbols of the example's library: the
+map's 467 pins equal to the saved file's, each symbol at part A. The offline list 579, OK.
+The other live tests not run.
+
+Seen and left, by reading the code, not tested: the same part given twice under one
+designator is placed twice, unreported; text placement by `param_placement.txt` measures
+the body over all of a symbol's parts; a warning of a failed build is inside its error text,
+as the rest of that result is.

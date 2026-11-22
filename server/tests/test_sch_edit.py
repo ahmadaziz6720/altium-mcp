@@ -52,11 +52,26 @@ class EncodeTest(unittest.TestCase):
     def test_place_component(self):
         self.assertEqual(one({"op": "place_component", "library": "C:\\lib\\R.SchLib", "symbol": "RES",
                               "designator": "R9", "x": 1, "y": 2, "rotation": 270}),
-                         "PLACE|R9|C:\\lib\\R.SchLib|RES|10000|20000|3|0|")
+                         "PLACE|R9|C:\\lib\\R.SchLib|RES|10000|20000|3|0||1")
         # a part from an integrated library goes the same way (A15)
         self.assertEqual(one({"op": "place_component", "library": "C:\\lib\\Parts.IntLib", "symbol": "RES",
                               "designator": "R9", "x": 1, "y": 2, "mirror": True, "comment": "10k"}),
-                         "PLACE|R9|C:\\lib\\Parts.IntLib|RES|10000|20000|0|1|10k")
+                         "PLACE|R9|C:\\lib\\Parts.IntLib|RES|10000|20000|0|1|10k|1")
+
+    def test_a_part_by_letter_or_number(self):
+        place = {"op": "place_component", "library": "C:\\lib\\R.SchLib", "symbol": "IC", "designator": "U1",
+                 "x": 0, "y": 0}
+        # none given is part A (A45)
+        for part, number in ((None, 1), (0, 1), ("", 1), ("A", 1), ("f", 6), (3, 3), ("4", 4), (2.0, 2), (" b ", 2),
+                             ("Z", 26), ("AA", 27), ("AZ", 52), ("iu", 255)):
+            self.assertTrue(one(dict(place, part=part)).endswith(f"|{number}"), part)
+        # the other operations' part is read the same way, none being any part
+        self.assertEqual(one({"op": "delete_component", "designator": "U1", "part": "C"}), "DELETE|U1|3")
+        self.assertEqual(one({"op": "delete_component", "designator": "U1"}), "DELETE|U1|0")
+        for part in ("IV", "B2", "-", -1, 256, True, 2.5, [2]):
+            lines, err = encode_operations([dict(place, part=part)])
+            self.assertEqual(lines, [], part)
+            self.assertIn("part", err, part)
 
     def test_errors_name_the_operation(self):
         cases = [

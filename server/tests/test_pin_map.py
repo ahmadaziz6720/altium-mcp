@@ -64,6 +64,22 @@ class PinMapTest(unittest.TestCase):
                              line("X1", "", 4, 4, "D"), line("X1", "", 5, 5, "E")])
         self.assertEqual(sorted(p["name"] for p in out["pin_map"]["X1"].values()), list("ABCDE"))
 
+    def test_a_part_entry_names_its_part_and_none_is_part_a(self):
+        # A45: the last field of the bridge's PART line
+        part = {"designator": "U1", "symbol_library": str(self.lib), "symbol": "IC", "x": 0, "y": 0}
+        reply = {"success": True, "result": {"success": True, "sheet": "Sheet7.SchDoc"}}
+        with mock.patch.object(main.altium_bridge, "execute_command", mock.AsyncMock(return_value=reply)) as sent, \
+                mock.patch.object(main, "write_altium_text") as written, \
+                mock.patch.object(main.Path, "is_file", return_value=False):
+            asyncio.run(main.build_schematic(None, [part, dict(part, part="c"), dict(part, part=6)]))
+            lines = [row for row in written.call_args.args[1].splitlines() if row.startswith("PART|")]
+            self.assertEqual([row.split("|")[9:] for row in lines], [["1"], ["3"], ["6"]])
+            sent.reset_mock()
+            refused = json.loads(asyncio.run(main.build_schematic(None, [dict(part, part="B2")])))
+            self.assertFalse(refused["success"])
+            self.assertIn("U1", refused["error"])
+            sent.assert_not_called()
+
     def test_fractions_of_a_mil_are_kept(self):
         _, out = self.build(["PIN|R1|1|393701|-5000|1"])
         self.assertEqual(out["pin_map"], {"R1": {"1": {"name": "1", "x": 39.3701, "y": -0.5}}})

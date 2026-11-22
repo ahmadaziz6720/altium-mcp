@@ -25,7 +25,7 @@ OPS = {
     "add_junction": (("x", "y"), ()),
     "add_no_erc": (("x", "y"), ()),
     "delete_at": (("kind", "x", "y"), ("text",)),
-    "place_component": (("library", "symbol", "designator", "x", "y"), ("rotation", "mirror", "comment")),
+    "place_component": (("library", "symbol", "designator", "x", "y"), ("part", "rotation", "mirror", "comment")),
 }
 
 
@@ -52,6 +52,26 @@ def _int_in(v, lo, hi, what) -> int:
         raise OpError(f"{what} must be a whole number")
     if not lo <= n <= hi or n != float(v):
         raise OpError(f"{what} must be {lo}..{hi}")
+    return n
+
+
+def part_number(v) -> int:
+    """A part of a multi-part component as its number: given as that or as
+    its letter (A = 1, AA = 27); 0 when none is given."""
+    if isinstance(v, float) and v.is_integer():
+        v = int(v)
+    s = "" if v is None else str(v).strip().upper()
+    if not s:
+        return 0
+    n = -1
+    if s.isascii() and s.isdigit():
+        n = int(s)
+    elif len(s) <= 2 and all("A" <= c <= "Z" for c in s):
+        n = 0
+        for c in s:
+            n = n * 26 + ord(c) - ord("A") + 1
+    if not 0 <= n <= 255:
+        raise OpError("part is a letter (A, B, ...) or a number up to 255")
     return n
 
 
@@ -89,7 +109,7 @@ def encode_operations(operations: list, unit: str = "mil") -> Tuple[List[str], s
             unknown = sorted(set(op) - set(required) - set(optional) - {"op"})
             if unknown:
                 raise OpError(f"{kind} does not take {', '.join(unknown)}")
-            part = str(_int_in(op.get("part", 0), 0, 255, "part"))
+            part = str(part_number(op.get("part")))
 
             if kind == "move_component":
                 if ("x" in op) != ("y" in op):
@@ -144,7 +164,8 @@ def encode_operations(operations: list, unit: str = "mil") -> Tuple[List[str], s
                 lines.append("|".join(["PLACE", _text(op["designator"], "designator"), lib,
                                        _text(op["symbol"], "symbol"), c(op["x"]), c(op["y"]),
                                        _rotation(op.get("rotation", 0)), "1" if op.get("mirror") else "0",
-                                       _text(op.get("comment", ""), "comment")]))
+                                       _text(op.get("comment", ""), "comment"),
+                                       "1" if part == "0" else part]))
         except OpError as e:
             return [], f"operation {i + 1}: {e}"
     if not lines:

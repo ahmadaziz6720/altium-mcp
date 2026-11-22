@@ -2553,10 +2553,12 @@ async def build_schematic(ctx: Context, parts: list = None, wires: list = None,
             lists the libraries Altium has installed), symbol (the library
             reference), x, y (mils). Optional: design_item_id, orientation
             (0-3), mirror (0/1), comment, description, footprint,
-            parameters ({name: value}). A part from an .IntLib is placed by
-            Altium as from its Components panel: linked to the library by its
-            Design Item ID (the library reference unless design_item_id is
-            given), with the footprints and other models the library holds.
+            parameters ({name: value}), part (of a multi-part symbol: "B" or
+            2; A when not given; one entry per part, the designator repeated).
+            A part from an .IntLib is placed by Altium as from its Components
+            panel: linked to the library by its Design Item ID (the library
+            reference unless design_item_id is given), with the footprints
+            and other models the library holds.
         wires: each a flat list of alternating x,y in mils, e.g.
             [3900, 3000, 5300, 3000, 5300, 4900] - two segments, three points.
         junctions: [{"x":..,"y":..}] - only where 3+ branches actually meet.
@@ -2582,12 +2584,15 @@ async def build_schematic(ctx: Context, parts: list = None, wires: list = None,
     Returns:
         JSON with the created sheet name and counts; without wires pin_map,
         {designator: {pin number ("#2" on a repeat): {name, x, y}}}, each
-        pin's connection point; with wires pin_counts and pin_map_file.
+        placed pin's connection point; with wires pin_counts and
+        pin_map_file. warnings lists the parts of a symbol not placed.
         With project_path also sheet_path and project: add_project_document's
         result (the project's documents read back from Altium, and whether
         the saved project file lists the sheet). A sheet with missing parts
         is not saved into the project (project_note says so).
     """
+    import sch_edit
+
     args, error = spec_args.resolve(spec_file, build_schematic, dict(
         parts=parts, wires=wires, junctions=junctions, net_labels=net_labels,
         power_ports=power_ports, notes=notes, project_path=project_path, sheet_path=sheet_path),
@@ -2621,10 +2626,14 @@ async def build_schematic(ctx: Context, parts: list = None, wires: list = None,
             if key not in p:
                 return json.dumps({"success": False,
                                    "error": f"part missing required key '{key}': {p}"})
-        lines.append("PART|{}|{}|{}|{}|{}|{}|{}|{}".format(
+        try:
+            part = sch_edit.part_number(p.get("part")) or 1
+        except sch_edit.OpError as e:
+            return json.dumps({"success": False, "error": f"{p['designator']}: {e}"})
+        lines.append("PART|{}|{}|{}|{}|{}|{}|{}|{}|{}".format(
             p["designator"], p["symbol_library"], p["symbol"],
             p.get("design_item_id", ""), c(p["x"]), c(p["y"]),
-            int(p.get("orientation", 0)), 1 if p.get("mirror") else 0))
+            int(p.get("orientation", 0)), 1 if p.get("mirror") else 0, part))
         if p.get("comment"):
             lines.append(f"COMMENT|{p['comment']}")
         if p.get("footprint"):
@@ -2738,9 +2747,9 @@ async def edit_schematic(ctx: Context, sheet_path: str = None, operations: list 
                         [mirror true/false]. x, y is the part's origin.
       delete_component  designator, [part]
       place_component   library (.SchLib or .IntLib path), symbol,
-                        designator, x, y, [rotation], [mirror], [comment]
-                        (an .IntLib part is linked to its library by its
-                        Design Item ID and carries the library's models)
+                        designator, x, y, [part], [rotation], [mirror],
+                        [comment] (an .IntLib part is linked to its library by
+                        its Design Item ID and carries the library's models)
       set_parameter     designator, name, value, [part], [visible]
                         (creates the parameter when missing)
       move_text         designator, name ("Designator", "Comment" or a
@@ -2758,7 +2767,8 @@ async def edit_schematic(ctx: Context, sheet_path: str = None, operations: list 
       delete_at         kind (wire, net_label, power_port, junction, no_erc,
                         port, note), x, y, [text]: removes a wire passing
                         through the point, or the object located there
-    "part" picks one part of a multi-part component (1 = A, ...).
+    "part" picks one part of a multi-part component ("B" or 2);
+    place_component places A when not given.
 
     Args:
         sheet_path (str): Full path of the .SchDoc; opened if not open.
@@ -2772,7 +2782,8 @@ async def edit_schematic(ctx: Context, sheet_path: str = None, operations: list 
             required, here or there). One given in both places is refused.
 
     Returns:
-        str: JSON with how many operations were applied and the errors.
+        str: JSON with how many operations were applied, the errors, and
+             warnings: parts of a placed component not on this sheet.
     """
     import sch_edit
 

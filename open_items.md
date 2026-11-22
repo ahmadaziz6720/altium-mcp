@@ -336,10 +336,18 @@ explained (the first asking left "op", "recipe" and "usage file" unexplained):
 - [x] A48: committed (891ee59)
 - [x] Group 1: tests and release (build: 0.7.0-20261123-001227, tag build-20261123-001227)
 - [x] Group 1: scenario test (session id: af570230-bb0a-49b3-aac8-e3f16361ede9, started 2026-11-23, free memory 1237 MB after the restart), its outcome sorted
-  - Ran 00:14 to 00:22, `EXIT 0`, its entry committed alone (`eeaacd2`), sorted 2026-11-23:
+  - Ran 00:14 to 00:22, `EXIT 0`, its entry committed alone (`eeaacd2`), sorted 2026-11-23 (`613fa9a`):
     A49 and A50 held (closed), A48 back to Open as A48 (b), new A74 and A75, A26, A34 and
     A44 met again.
 - [ ] A48 (b) again: committed
+  - **Stopped here 2026-11-23 about 02:11 on the owner's word, to move to a new session**
+    ("mending pindah sesi sekarang"): in the probe stage, no test written, no fix, no file
+    of the repo changed. Goes on with a fresh subagent from A48's last part, *Probed
+    2026-11-23*, its probes not run again. Its cost so far: about 163k tokens, cut once by
+    the usage limit and resumed. (The sort's: 116k, 2.5 minutes.)
+  - Left running: Altium (pid 20600), the user's projects open, the focused one modified in
+    memory and never saved by the run. 754 MB free at 02:12, so restart Altium before the
+    live tests. `ad25` is pushed at group 1 again's release, not before.
 - [ ] A74: committed
 - [ ] Group 1 again: tests and release (build: )
 - [ ] Group 1 again: scenario test (session id: ), its outcome sorted
@@ -1246,6 +1254,62 @@ equivalent check of the compile's object count against the sheet's) and one line
 `run_altium_script`'s description on sending `SCHM_PrimitiveRegistration` after a removal,
 because a stale compile must not pass silently and the token rule asks for the smaller
 change.
+
+Probed 2026-11-23 for A48 (b) by the run's subagent, stopped by the owner before a test or
+a fix (its report, not checked by the main session). Reproduced by a scratch probe only, on
+a temporary copy of an Altium example sheet: a marker removed by script with no notice, the
+sheet held 0 markers, and `get_erc_violations` still gave `total 0, suppressed 2`. The
+existing `test_live_compile_refresh.py` passed 3/3 before the probes; no other live test
+and no offline test was run.
+
+Tried, each leaving `suppressed 2` (in probes 9 and 10 the calls ran one after another on
+one stale sheet, so their effects add up):
+- probe 4, each on a fresh copy: `SCHM_PrimitiveRegistration` with an existing object, with
+  no data, with the sheet as data; `GraphicallyInvalidate`.
+- probe 8: the registration from nil with the sheet as data.
+- probe 9, compiles: `WorkspaceManager:Compile` (the document; Recompile on the project and
+  on the focused project), `DM_CompileEx(True)` and `(False)` on the project.
+- probe 9, the document model: `DM_LoadDocument`, `DM_SmartLoad`, `DM_DocumentLoaded`, the
+  project's `DM_LoadAllLogicalDocuments`, `DM_ResetLastCompileTimeForAllDocuments`,
+  `DM_Validate`, `DM_ClearViolations`.
+- probe 10, notices: CancelModify, SystemInvalid and SystemValid, Create, Begin and
+  EndModify on the sheet, a registration from the system and of a never-added object, a
+  border toggled and back, `UpdateDocumentProperties`, transient NoERC, CompileMask,
+  Parameter and SheetSymbol objects.
+- probe 10, re-reads: the document's `DM_ScrapCompile(True)` (callable, though the probe of
+  2026-11-22 above says undeclared), a load by path, the document opened again,
+  `SetFileModifiedDate`, `DM_UpdateDateModified`, the file's time touched, a save alone.
+
+Not usable or not finished:
+- Undeclared to scripts: `DM_Reload`, `DM_ResetCache`, `DM_SetNeedsUpdate`,
+  `DM_MainCompile`, `DM_InvalidateToolchain`, the document's `DM_CompileEx` and
+  `DM_SetModified`. `DM_ScrapCompileWithOptions` failed, its message not captured.
+- A script reading the message constants timed out at 180 s (Altium answered afterwards).
+- The document model gives counts of components, nets, pins, ports and sheet symbols; no
+  name tried gave its no-ERC markers (probes 3, 5, 7). Comparing the model's addresses
+  with the sheet's objects ended in a script cast error (probe 6).
+
+The one change seen: a save, then `DoFileLoad`, at the end of probe 10: `total 59, errors
+59, suppressed 1`. Not known to be the right result: 59 is also the sheet's component
+count, and 1 is still suppressed. The control, a registration notice naming the removed
+object, was not run by the subagent; only the scenario test saw it work.
+
+Inferred, not shown: the compiler keeps a list of registered objects that only a notice
+naming the object, or a reload, clears. Two cautions follow. A `stale_sheets` from object
+counts, the fallback decided above, would miss this very case, as the model's markers
+could not be counted. A `DoFileLoad` inside a read tool could lose unsaved edits, as the
+modified flag can be false after a script's edit.
+
+Next, in this order:
+1. The failing test, in `test_live_compile_refresh.py`.
+2. On fresh copies, the true numbers two ways (the notice after the removal; save, close
+   and reopen the project), against a save and `DoFileLoad` alone.
+3. No safe reload shown: the fallback, its description line as decided, and what
+   `stale_sheets` can honestly detect settled before it is built.
+
+The probe scripts are not kept in the repo. Until Windows clears it they are in
+`%TEMP%\claude\ffb01ff0902fa28f\d905e04e-513a-472f-9bcf-90e44f580c42\scratchpad`
+(`probe_common.py`, `probe1.py` to `probe10.py`, the output of probes 9 and 10).
 
 ### A74 - `get_erc_violations`' `first` repeats one text - OPEN 2026-11-23
 

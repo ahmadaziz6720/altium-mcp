@@ -1486,3 +1486,5 @@ characters of results (10 `get_erc_violations` 1.1k to 1.8k each, 15 `run_altium
    build's and an earlier tag's. Left as found. The pathless sheet is A26's leftover again;
    the three pathless boards are new of their kind (some tool or test made boards while a
    user's project had focus). A26, A34, met again.
+
+Sorted into A74 (2), new; A48 (5), failed; A75 (6), new; A26 (7), met again; A34 (7), met again; A44 (7), met again. Held: A49 (1); A50 (3); A48 (4).

@@ -1539,6 +1539,122 @@ texts and 3D bodies; the filter in lower case, a board not open (closed again), 
 an unsaved move (still modified), the document in front restored, the folder unchanged, six
 refusals. The footprints' descriptions lost with `problems` [] (same entry, 5) is A41.
 
+### A49 - `get_erc_violations` returns every violation in full, past the result limit - CLOSED 2026-11-23
+
+Sorted out of the entries of 2026-11-18 (second), point 7: 155k characters (capped at 1000
+violations), failed the tool-result limit, read from the saved file; 2026-11-19 (first),
+point 2: 273 violations, about 150 of them one sheet's "Duplicate nets"; 2026-11-19
+(second), point 5: 199 violations, about 100,000 characters, over the client's limit three
+times, most of it 99 warnings of one kind and 30 of another.
+
+Proposed: local; a summary by default (counts by type and level, the first few of each),
+with `type`, `level` and `limit` filters for the details. Not decided.
+
+Met again 2026-11-22 (findings 2026-11-22, point 1), build `0.7.0-20261115-172812`, measured
+from the transcripts of seventeen schematic and library sessions: up to 105k characters of
+results in one session (6 calls) and 76k in another (2 calls), the largest of the server's
+own share of a session's cost.
+
+Decided 2026-11-22 in the plan (the owner's token rule): by default grouped by type and
+level, each with its count and its first three violations in full, the full list in a file
+whose path the result gives; no new argument.
+
+Cause: the bridge's `GetERCViolations` (`other_utils.pas`) puts every `DM_Violations(I)` in
+the reply as `{level, type, detail}`, and the tool passed the reply on whole; a few kinds
+repeated by the hundred make up most of it. The tool wrote no file to point to: the
+bridge's `WriteJSONToFile` only returns its text.
+
+Fix (`server/erc_summary.py`, `get_erc_violations` in `server/main.py`): Altium's reply is
+grouped in Python, `violations` replaced by `groups [{level, type, count, first}]`
+(`first`: the details of the group's first three violations, in Altium's order; fatal, then
+error, then warning, the largest group first) and `full_list`, the path of a JSON file
+holding Altium's whole reply; `total`, `fatal`, `errors`, `warnings` and the sheet status
+as before. A file that cannot be written gives `full_list: null` and `full_list_error`. An
+error reply passes through unchanged. A50's `suppressed` count goes beside `total`; not
+done here. The description, `manifest.json` and `README.md` say so.
+
+Decided 2026-11-22 by the run, not the owner: the full list written into the server's own
+per-user folder (`%USERPROFILE%\.altium-mcp`, beside `config.json` and the log), one file
+per project, `erc_<project>_<hash of its path>.json`, overwritten by the next call, because
+the tool wrote no file and the public exchange folder was cleared of design data on
+purpose (`LEFTOVER_TEMP_FILES`), and one file per project keeps two sessions on two
+projects from overwriting each other's list.
+
+Decided 2026-11-22 by the run, not the owner: `first` holds the details only, the level and
+type being the group's, because it keeps each violation's text whole at the smallest size.
+
+Test before: `tests/test_live_erc.py` (a copy of the SpiritLevel-SL1 example's four child
+sheets as a flat project with a second copy of each: 276 violations, six kinds), on the old
+code: `AssertionError: 38833 not less than 10000 : the result is 38833 characters, over
+10000`. After: 1/1 pass in AD25, 276 violations in 6 groups, 2,146 characters, the counts
+summing to the total and to each level's count, the file's list matching each group's count
+and first three (36,626 bytes); `test_live_drc.LiveCompileFolderTest`, which calls the tool,
+2/2 pass (it now deletes the file it made). Offline: `tests/test_erc_summary.py`, 11 tests,
+added to `tests.yml`; the whole list 556/556 pass. Tool listing: 80 tools, 164,529
+characters before, 164,709 after (+180, 0.1 %).
+
+Fixed in `69f2cf9`. Released in `build-20261123-001227`.
+
+Held 2026-11-23: the scenario test of build 0.7.0-20261123-001227 (findings 2026-11-23, point 1): on a project of eight copies of one small sheet, 400 violations, 239 listed in 5 groups and 161 suppressed; 1.6k to 1.8k characters, against 45k for the same reply in the old format; the group counts summing to `total` and to `errors` (235) and `warnings` (4); `compile=false` gave the same groups; the full-list file held all 400, each marked.
+
+### A50 - `get_erc_violations` lists violations Altium has suppressed - CLOSED 2026-11-23
+
+Sorted out of the entry of 2026-11-19 (fourth), point 1, which found the cause of
+2026-11-19 (third), point 8. Six "Nets containing floating input pins" errors, each on a pin
+with a no-ERC marker exactly on its end (`IsActive` and `SuppressAll` true), and their twelve
+warnings are in the tool's result; Altium's Messages panel after a GUI compile does not show
+them. A test marker on another net's pin left that net's warning in the list too.
+`GetERCViolations` (other_utils.pas) reads every `Project.DM_Violations(I)` with no
+suppression test; `ReportSuppressedErrorsInMessages=0` in the project file says the compile
+keeps suppressed ones and the panel hides them. Reported success, with errors that are not
+there: a session spent calls on markers that worked.
+
+Proposed: local; the suppressed ones left out, or reported apart (`suppressed: n`); the
+property that tells them is not known yet (the DM names tried failed). Not decided.
+
+Decided 2026-11-22 in the plan (the owner's token rule): no new tool or argument; a probe
+first; found, the suppressed ones left out of the groups and counted as `suppressed: n`.
+
+Cause: the bridge's `GetERCViolations` (`other_utils.pas`) put every `DM_Violations(I)` in
+the reply and counted it in `total` and its level, with no suppression test. Probe (a
+sandbox script on the test's sheet below): `IViolation.DM_IsSuppressed` exists on AD25 and
+reads True for exactly the two violations of the pin under the marker (the floating input
+pin's error and its net's no-driving-source warning), False for the others;
+`DM_Suppressed`, `DM_IsHidden`, `DM_IsIgnored` and `DM_IsVisible` do not exist, and
+`DM_CompilationStage`, `DM_GeneralField`, `DM_ImageIndex` and the descriptor strings do not
+tell. The violation's related pin gives no location (`DM_LocationX` -9999), so a match
+against the markers would have had to find each pin on its sheet.
+
+Fix: the bridge marks each violation `suppressed` (true or false) and counts the suppressed
+ones in `suppressed`, outside `total`, `fatal`, `errors` and `warnings`;
+`erc_summary.summarize` groups only those not suppressed; the full-list file keeps every
+violation, marked. The description, `manifest.json` and `README.md` say so.
+
+Decided 2026-11-22 by the run, not the owner: the suppressed ones counted out of `total` and
+their level's count as well as out of the groups, because the result then counts what
+Altium's Messages panel shows and the groups still sum to `total`.
+
+Decided 2026-11-22 by the run, not the owner: Altium's own `DM_IsSuppressed`, not a match of
+pin locations against the active no-ERC markers, because it is Altium's decision, markers
+that suppress chosen types only included, with nothing re-implemented.
+
+Test before: `tests/test_live_erc.py`, `LiveErcSuppressedTest` (a one-sheet project, a copy
+of the SpiritLevel-SL1 example's power sheet, a test point moved so its input pin floats,
+then a no-ERC marker on that pin's end), on the old code: `AssertionError: Lists differ:
+[{...}] != [] ... : a violation Altium suppresses is still listed: [{'level': 'error',
+'type': 'Nets containing floating input pins', 'count': 1, 'first': ['Net NetTP1_1 contains
+floating input pins (Pin TP1-1)']}]`. After: 1/1 pass in AD25, 4 violations before the
+marker, after it 2 listed and 2 suppressed, the two marked in the file. A49's test on the
+same example's doubled project: 207 violations listed and 69 suppressed by the example's own
+markers (276 in all), 6 groups, 2,164 characters. `test_live_erc` and `test_live_drc`
+together 16/16 pass. Offline: `tests/test_erc_summary.py` 12 tests (one added); the whole
+list of `tests.yml` 557/557 pass. Tool listing: 80 tools, 164,709 characters before,
+164,841 after (+132, 0.08 %).
+
+Fixed in `49ecf2f`. Released in `build-20261123-001227`.
+
+Held 2026-11-23: the scenario test of build 0.7.0-20261123-001227 (findings 2026-11-23, point 3): a sheet with 23 active no-ERC markers (`SuppressAll`) on unused connector pins, listed by earlier releases as 23 "Nets with only one pin" errors, now `total` 4 and `suppressed` 23, Altium counting exactly 23 active markers; with the markers removed from four of the eight copies of point 1's sheet (the project reopened, see A48), 92 of those errors moved from `suppressed` to the list; a project with no markers, 5 warnings and 0 suppressed, as before.
+
 ## Not items
 
 ## Run 2026-11-14

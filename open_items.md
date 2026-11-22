@@ -12,8 +12,11 @@ upstream, run and held, or decided against moves with its record to
 [`closed_items.md`](closed_items.md), and so does a run's section once every step of it is
 ticked. The layout is the `backlog` plugin's `format.md` (v0.1, since 2026-11-15).
 
-**Open: A11, A15, A23, A25 to A28, A31 to A34, A36 to A39, A41 to A47, A51 to A73.** Sorted
-2026-11-22, the entry of 2026-11-22 (token cost of seventeen design sessions): A49, A46, A58
+**Open: A11, A15, A23, A25 to A28, A31 to A34, A36 to A39, A41 to A48, A51 to A75.** Sorted
+2026-11-23, the entry of 2026-11-23 (the scenario test of group 1's build,
+`build-20261123-001227`): A49 and A50 held and closed; A48 back to Open, held for edits and
+not for objects a script removed, taken again as A48 (b); A74 and A75, new; A26, A34 and
+A44, met again. Sorted 2026-11-22, the entry of 2026-11-22 (token cost of seventeen design sessions): A49, A46, A58
 and A57, met again, the four where the server's results weigh most. Sorted
 2026-11-22, the eighteen entries of 2026-11-18 to 2026-11-20 (schematic and library work on
 `build-20261115-172812`): A45 to A72, new; A34 (f), a new part; A26 and A28, met again. Most
@@ -67,7 +70,8 @@ DRC; fabrication outputs for an assembly service), not from a session's entry: w
 flow needs that no tool does (2026-11-12). They are features, not faults.
 
 A run is planned below, `## Run 2026-11-22`: three groups on the owner's token rule, its
-opening question answered, phase 2 to go.
+opening question answered, phase 2 under way: group 1 released, its scenario test run and
+sorted, A48 (b) and A74 taken into it again.
 
 ## Run 2026-11-22
 
@@ -189,6 +193,13 @@ release just registered, by the procedure in its `reports/uji-skenario.md`.
     script sets a placed part's footprint without `SetModified`, and the compile reads it
     empty today. Not found: stays Open, its usage note (in the item) put where the
     opening answer puts usage notes.
+  - A48 (b), taken again: A48's fix did not hold for objects a script removed (point 5 of
+    the scenario test of build 0.7.0-20261123-001227). A probe first for a sheet-level
+    re-read that also drops removed objects; not found, a short `stale_sheets` in both
+    tools' result (or the compile's object count checked against the sheet's) and one line
+    in `run_altium_script`'s description on `SCHM_PrimitiveRegistration` after a removal.
+  - A74, joining group 1 again (point 2 of the same test): `first` holds the group's first
+    three distinct details. Files: `server/erc_summary.py`, tests.
 - **Group 2, `build_schematic` and placing parts** (`server/main.py`'s schematic tools,
   their `.pas`): A46, A58, A45, A26, A27, A71.
   - A46: `pin_map` keyed by pin number, the name a field; returned in full only on a call
@@ -281,6 +292,9 @@ release just registered, by the procedure in its `reports/uji-skenario.md`.
     owner: three recipes run and not all, because a scenario test of thirteen scripts would
     double its time, and the path computed, because a release's folder differs each time.
     Model: the default. Files: `docs/recipes.md`, `server/main.py`'s description.
+  - A75 (point 6 of the scenario test of build 0.7.0-20261123-001227): a line in
+    `run_altium_script`'s description beside the recipes, that `List1..3` keep strings,
+    not objects. Files: `server/main.py`'s description.
 - **For the owner, prepared**: A11, whether the ECO done by hand (Import Changes,
   Validate, Execute, Close), then new projects made, brings Altium's RCW error too; if it
   does, it is Altium's and the stashed tool may go in with a usage note (the item, its
@@ -321,24 +335,14 @@ explained (the first asking left "op", "recipe" and "usage file" unexplained):
 - [x] A50: committed (49ecf2f)
 - [x] A48: committed (891ee59)
 - [x] Group 1: tests and release (build: 0.7.0-20261123-001227, tag build-20261123-001227)
-- [ ] Group 1: scenario test (session id: af570230-bb0a-49b3-aac8-e3f16361ede9, started 2026-11-23, free memory 1237 MB after the restart), its outcome sorted
-  - Ran 00:14 to 00:22, `EXIT 0`, one run; its entry committed alone (`eeaacd2`), **not
-    sorted yet**. The run's decisions for the sort (2026-11-23, the main session): A49 held
-    (point 1) and A50 held (point 3), each to `closed_items.md`; A48 held for edits (point
-    4), not for objects a script removed (point 5): back under `## Open` as A48 (b), fixed
-    again (a probe for a sheet-level re-read; not found, the fallback: a short
-    `stale_sheets` in both tools' result and one line in `run_altium_script`'s description
-    on the `SCHM_PrimitiveRegistration` notice after a removal), then group 1 checked
-    again; point 2, a new item (`--next-code`), the first three *distinct* details in
-    `first`, taken into group 1 again; point 6 (`List1.Objects[j]` is not the interface), a
-    new item, a step of group 3 (a line beside the recipes); point 7, A26 and A34 met
-    again, and A44 met again for the three pathless `PCBn.PcbDoc` (a live test made boards
-    in the user's project restored in focus). The sort writes after this line:
-    `A48 (b) again: committed`, `A74: committed` (or the code it gets), `Group 1 again:
-    tests and release (build: )`, `Group 1 again: scenario test (session id: ), its
-    outcome sorted`, and the point-6 item's line before group 3's tests.
-  - Altium is left running with the user's project in focus, modified in memory by tests
-    (pathless documents); nothing of it saved. The next group's restart drops it.
+- [x] Group 1: scenario test (session id: af570230-bb0a-49b3-aac8-e3f16361ede9, started 2026-11-23, free memory 1237 MB after the restart), its outcome sorted
+  - Ran 00:14 to 00:22, `EXIT 0`, its entry committed alone (`eeaacd2`), sorted 2026-11-23:
+    A49 and A50 held (closed), A48 back to Open as A48 (b), new A74 and A75, A26, A34 and
+    A44 met again.
+- [ ] A48 (b) again: committed
+- [ ] A74: committed
+- [ ] Group 1 again: tests and release (build: )
+- [ ] Group 1 again: scenario test (session id: ), its outcome sorted
 - [ ] A46: committed
 - [ ] A58: committed
 - [ ] A45: committed
@@ -355,6 +359,7 @@ explained (the first asking left "op", "recipe" and "usage file" unexplained):
 - [ ] A28: committed
 - [ ] A60 (a): committed
 - [ ] The recipes (A47, A51, A52, A54, A55, A59, A62 to A65, A67, A69, A34 (f), A56 (b)): committed
+- [ ] A75: committed
 - [ ] Group 3: tests and release (build: )
 - [ ] Group 3: scenario test (session id: ), its outcome sorted
 - [ ] The report
@@ -510,6 +515,9 @@ Met again 2026-11-19 (findings 2026-11-19, fourteenth entry, point 1), same buil
 `build_schematic` without `project_path`, a parts-only call to read the pin map as the
 description says, put its `Sheet1.SchDoc` into the focused project and left it modified;
 `DM_FreeDocumentsProject` did not list it. Reported success.
+Met again 2026-11-23 (findings 2026-11-23, point 7), build `0.7.0-20261123-001227`, at the
+start of its scenario test: the project Altium had in focus, not a test project, modified
+and holding a `Sheet1.SchDoc` with no path, unsaved. Left as found.
 
 ### A27 - `build_schematic` with `footprint` on a symbol that has a current one gives two - OPEN 2026-11-14
 
@@ -626,6 +634,9 @@ closes it and reports it gone, or at least a line in `get_server_status`'s descr
 saying how. Not decided.
 
 Decided 2026-11-22 by the owner (the opening answer of `## Run 2026-11-22`), for (f) only: no tool; written as a recipe in `docs/recipes.md` (a DelphiScript a session proved, with its `run_altium_script` call), pointed to by one line of `run_altium_script`'s description, and closed as usage once the scenario test held for the file. A record with no proven script leaves the item Open.
+Met again 2026-11-23 (findings 2026-11-23, point 7), build `0.7.0-20261123-001227`, (e): at
+the start of its scenario test the Projects panel held two `MCPResident.PrjScr`, this
+build's and an earlier tag's.
 
 ### A36 - A board open under its short (8.3) path is opened a second time - OPEN 2026-11-15
 
@@ -711,6 +722,10 @@ live tests a `Parts.SchLib` from a live test's temporary folder was still in Fre
 Local: find the test (those that build a `.SchLib`) and close the library in its tear-down,
 so a scenario test starts from a clean Altium. (2026-11-15, third entry, 8.) For the next
 run.
+Met again 2026-11-23 (findings 2026-11-23, point 7), build `0.7.0-20261123-001227`, in
+kind: at the start of its scenario test the project in focus, not a test project, held three
+`PCBn.PcbDoc` with no path, unsaved: a live test made boards while that project had focus.
+A live test leaves boards behind as well as a library.
 
 ### A45 - `build_schematic` places only part A of a multi-part symbol - OPEN 2026-11-22
 
@@ -1094,172 +1109,7 @@ name) against the other ports and part bodies. Not decided.
 
 The tools' names, descriptions and schemas, as `main.mcp.list_tools()` gives them, were 80 tools and 164,529 characters at `f120b3f` (about 41k tokens). Whether Claude Code sends it in every turn or defers it to tool search was not measured. Written 2026-11-22 by the owner's choice (the opening answer of `## Run 2026-11-22`), for a later run, not that one: measure what a session is sent, then trim the descriptions (examples and repeated advice first) where it is sent.
 
-## Waiting
-
-### A1 - `get_server_status` reports no version or commit - BUILT 2026-11-12, proof: the upstream PR for the version part, not sent yet
-
-It returns the Altium exe and the
-script path only, so a result cannot be tied to the code that ran. Until fixed, the release
-folder in `script_path` names the stamp, and its `BUILD.txt` the commit (`CLAUDE.md`,
-*Release and run*). Local: add the `manifest.json` version and the content of `BUILD.txt`
-when present; upstream PR for the version part.
-Fixed in `e2ecb5c`: the status adds `version` and `build` (the `BUILD.txt` line, `null` in a
-checkout); offline tests in `test_build_info.py`. Released in `build-20261112-101037`.
-Scenario test of that build held (2026-11-12, 1): `version` 0.7.0, `build` equal to the
-release folder's `BUILD.txt`, `script_path` in the same folder. Waits for the upstream PR
-for the version part.
-
-### A2 - `get_pcb_layer_stackup` reports success with the dielectrics missing - BUILT 2026-11-12, proof: the upstream PR, not sent yet
-
-On a 2-layer
-board with a 60 mil FR-4 core and a 0.4 mil solder mask on each side it returns
-`total_layers` 2, `total_thickness_mils` 2.8 (the two coppers only) and "No Dielectric",
-height 0, on both copper layers. The script walks `Board.ElectricalLayerIterator` and reads
-`LayerObject.Dielectric` of each copper layer, which is empty on AD25; a walk of
-`Board.LayerStack_V7` with `First/Next(eLayerClass_Dielectric)` lists all three (core
-h=60 mil, er=4.8, FR-4; masks h=0.4 mil, er=3.5). Local: list the stack in order from
-`LayerStack_V7`, the dielectric layers as entries of their own, and sum the thickness from
-them; upstream PR, the code is upstream's. (2026-11-12, 2.)
-Fixed in `975fe36`: `layers` is the stack top to bottom from `LayerStack_V7`
-(`eLayerClass_Physical`), copper and dielectric entries told apart by `material_type`,
-overlays and pastes left out; `total_thickness_mils` sums both, `total_layers` still counts
-copper, `dielectric_layers` added. A dielectric with no type set reads `eNoDielectric` on
-AD25 and is given as "Dielectric". Live test `tests/test_live_layer_stackup.py`
-(`ALTIUM_LIVE=1`): a new board (16.2 mil) and a copy of the 16-layer Mini PC example
-(cores and prepregs in turn, 79.84 mil); 2/2 pass in AD25, 2/2 fail on the old script.
-Released in `build-20261112-120520`. Scenario test of that build held (2026-11-12, third
-entry, 1): mask 0.4 / copper 1.4 / core 60 (FR-4, er 4.8) / copper 1.4 / mask 0.4,
-`total_thickness_mils` 63.6, `dielectric_layers` 3, as a `LayerStack_V7` walk gives.
-Waits for the upstream PR.
-
-### A7 - `get_pcb_rules` repeats each rule's scope - BUILT 2026-11-12, proof: the upstream PR, not sent yet
-
-9.3k characters for 38 rules, the scope
-given in `descriptor` and again in `filter1`/`filter2`. Local: one of the two, and upstream
-PR. (2026-11-12, 6.)
-Fixed in `c011483`: `descriptor` is given as `constraint`, the scope cut from its end
-(kept whole when it does not end in the filters), and `filter2` is left out of a unary
-rule (`IPCB_Rule.IsUnary`; AD25 reports the Fanout rules binary). Offline tests in
-`test_pcb_rules.py`; live test `tests/test_live_pcb_rules.py` (a new board's default
-rules): 1/1 pass in AD25, fails on the old script. Released in `build-20261112-120520`.
-Scenario test of that build held (2026-11-12, third entry, 2): 38 rules, the scope once,
-`filter2` only on binary rules. The reply went from 9.3k to 8.5k characters only (about
-9 %): what is left is mostly the key names and indentation repeated on every rule.
-Waits for the upstream PR.
-
-### A49 - `get_erc_violations` returns every violation in full, past the result limit - BUILT 2026-11-22, proof: the scenario test
-
-Sorted out of the entries of 2026-11-18 (second), point 7: 155k characters (capped at 1000
-violations), failed the tool-result limit, read from the saved file; 2026-11-19 (first),
-point 2: 273 violations, about 150 of them one sheet's "Duplicate nets"; 2026-11-19
-(second), point 5: 199 violations, about 100,000 characters, over the client's limit three
-times, most of it 99 warnings of one kind and 30 of another.
-
-Proposed: local; a summary by default (counts by type and level, the first few of each),
-with `type`, `level` and `limit` filters for the details. Not decided.
-
-Met again 2026-11-22 (findings 2026-11-22, point 1), build `0.7.0-20261115-172812`, measured
-from the transcripts of seventeen schematic and library sessions: up to 105k characters of
-results in one session (6 calls) and 76k in another (2 calls), the largest of the server's
-own share of a session's cost.
-
-Decided 2026-11-22 in the plan (the owner's token rule): by default grouped by type and
-level, each with its count and its first three violations in full, the full list in a file
-whose path the result gives; no new argument.
-
-Cause: the bridge's `GetERCViolations` (`other_utils.pas`) puts every `DM_Violations(I)` in
-the reply as `{level, type, detail}`, and the tool passed the reply on whole; a few kinds
-repeated by the hundred make up most of it. The tool wrote no file to point to: the
-bridge's `WriteJSONToFile` only returns its text.
-
-Fix (`server/erc_summary.py`, `get_erc_violations` in `server/main.py`): Altium's reply is
-grouped in Python, `violations` replaced by `groups [{level, type, count, first}]`
-(`first`: the details of the group's first three violations, in Altium's order; fatal, then
-error, then warning, the largest group first) and `full_list`, the path of a JSON file
-holding Altium's whole reply; `total`, `fatal`, `errors`, `warnings` and the sheet status
-as before. A file that cannot be written gives `full_list: null` and `full_list_error`. An
-error reply passes through unchanged. A50's `suppressed` count goes beside `total`; not
-done here. The description, `manifest.json` and `README.md` say so.
-
-Decided 2026-11-22 by the run, not the owner: the full list written into the server's own
-per-user folder (`%USERPROFILE%\.altium-mcp`, beside `config.json` and the log), one file
-per project, `erc_<project>_<hash of its path>.json`, overwritten by the next call, because
-the tool wrote no file and the public exchange folder was cleared of design data on
-purpose (`LEFTOVER_TEMP_FILES`), and one file per project keeps two sessions on two
-projects from overwriting each other's list.
-
-Decided 2026-11-22 by the run, not the owner: `first` holds the details only, the level and
-type being the group's, because it keeps each violation's text whole at the smallest size.
-
-Test before: `tests/test_live_erc.py` (a copy of the SpiritLevel-SL1 example's four child
-sheets as a flat project with a second copy of each: 276 violations, six kinds), on the old
-code: `AssertionError: 38833 not less than 10000 : the result is 38833 characters, over
-10000`. After: 1/1 pass in AD25, 276 violations in 6 groups, 2,146 characters, the counts
-summing to the total and to each level's count, the file's list matching each group's count
-and first three (36,626 bytes); `test_live_drc.LiveCompileFolderTest`, which calls the tool,
-2/2 pass (it now deletes the file it made). Offline: `tests/test_erc_summary.py`, 11 tests,
-added to `tests.yml`; the whole list 556/556 pass. Tool listing: 80 tools, 164,529
-characters before, 164,709 after (+180, 0.1 %).
-
-Fixed in `69f2cf9`. Released in `build-20261123-001227`.
-
-### A50 - `get_erc_violations` lists violations Altium has suppressed - BUILT 2026-11-22, proof: the scenario test
-
-Sorted out of the entry of 2026-11-19 (fourth), point 1, which found the cause of
-2026-11-19 (third), point 8. Six "Nets containing floating input pins" errors, each on a pin
-with a no-ERC marker exactly on its end (`IsActive` and `SuppressAll` true), and their twelve
-warnings are in the tool's result; Altium's Messages panel after a GUI compile does not show
-them. A test marker on another net's pin left that net's warning in the list too.
-`GetERCViolations` (other_utils.pas) reads every `Project.DM_Violations(I)` with no
-suppression test; `ReportSuppressedErrorsInMessages=0` in the project file says the compile
-keeps suppressed ones and the panel hides them. Reported success, with errors that are not
-there: a session spent calls on markers that worked.
-
-Proposed: local; the suppressed ones left out, or reported apart (`suppressed: n`); the
-property that tells them is not known yet (the DM names tried failed). Not decided.
-
-Decided 2026-11-22 in the plan (the owner's token rule): no new tool or argument; a probe
-first; found, the suppressed ones left out of the groups and counted as `suppressed: n`.
-
-Cause: the bridge's `GetERCViolations` (`other_utils.pas`) put every `DM_Violations(I)` in
-the reply and counted it in `total` and its level, with no suppression test. Probe (a
-sandbox script on the test's sheet below): `IViolation.DM_IsSuppressed` exists on AD25 and
-reads True for exactly the two violations of the pin under the marker (the floating input
-pin's error and its net's no-driving-source warning), False for the others;
-`DM_Suppressed`, `DM_IsHidden`, `DM_IsIgnored` and `DM_IsVisible` do not exist, and
-`DM_CompilationStage`, `DM_GeneralField`, `DM_ImageIndex` and the descriptor strings do not
-tell. The violation's related pin gives no location (`DM_LocationX` -9999), so a match
-against the markers would have had to find each pin on its sheet.
-
-Fix: the bridge marks each violation `suppressed` (true or false) and counts the suppressed
-ones in `suppressed`, outside `total`, `fatal`, `errors` and `warnings`;
-`erc_summary.summarize` groups only those not suppressed; the full-list file keeps every
-violation, marked. The description, `manifest.json` and `README.md` say so.
-
-Decided 2026-11-22 by the run, not the owner: the suppressed ones counted out of `total` and
-their level's count as well as out of the groups, because the result then counts what
-Altium's Messages panel shows and the groups still sum to `total`.
-
-Decided 2026-11-22 by the run, not the owner: Altium's own `DM_IsSuppressed`, not a match of
-pin locations against the active no-ERC markers, because it is Altium's decision, markers
-that suppress chosen types only included, with nothing re-implemented.
-
-Test before: `tests/test_live_erc.py`, `LiveErcSuppressedTest` (a one-sheet project, a copy
-of the SpiritLevel-SL1 example's power sheet, a test point moved so its input pin floats,
-then a no-ERC marker on that pin's end), on the old code: `AssertionError: Lists differ:
-[{...}] != [] ... : a violation Altium suppresses is still listed: [{'level': 'error',
-'type': 'Nets containing floating input pins', 'count': 1, 'first': ['Net NetTP1_1 contains
-floating input pins (Pin TP1-1)']}]`. After: 1/1 pass in AD25, 4 violations before the
-marker, after it 2 listed and 2 suppressed, the two marked in the file. A49's test on the
-same example's doubled project: 207 violations listed and 69 suppressed by the example's own
-markers (276 in all), 6 groups, 2,164 characters. `test_live_erc` and `test_live_drc`
-together 16/16 pass. Offline: `tests/test_erc_summary.py` 12 tests (one added); the whole
-list of `tests.yml` 557/557 pass. Tool listing: 80 tools, 164,709 characters before,
-164,841 after (+132, 0.08 %).
-
-Fixed in `49ecf2f`. Released in `build-20261123-001227`.
-
-### A48 - The project compile reads stale sheets after a script's edit - BUILT 2026-11-22, proof: the scenario test
+### A48 - The project compile reads stale sheets after a script's edit - OPEN 2026-11-23
 
 Three sessions read in the compile what the saved sheets no longer held, each reported
 success, build `0.7.0-20261115-172812`:
@@ -1365,3 +1215,121 @@ the new module is live only, not in it. Tool listing: 80 tools, 164,841 characte
 and after.
 
 Fixed in `891ee59`. Released in `build-20261123-001227`.
+
+Scenario test of build `0.7.0-20261123-001227` (findings 2026-11-23, point 4), held for edits: a
+placed part's current footprint renamed through its implementation by script, no notices,
+the modified flag left false: `get_project_components` gave the new name, where the control
+(the same edit read through a script's own `DM_Compile`) gave the old one; a custom sheet
+size of 2000 x 2000 mil set directly: `get_erc_violations` gave 100 "Object not completely
+within sheet boundaries". The sheet's and the project's modified flags stayed 0 through
+both tools.
+
+Failed on the same build (findings 2026-11-23, point 5), for objects a script removed: a
+no-ERC marker removed with `RemoveSchObject` inside `PreProcess`/`PostProcess`, no notice
+for the removed object, the sheet open: `get_erc_violations` still compiled it in, its
+violation still suppressed. At scale, 92 markers removed from four open sheets and the
+sheets saved: `suppressed` stayed 345 over two calls, and read 161 with 92 more listed only
+after the project was closed and reopened. Reported success with a stale result.
+`RefreshOpenSheets` sends end notices for the objects the sheet still holds, so a removed
+one is never named. A marker removed with `SchServer.RobotManager.SendMessage(Doc.I_ObjectAddress,
+c_BroadCast, SCHM_PrimitiveRegistration, O.I_ObjectAddress)` after the removal came through
+at once.
+
+A48 (b), what is left (the part's name, apart from the three sessions' (a) to (c) above):
+the compile brought up to date after a script removed objects without a notice.
+
+Decided 2026-11-23 by the run, not the owner: A48 (b) taken into group 1 again, by the
+run's rule for a fix of the group not holding (*The scenario test of a group*, 7): a probe
+first for a sheet-level re-read that also drops removed objects; not found, the fallback: a
+short `stale_sheets` in `get_erc_violations`' and `get_project_components`' result (or the
+equivalent check of the compile's object count against the sheet's) and one line in
+`run_altium_script`'s description on sending `SCHM_PrimitiveRegistration` after a removal,
+because a stale compile must not pass silently and the token rule asks for the smaller
+change.
+
+### A74 - `get_erc_violations`' `first` repeats one text - OPEN 2026-11-23
+
+Sorted out of the entry of 2026-11-23, point 2, the scenario test of build `0.7.0-20261123-001227`: a
+violation's detail does not name its sheet, so on a project of repeated sheets a group's
+first three often read the same ("Net X has only one pin (Pin J1-4)" three times,
+"Duplicate Net Names Wire X" three times), two of the three lines telling nothing. Reported
+success, rightly: the counts are right, the lines wasted.
+
+Local: `first` holds the group's first three *distinct* details (A49's grouping,
+`server/erc_summary.py`). The entry also proposed the sheet with each detail.
+
+Decided 2026-11-23 by the run, not the owner: taken into group 1 again, by the run's rule
+for a new point small and in the group's files (*The scenario test of a group*, 7), because
+it is A49's grouping; the first three distinct details, not the sheet with each, because
+the token rule asks for the smaller change.
+
+### A75 - `run_altium_script`'s `List1..3` keep strings, not objects - OPEN 2026-11-23
+
+Sorted out of the entry of 2026-11-23, point 6, the scenario test of build `0.7.0-20261123-001227`: an
+object stored by `List1.AddObject` and read back as `List1.Objects[j]` is not the
+interface. `Doc.RemoveSchObject(List1.Objects[j])` ran with no error and removed nothing
+(the script reported 23 removed per sheet, and the sheets were saved with all 23), and
+`List1.Objects[j].I_ObjectAddress` failed "Undeclared identifier: I_ObjectAddress", the
+sandbox's diagnosis reading it as a call on nil. Iterating again for the first object each
+time worked. Reported success with nothing done.
+
+Local: a line in `run_altium_script`'s description beside the recipes: `List1..3` keep
+strings, not objects; a loop that removes objects takes the first one again each time.
+
+Decided 2026-11-23 by the run, not the owner: taken into group 3, a step before its tests,
+by the run's rule for a new point small and in the group's files (*The scenario test of a
+group*, 7), because `run_altium_script`'s description and the recipes are group 3's.
+
+## Waiting
+
+### A1 - `get_server_status` reports no version or commit - BUILT 2026-11-12, proof: the upstream PR for the version part, not sent yet
+
+It returns the Altium exe and the
+script path only, so a result cannot be tied to the code that ran. Until fixed, the release
+folder in `script_path` names the stamp, and its `BUILD.txt` the commit (`CLAUDE.md`,
+*Release and run*). Local: add the `manifest.json` version and the content of `BUILD.txt`
+when present; upstream PR for the version part.
+Fixed in `e2ecb5c`: the status adds `version` and `build` (the `BUILD.txt` line, `null` in a
+checkout); offline tests in `test_build_info.py`. Released in `build-20261112-101037`.
+Scenario test of that build held (2026-11-12, 1): `version` 0.7.0, `build` equal to the
+release folder's `BUILD.txt`, `script_path` in the same folder. Waits for the upstream PR
+for the version part.
+
+### A2 - `get_pcb_layer_stackup` reports success with the dielectrics missing - BUILT 2026-11-12, proof: the upstream PR, not sent yet
+
+On a 2-layer
+board with a 60 mil FR-4 core and a 0.4 mil solder mask on each side it returns
+`total_layers` 2, `total_thickness_mils` 2.8 (the two coppers only) and "No Dielectric",
+height 0, on both copper layers. The script walks `Board.ElectricalLayerIterator` and reads
+`LayerObject.Dielectric` of each copper layer, which is empty on AD25; a walk of
+`Board.LayerStack_V7` with `First/Next(eLayerClass_Dielectric)` lists all three (core
+h=60 mil, er=4.8, FR-4; masks h=0.4 mil, er=3.5). Local: list the stack in order from
+`LayerStack_V7`, the dielectric layers as entries of their own, and sum the thickness from
+them; upstream PR, the code is upstream's. (2026-11-12, 2.)
+Fixed in `975fe36`: `layers` is the stack top to bottom from `LayerStack_V7`
+(`eLayerClass_Physical`), copper and dielectric entries told apart by `material_type`,
+overlays and pastes left out; `total_thickness_mils` sums both, `total_layers` still counts
+copper, `dielectric_layers` added. A dielectric with no type set reads `eNoDielectric` on
+AD25 and is given as "Dielectric". Live test `tests/test_live_layer_stackup.py`
+(`ALTIUM_LIVE=1`): a new board (16.2 mil) and a copy of the 16-layer Mini PC example
+(cores and prepregs in turn, 79.84 mil); 2/2 pass in AD25, 2/2 fail on the old script.
+Released in `build-20261112-120520`. Scenario test of that build held (2026-11-12, third
+entry, 1): mask 0.4 / copper 1.4 / core 60 (FR-4, er 4.8) / copper 1.4 / mask 0.4,
+`total_thickness_mils` 63.6, `dielectric_layers` 3, as a `LayerStack_V7` walk gives.
+Waits for the upstream PR.
+
+### A7 - `get_pcb_rules` repeats each rule's scope - BUILT 2026-11-12, proof: the upstream PR, not sent yet
+
+9.3k characters for 38 rules, the scope
+given in `descriptor` and again in `filter1`/`filter2`. Local: one of the two, and upstream
+PR. (2026-11-12, 6.)
+Fixed in `c011483`: `descriptor` is given as `constraint`, the scope cut from its end
+(kept whole when it does not end in the filters), and `filter2` is left out of a unary
+rule (`IPCB_Rule.IsUnary`; AD25 reports the Fanout rules binary). Offline tests in
+`test_pcb_rules.py`; live test `tests/test_live_pcb_rules.py` (a new board's default
+rules): 1/1 pass in AD25, fails on the old script. Released in `build-20261112-120520`.
+Scenario test of that build held (2026-11-12, third entry, 2): 38 rules, the scope once,
+`filter2` only on binary rules. The reply went from 9.3k to 8.5k characters only (about
+9 %): what is left is mostly the key names and indentation repeated on every rule.
+Waits for the upstream PR.
+

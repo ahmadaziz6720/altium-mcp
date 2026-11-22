@@ -360,8 +360,15 @@ is written down before it.
     unmodified at 02:29 (the subagent's report). `ad25` is pushed at group 1 again's
     release, not before.
 - [x] A74: committed (12ce1ca)
-- [ ] Group 1 again: tests and release (build: )
-- [ ] Group 1 again: scenario test (session id: ), its outcome sorted
+- [x] Group 1 again: tests and release (build: 0.7.0-20261123-031122, tag build-20261123-031122)
+  - 559 offline and 82 live tests OK (A48 (b)'s two expected failures), Altium restarted
+    first with nothing modified. The listing 157,905 to 157,962 characters (+0.04%).
+    Decided 2026-11-23 by the run, not the owner: the tests by a Sonnet subagent, the push,
+    registration, tag and page by the main session, because what leaves the machine is
+    read first where the grant is known.
+- [ ] Group 1 again: scenario test (session id: ade4c3bd-0444-4d86-b3fc-9aacd600eb5c,
+  free memory 1123 MB after a restart of Altium, pid 17308; output and launcher in the
+  run's scratchpad, `check_031122.*`), its outcome sorted
 - [ ] A46: committed
 - [ ] A58: committed
 - [ ] A45: committed
@@ -1388,6 +1395,8 @@ Not tried, for whoever takes it next: prevention where
 the removal is written, `run_altium_script` warning of a `RemoveSchObject` with no
 `SCHM_PrimitiveRegistration` in the same script; it is outside what the plan decided.
 
+The part built: `71514df`, released in `build-20261123-031122`.
+
 ### A75 - `run_altium_script`'s `List1..3` keep strings, not objects - OPEN 2026-11-23
 
 Sorted out of the entry of 2026-11-23, point 6, the scenario test of build `0.7.0-20261123-001227`: an
@@ -1489,3 +1498,5 @@ characters before and 1,067 after, the third line now a new one; A49's 207 viola
 2,163 both times, the counts summing to the total), `test_live_compile_refresh` and
 `test_live_drc`'s `LiveCompileFolderTest` 9 run, OK with A48 (b)'s two expected failures;
 the offline list 559, OK.
+
+Fixed in `12ce1ca`. Released in `build-20261123-031122`.

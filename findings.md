@@ -1409,3 +1409,22 @@ About 40 calls (`get_server_status` 2, `get_symbol_primitives` 6, `get_schematic
 "Undeclared identifier: IsNotAccesible", as the earlier entry said it would.
 
 Sorted into A71 (1, 6), new; A65 (2), new; A60 (3), new; A66 (5), new; A34 (7), part (f). Not filed (4): a swap that held, a lesson.
+
+**2026-11-22: token cost of seventeen design sessions, measured from their transcripts**
+
+Release `bin\0.7.0-20261115-172812` (the sessions of 2026-11-18 to 20).
+
+1. Read from the `usage` of every reply in the transcripts of seventeen schematic and
+   library sessions that called the server: 343.5M tokens of context sent in all, peaks of
+   160k to 420k context, and one session of 208 turns, never compacted, that grew from 71k
+   to 880k and sent 99M by itself. Most of that is the session's length, every turn sending
+   the whole context again; the server's results are the part that is its own. Where they
+   were largest, in characters of result summed over the seventeen sessions: A49 met again,
+   `get_erc_violations` up to 105k in one session (6 calls) and 76k in another (2 calls);
+   A46 and A58 met again, `build_schematic` 142k of results and 171k of input over 14 calls
+   in one session, the inline sheet going in and the whole pin map coming back each time;
+   A57 met again, `get_symbol_primitives` and `get_footprint_primitives` 20k to 44k in a
+   session each, `get_project_components` 63k in one (7 calls). Seven `get_screenshot`
+   images in one session were next to nothing beside them. Lesson: these four items are
+   where the server's share of a design session's cost sits; a summary by default with the
+   detail on request (A49's proposal) is the pattern for each.

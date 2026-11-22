@@ -420,10 +420,11 @@ is written down before it.
     that start processes or call the real status tool are to run before the release (the
     subagent's report; two of its first runs did call `get_server_status`'s test by mistake).
     The scenario test runs first A55, A34 (f) and A52's removal.
-- [x] A75: committed
-  - **Stopped here 2026-11-23 about 04:55 at the usage limit**, A75 not started: it needs no
-    Altium and is the next step that can be done while Altium is blocked (A26's line). With
-    Altium ended by the owner, the run goes on from A26 instead.
+- [x] A75: committed (b764b10)
+  - Stopped 2026-11-23 about 04:55 at the usage limit, taken up by the session's hourly
+    self-check at 05:54 (Altium still blocked): A75 done offline, its tests in its item.
+  - **Blocked since 06:0x: every step left needs Altium** (A26's line). The self-check cron
+    was deleted with this line, as its own prompt says for a run written down Blocked.
   - The watcher for Altium's end and the subagents' watchdog were stopped by Claude Code
     for low memory (546 MB free, Altium 2.4 GB private) and not started again, so closing
     Altium no longer wakes the run: the owner says "lanjut", or opens a session with the

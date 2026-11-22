@@ -148,7 +148,12 @@ release just registered, by the procedure in its `reports/uji-skenario.md`.
    commit. Akhiri dengan laporan sepuluh baris: tiap item lolos atau gagal, finding baru.`
 5. **Watched** by its process and the last write of its transcript
    (`~\.claude\projects\C--Users-Ahmad-Aziz-Data-Project-claude-altium\<uuid>.jsonl`), by
-   no background task. It should take 60 to 90 minutes.
+   no background task. It should take 60 to 90 minutes. Changed 2026-11-23 by the owner:
+   "harusnya run itu tetep bisa jalan tanpa gw": the run never waits on the owner's
+   "cek". It watches by a background `Bash` until-loop of its own (the `EXIT` line,
+   `tasklist` on the pid, the transcript unwritten over 1800 s, `sleep 60`), re-armed if
+   it is ended, and goes on in the same session past 150k tokens (Claude Code compacts
+   it; this checklist carries the state).
 6. **Stopped with no entry**, or the transcript unwritten 30 minutes with the process
    alive (stopped first by `Stop-Process`): resumed unasked from the same folder,
    `claude -p --resume <uuid> "lanjutkan uji skenario"`, same flags, up to three times;

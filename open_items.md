@@ -12,7 +12,7 @@ upstream, run and held, or decided against moves with its record to
 [`closed_items.md`](closed_items.md), and so does a run's section once every step of it is
 ticked. The layout is the `backlog` plugin's `format.md` (v0.1, since 2026-11-15).
 
-**Open: A11, A15, A23, A25 to A28, A31 to A34, A36 to A39, A41 to A48, A51 to A73.** Sorted
+**Open: A11, A15, A23, A25 to A28, A31 to A34, A36 to A39, A41 to A47, A51 to A73.** Sorted
 2026-11-22, the entry of 2026-11-22 (token cost of seventeen design sessions): A49, A46, A58
 and A57, met again, the four where the server's results weigh most. Sorted
 2026-11-22, the eighteen entries of 2026-11-18 to 2026-11-20 (schematic and library work on
@@ -309,8 +309,8 @@ explained (the first asking left "op", "recipe" and "usage file" unexplained):
 
 - [x] Phase 1: the opening question asked and answered (2026-11-22, in two sessions)
 - [x] A49: committed (69f2cf9)
-- [x] A50: committed
-- [ ] A48: committed
+- [x] A50: committed (49ecf2f)
+- [x] A48: committed
 - [ ] Group 1: tests and release (build: )
 - [ ] Group 1: scenario test (session id: ), its outcome sorted
 - [ ] A46: committed
@@ -724,32 +724,6 @@ Proposed: local; `sheet_style` and `parameters` on `build_schematic`, and an
 `edit_schematic` op for an existing sheet. Not decided.
 
 Decided 2026-11-22 by the owner (the opening answer of `## Run 2026-11-22`): no tool; written as a recipe in `docs/recipes.md` (a DelphiScript a session proved, with its `run_altium_script` call), pointed to by one line of `run_altium_script`'s description, and closed as usage once the scenario test held for the file. A record with no proven script leaves the item Open.
-
-### A48 - The project compile reads stale sheets after a script's edit - OPEN 2026-11-22
-
-Three sessions read in the compile what the saved sheets no longer held, each reported
-success, build `0.7.0-20261115-172812`:
-(a) 2026-11-18 (second), point 6: sheets set to A3 by script (`SheetStyle`, `SheetSizeX/Y`
-15500 x 11100, saved, drawn A3), then `get_erc_violations` gave 852 "Object not completely
-within sheet boundaries", all past A4's bounds, twice. In a new Altium session on the same
-saved sheets none came back (2026-11-19 (first), point 1).
-(b) 2026-11-19 (third), point 3: footprints set on five placed parts by script;
-`get_project_components` and a script's `DM_Compile` gave them an empty `footprint`, even
-after the sheet was saved, closed and reopened; only one more script edit with
-`SetModified(True)` made the compile give all five. A script that leaves `Modified` false
-also lets Save All skip the sheet. With `SaveDoc` right after the script it did not recur
-(2026-11-19 (seventh), point 1).
-(c) 2026-11-19 (fourteenth), point 4: harness objects placed by script gave 2 fatal "Missing
-Harness Type on Signal Harness", "Unconnected line", one "Multiple Harness Types on harness"
-and 16 "Invalid Connection to a Harness Connector", unchanged after `LineWidth` was set and
-saved; the project closed by script and reopened by `get_erc_violations(project_path)`: 0
-fatal, the netlist right. Which of the two changes was needed is not separated.
-Usage until fixed: after a script edits a sheet, mark it modified and save it; before
-trusting a compile, close and reopen the project.
-
-Proposed: local; a `reload` option on `get_erc_violations` and `get_project_components` (the
-project's sheets closed and reopened first), and a probe for the call that refreshes the
-compile. Not decided.
 
 ### A51 - `build_schematic`'s net labels take no justification - OPEN 2026-11-22
 
@@ -1256,5 +1230,112 @@ markers (276 in all), 6 groups, 2,164 characters. `test_live_erc` and `test_live
 together 16/16 pass. Offline: `tests/test_erc_summary.py` 12 tests (one added); the whole
 list of `tests.yml` 557/557 pass. Tool listing: 80 tools, 164,709 characters before,
 164,841 after (+132, 0.08 %).
+
+Fixed in the commit that moves it here.
+
+### A48 - The project compile reads stale sheets after a script's edit - BUILT 2026-11-22, proof: the scenario test
+
+Three sessions read in the compile what the saved sheets no longer held, each reported
+success, build `0.7.0-20261115-172812`:
+(a) 2026-11-18 (second), point 6: sheets set to A3 by script (`SheetStyle`, `SheetSizeX/Y`
+15500 x 11100, saved, drawn A3), then `get_erc_violations` gave 852 "Object not completely
+within sheet boundaries", all past A4's bounds, twice. In a new Altium session on the same
+saved sheets none came back (2026-11-19 (first), point 1).
+(b) 2026-11-19 (third), point 3: footprints set on five placed parts by script;
+`get_project_components` and a script's `DM_Compile` gave them an empty `footprint`, even
+after the sheet was saved, closed and reopened; only one more script edit with
+`SetModified(True)` made the compile give all five. A script that leaves `Modified` false
+also lets Save All skip the sheet. With `SaveDoc` right after the script it did not recur
+(2026-11-19 (seventh), point 1).
+(c) 2026-11-19 (fourteenth), point 4: harness objects placed by script gave 2 fatal "Missing
+Harness Type on Signal Harness", "Unconnected line", one "Multiple Harness Types on harness"
+and 16 "Invalid Connection to a Harness Connector", unchanged after `LineWidth` was set and
+saved; the project closed by script and reopened by `get_erc_violations(project_path)`: 0
+fatal, the netlist right. Which of the two changes was needed is not separated.
+Usage until fixed: after a script edits a sheet, mark it modified and save it; before
+trusting a compile, close and reopen the project.
+
+Proposed: local; a `reload` option on `get_erc_violations` and `get_project_components` (the
+project's sheets closed and reopened first), and a probe for the call that refreshes the
+compile. Not decided.
+
+Decided 2026-11-22 in the plan (the owner's token rule): no new argument; a probe first for a
+call that brings the compile up to date short of closing the project; found, made inside
+both tools before they compile.
+
+Cause: Altium's project compile keeps its own model of each sheet and updates it only from
+the change notices the schematic editor sends inside a process. A script that changes an
+object without notices on that object (a part's footprint renamed through its
+implementation, with the notices sent for the implementation only; a net label's text or a
+sheet's size set directly) leaves the model as it was. The modified flag plays no part, and
+saving the sheet and closing it does not reset the model either: the compile still read the
+old net name from a sheet saved with the new one and closed (as (b) found).
+
+Probe (sandbox scripts on a one-sheet copy of the SpiritLevel-SL1 example's power sheet, a
+diode's footprint renamed as in (b), then `get_project_components`), each call and what it
+did:
+- nothing (the control), `SetModified(True)`, `IDocument.DM_Compile` on the sheet,
+  `IDocument.DM_UpdateDateModified`, `RunProcess('WorkspaceManager:Compile')` with
+  `ObjectKind=Project` on the project made current, an empty `PreProcess`/`PostProcess`,
+  `SCHM_BeginModify`/`SCHM_EndModify` on the sheet object inside them, a broadcast of
+  `SCHM_SystemInvalid`/`SCHM_SystemValid`, and the notices on every part with no process
+  around them: the old footprint, each.
+- `DM_NeedsCompile` and `DM_ScrapCompile` (named in Altium's SDK library): not in AD25's
+  script interfaces (undeclared on `IDocument` and `IProject`).
+- `SaveDoc` then `IServerDocument.DoFileLoad`: the new footprint, but it saves, and a reload
+  from the file drops unsaved edits; not for a read tool.
+- `PreProcess`, begin and end notices on the part, `PostProcess`: the new footprint; on every
+  object of the sheet, a net label renamed with no notices also came through. But it leaves
+  a step in the sheet's undo history: one Undo after it no longer took back the edit before.
+  The same notices between broadcasts of `SCHM_ProcessStart` and `SCHM_ProcessEnd` instead:
+  also an undo step.
+- End notices only (`SCHM_EndModify`) on every object, between `SCHM_ProcessStart` and
+  `SCHM_ProcessEnd`: the new footprint and the new net name, and no undo step; without the
+  two broadcasts, still old. A sheet size set directly came through only with the end notice
+  for the sheet object as well (204 "Object not completely within sheet boundaries" on a
+  2000 x 2000 mil sheet, none without it). The notices set the modified flag;
+  `SetModified` puts it back. Time: 0.15 to 0.25 s for a sheet of 211 objects, 0.5 to 0.9 s
+  for one of 653.
+- For a sheet not open: saved and closed after the edit, still old; the file's time moved
+  forward, the compile read the file again and came through.
+
+Fix: `RefreshOpenSheets` (`other_utils.pas`), called by `GetProjectComponents` and by
+`GetERCViolations` when it compiles, before `DM_Compile`: for each sheet of the project open
+in Altium, an `SCHM_EndModify` for each of its first-level objects and for the sheet, between
+`SCHM_ProcessStart` and `SCHM_ProcessEnd`, the sheet's modified flag put back as found. No
+argument, no description changed.
+
+Decided 2026-11-22 by the run, not the owner: every open sheet of the project refreshed on
+every compile, not only the sheets marked modified, because a stale model shows no sign (the
+flag was true and false in the probes alike) and the refresh costs about 1 ms an object.
+
+Decided 2026-11-22 by the run, not the owner: end notices inside `SCHM_ProcessStart` and
+`SCHM_ProcessEnd`, not `PreProcess`/`PostProcess` with begin and end notices, because both
+bring the compile up to date and the latter put an empty step into each open sheet's undo
+history, its redo cleared, on every call of a read tool.
+
+Decided 2026-11-22 by the run, not the owner: a sheet not open in Altium is not refreshed,
+because the only ways found write to the user's file (its time moved) or open every closed
+sheet on each compile. Left, as usage: a sheet a script edited without notices on the
+objects it changed, then saved and closed, still compiles stale until it is opened again
+before the compile call or the project is closed and reopened.
+
+Seen on the way, not filed: a project file holding only `[Design]` `Version=1.0` and its
+document list compiled a sheet not open in Altium as empty (0 components, 0 violations,
+`DM_CompileEx(True, '')` too); with the example's own project settings it compiled. The test
+keeps the example's settings.
+
+Test before: `tests/test_live_compile_refresh.py` (new; a one-sheet project with the
+example's settings, its power sheet open), on the old code 2 of 3 fail:
+`test_a_footprint_a_script_set_is_compiled`: `AssertionError: 'DO214' != 'A48_NEW_FP' ... :
+the compile reads the footprint from before the script's edit`;
+`test_a_sheet_size_a_script_set_is_compiled`: `AssertionError: 0 not greater than 100 : the
+compile reads the sheet size from before the script's edit: {}`. The third,
+`test_the_users_last_undo_step_stays_the_last`, passes before and after (it guards the undo
+history). After: 3/3 pass in AD25, the modified flag as found (false, then true).
+`test_live_erc` and `test_live_drc`'s `LiveCompileFolderTest` 4/4 pass (A49: 207 listed, 69
+suppressed, 6 groups, 2,164 characters). Offline: the whole list of `tests.yml` 557/557 pass;
+the new module is live only, not in it. Tool listing: 80 tools, 164,841 characters before
+and after.
 
 Fixed in the commit that moves it here.

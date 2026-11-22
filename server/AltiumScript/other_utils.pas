@@ -2307,6 +2307,59 @@ begin
     end;
 end;
 
+// The compile keeps its own model of each sheet and updates it only from the
+// change notices the schematic editor sends inside a process. A script that
+// changes an object without them (a part's footprint through its
+// implementation, a sheet property set directly) leaves the compile reading
+// the sheet as it was, saved or not. So every sheet of Project open in Altium
+// is re-announced first: an end-of-change notice for the sheet and each of
+// its objects, inside a process. With no begin-of-change notice nothing goes
+// into the sheet's undo history; the notices set the modified flag, which is
+// put back as found. A sheet not open is compiled from its file.
+procedure RefreshOpenSheets(Project: IProject);
+var
+    I       : Integer;
+    Doc     : IDocument;
+    Path    : String;
+    Server  : IServerDocument;
+    Sheet   : ISch_Document;
+    It      : ISch_Iterator;
+    Obj     : ISch_BasicContainer;
+    WasModified : Boolean;
+begin
+    if SchServer = nil then Exit;
+    for I := 0 to Project.DM_LogicalDocumentCount - 1 do
+    begin
+        Doc := Project.DM_LogicalDocuments(I);
+        if Doc.DM_DocumentKind = 'SCH' then
+        begin
+            Path := Doc.DM_FullPath;
+            Server := Client.GetDocumentByPath(Path);
+            if Server <> nil then
+            begin
+                Sheet := SchServer.GetSchDocumentByPath(Path);
+                if Sheet <> nil then
+                begin
+                    WasModified := DocumentModified(Server);
+                    SchServer.RobotManager.SendMessage(nil, c_BroadCast, SCHM_ProcessStart, c_NoEventData);
+                    It := Sheet.SchIterator_Create;
+                    It.SetState_IterationDepth(eIterateFirstLevel);
+                    Obj := It.FirstSchObject;
+                    while Obj <> nil do
+                    begin
+                        SchServer.RobotManager.SendMessage(Obj.I_ObjectAddress, c_BroadCast, SCHM_EndModify, c_NoEventData);
+                        Obj := It.NextSchObject;
+                    end;
+                    Sheet.SchIterator_Destroy(It);
+                    SchServer.RobotManager.SendMessage(Sheet.I_ObjectAddress, c_BroadCast, SCHM_EndModify, c_NoEventData);
+                    SchServer.RobotManager.SendMessage(nil, c_BroadCast, SCHM_ProcessEnd, c_NoEventData);
+                    Server.SetModified(WasModified);
+                end;
+            end;
+        end;
+    end;
+end;
+
 // Every violation of the compiled project. One Altium suppresses (a no-ERC
 // marker on its pin, IViolation.DM_IsSuppressed) is kept, marked, and
 // counted in suppressed instead of total and its level, as the Messages
@@ -2332,7 +2385,10 @@ begin
     end;
 
     if DoCompile then
+    begin
+        RefreshOpenSheets(Project);
         Project.DM_Compile;
+    end;
 
     NFatal := 0; NError := 0; NWarning := 0; NSuppressed := 0;
 
@@ -2407,6 +2463,7 @@ begin
         Result := 'ERROR: ' + Err;
         Exit;
     end;
+    RefreshOpenSheets(Project);
     Project.DM_Compile;
     Flat := Project.DM_DocumentFlattened;
     if Flat = Nil then

@@ -7,6 +7,10 @@ get_project_components and get_erc_violations reading the sheet as it was
 before, and saving or closing the sheet did not change that. Both tools now
 bring the compile's model of every sheet open in Altium up to date before
 they compile, leaving the sheet's modified flag and its undo history as found.
+An object a script removed without a notice naming it is not among the
+sheet's objects any more, so that refresh cannot name it: it stays compiled
+in (A48 (b), open; the two expected failures below). With the notice
+run_altium_script's description names, it does not.
 
 See tests/live_altium.py for how to run it. It works on a copy of the power
 sheet of the SpiritLevel-SL1 example Altium installs (skipped when it is not
@@ -85,12 +89,79 @@ class LiveCompileAfterScriptEditTest(unittest.TestCase):
         self.assertIn("components", parts, parts)
         return {c["designator"]: c["footprint"] for c in parts["components"]}
 
-    def erc_groups(self):
+    def erc(self):
         erc = json.loads(asyncio.run(main.get_erc_violations(None, project_path=self.project)))
         self.assertIn("groups", erc, erc)
         if erc.get("full_list"):
             self.addCleanup(Path(erc["full_list"]).unlink, missing_ok=True)
-        return {g["type"]: g["count"] for g in erc["groups"]}
+        return erc
+
+    def erc_groups(self):
+        return {g["type"]: g["count"] for g in self.erc()["groups"]}
+
+    def marked_floating_pin(self):
+        # TP1 moved off its wire, so its pin has two violations, under a
+        # no-ERC marker: both suppressed
+        out = json.loads(asyncio.run(main.edit_schematic(None, self.sheet, [
+            {"op": "move_component", "designator": "TP1", "x": 1500, "y": 1500},
+            {"op": "add_no_erc", "x": 1500, "y": 1500}], save=True)))
+        self.assertTrue(out.get("success"), out)
+        self.assertEqual(self.erc()["suppressed"], 2)
+
+    def remove_by_script(self, kind, notice):
+        # The sheet's last object of the kind, removed inside
+        # PreProcess/PostProcess as sessions did it
+        removed = self.run_on_sheet("""var
+  Doc, It, O, Found : IDispatch;
+begin
+  Doc := OpenSchDoc('{sheet}');
+  It := Doc.SchIterator_Create;
+  It.AddFilter_ObjectSet(MkSet(%s));
+  O := It.FirstSchObject;
+  while O <> nil do
+  begin
+    Found := O;
+    O := It.NextSchObject;
+  end;
+  Doc.SchIterator_Destroy(It);
+  SchServer.ProcessControl.PreProcess(Doc, '');
+  Doc.RemoveSchObject(Found);
+  %s
+  SchServer.ProcessControl.PostProcess(Doc, '');
+  ResultText := 'removed';
+end;""" % (kind, "SchServer.RobotManager.SendMessage(Doc.I_ObjectAddress, c_BroadCast, "
+                  "SCHM_PrimitiveRegistration, Found.I_ObjectAddress);" if notice else ""))
+        self.assertEqual(removed, "removed")
+
+    # What run_altium_script's description tells a script to send
+    def test_a_marker_removed_with_its_notice_is_not_compiled(self):
+        self.marked_floating_pin()
+        self.remove_by_script("eNoERC", notice=True)
+        erc = self.erc()
+        self.assertEqual((erc["suppressed"], erc["total"]), (0, 2))
+
+    def test_a_part_removed_with_its_notice_is_not_compiled(self):
+        parts = len(self.footprints())
+        self.remove_by_script("eSchComponent", notice=True)
+        self.assertEqual(len(self.footprints()), parts - 1)
+
+    # A48 (b), open: without that notice nothing safe inside a read tool was
+    # found that drops the removed object from the compile. A fix shows as
+    # two unexpected successes.
+    @unittest.expectedFailure
+    def test_a_marker_a_script_removed_is_not_compiled(self):
+        self.marked_floating_pin()
+        self.remove_by_script("eNoERC", notice=False)
+        erc = self.erc()
+        self.assertEqual((erc["suppressed"], erc["total"]), (0, 2),
+                         "the compile still holds the marker the script removed")
+
+    @unittest.expectedFailure
+    def test_a_part_a_script_removed_is_not_compiled(self):
+        parts = len(self.footprints())
+        self.remove_by_script("eSchComponent", notice=False)
+        self.assertEqual(len(self.footprints()), parts - 1,
+                         "the compile still holds the part the script removed")
 
     def test_a_footprint_a_script_set_is_compiled(self):
         self.assertEqual(self.footprints()["D1"], "DO214")

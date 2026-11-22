@@ -347,15 +347,18 @@ is written down before it.
   - Ran 00:14 to 00:22, `EXIT 0`, its entry committed alone (`eeaacd2`), sorted 2026-11-23 (`613fa9a`):
     A49 and A50 held (closed), A48 back to Open as A48 (b), new A74 and A75, A26, A34 and
     A44 met again.
-- [ ] A48 (b) again: committed
+- [x] A48 (b) again: committed
+  - Ended 2026-11-23 02:29 still Open, partly built (the description's line, the tests): no
+    safe re-read found, no `stale_sheets` (the item). About 154k tokens, 14 minutes.
   - **Stopped here 2026-11-23 about 02:11 on the owner's word, to move to a new session**
     ("mending pindah sesi sekarang"): in the probe stage, no test written, no fix, no file
     of the repo changed. Goes on with a fresh subagent from A48's last part, *Probed
     2026-11-23*, its probes not run again. Its cost so far: about 163k tokens, cut once by
     the usage limit and resumed. (The sort's: 116k, 2.5 minutes.)
-  - Left running: Altium (pid 20600), the user's projects open, the focused one modified in
-    memory and never saved by the run. 754 MB free at 02:12, so restart Altium before the
-    live tests. `ad25` is pushed at group 1 again's release, not before.
+  - Altium was found closed at 02:14 (pid 20600 gone, not by this session), started again
+    from its exe at 02:15 (pid 21380). The owner's documents came back open and read
+    unmodified at 02:29 (the subagent's report). `ad25` is pushed at group 1 again's
+    release, not before.
 - [ ] A74: committed
 - [ ] Group 1 again: tests and release (build: )
 - [ ] Group 1 again: scenario test (session id: ), its outcome sorted
@@ -1308,7 +1311,7 @@ counts, the fallback decided above, would miss this very case, as the model's ma
 could not be counted. A `DoFileLoad` inside a read tool could lose unsaved edits, as the
 modified flag can be false after a script's edit.
 
-Next, in this order:
+Next, in this order (taken since, below):
 1. The failing test, in `test_live_compile_refresh.py`.
 2. On fresh copies, the true numbers two ways (the notice after the removal; save, close
    and reopen the project), against a save and `DoFileLoad` alone.
@@ -1318,6 +1321,72 @@ Next, in this order:
 The probe scripts are not kept in the repo. Until Windows clears it they are in
 `%TEMP%\claude\ffb01ff0902fa28f\d905e04e-513a-472f-9bcf-90e44f580c42\scratchpad`
 (`probe_common.py`, `probe1.py` to `probe10.py`, the output of probes 9 and 10).
+
+Taken 2026-11-23 for A48 (b), the list above in its order, in AD25, each probe on a fresh
+copy of the one-sheet project: still open, the fallback built only as far as it holds.
+
+Test before, on the code of `891ee59` (a test point off its wire under a no-ERC marker, the
+marker then removed by script with no notice; a placed part removed the same way):
+`test_a_marker_a_script_removed_is_not_compiled`: `AssertionError: Tuples differ: (2, 0) !=
+(0, 2) : the compile still holds the marker the script removed` (suppressed, total);
+`test_a_part_a_script_removed_is_not_compiled`: `AssertionError: 59 != 58 : the compile
+still holds the part the script removed`. So `get_project_components` is stale too, for a
+removed part. A parameter removed from a part came through (14, then 13), so the gap seen is for
+objects of the sheet itself.
+
+The true numbers, both ways the same, `total 2` (one floating input pin, one unconnected
+object), `suppressed 0`:
+- the notice naming the marker after its removal: right at once;
+- saved, the project closed and reopened: right, also for a marker the sheet's file held
+  when it was opened.
+A third gave them too: saved, the sheet closed and opened again. Saved and closed alone was
+still stale (`total 0, suppressed 2`).
+
+`DoFileLoad` is no re-read (this corrects the two notes on it above, of 2026-11-22 and
+2026-11-23): on a sheet edited and saved in the session, with nothing left unsaved, it
+doubled the sheet's objects in the editor (59 parts, then 118), so the compile gave 59
+"Duplicate part designators" and `suppressed 1`, the `total 59` seen in probe 10. After the
+marker's removal and a save it gave `total 60, suppressed 0`. Closed unsaved and opened
+again in the same Altium session the sheet still held 118, the file's size unchanged. A
+sheet only opened, not edited, kept its 59.
+
+No safe re-read shown: the three ways that work need the removed object, which is no longer
+the sheet's, or a save and a close, which write the user's file or lose edits (the modified
+flag can be false after a script's edit).
+
+What `stale_sheets` could detect: the removed marker is in none of the sheet's iterators
+(plain, all levels, by area) nor in its hit test, and the document model shows no markers,
+so nothing found to read differs from a sheet that never had it. A removed part does show (59 in
+the document model, 58 on the sheet).
+
+Decided 2026-11-23 by the run, not the owner: no `stale_sheets`, in neither tool, the
+part count included, because it would read clean on the case this part was opened for, a
+removed marker, and a field that reads clean on a stale compile is worse than none.
+
+Decided 2026-11-23 by the run, not the owner: the line in `run_altium_script`'s description
+put into its sentence on change notices ("naming an object just added or removed, else the
+compile keeps a removed one"), because that is where a script's author reads which notice
+to send, and it costs less than a point of its own.
+
+Decided 2026-11-23 by the run, not the owner: the two failing tests kept as expected
+failures, not deleted or left failing, because the defect stays stated and a fix shows as
+two unexpected successes, while the module's other tests still say whether A48's fix holds.
+
+Built, partly: that description line, a comment at `RefreshOpenSheets` on what it cannot
+name and against `DoFileLoad`, and four tests: the two above and two that the notice the
+line names works, for a marker and for a part. Tests after, in AD25:
+`test_live_compile_refresh` 5 pass and 2 fail as expected, of 7; `test_live_erc` and
+`test_live_drc`'s `LiveCompileFolderTest` 4/4 pass. Offline: the whole list of `tests.yml`
+557/557 pass. Tool listing (names, descriptions, `json.dumps` of the schemas): 80 tools,
+157,905 characters before, 157,971 after.
+
+Left, so this stays Open: both tools still report success with a stale result after a
+script removed an object without the notice. Usage: send the notice with the removal;
+after a removal made without it, save the sheet, close it and open it again, or the
+project, before trusting a compile (the reopening probed for a marker, not for a part).
+Not tried, for whoever takes it next: prevention where
+the removal is written, `run_altium_script` warning of a `RemoveSchObject` with no
+`SCHM_PrimitiveRegistration` in the same script; it is outside what the plan decided.
 
 ### A74 - `get_erc_violations`' `first` repeats one text - OPEN 2026-11-23
 

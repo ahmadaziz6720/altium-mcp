@@ -1996,8 +1996,9 @@ async def run_altium_script(ctx: Context, script: str, timeout_seconds: int = 12
       units (TrimJSON, AddJSONProperty, ...) are NOT available; REPLACEALL is.
     - Undo: wrap each edit in SchServer.ProcessControl.PreProcess(Doc, '') /
       PostProcess(Doc, '') (PCBServer.PreProcess / PostProcess on a PCB), and
-      report changes to the robot manager (SCHM_PrimitiveRegistration for a new
-      object, SCHM_BeginModify / SCHM_EndModify around a change). An undo group
+      report changes to the robot manager (SCHM_PrimitiveRegistration naming an
+      object just added or removed, else the compile keeps a removed one;
+      SCHM_BeginModify / SCHM_EndModify around a change). An undo group
       left open makes the user's own later edits in that document impossible
       to undo until Altium restarts, so the sandbox closes any group the script
       leaves open, even after an error, and reports it as

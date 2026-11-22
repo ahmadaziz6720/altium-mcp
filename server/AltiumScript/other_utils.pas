@@ -2316,6 +2316,9 @@ end;
 // its objects, inside a process. With no begin-of-change notice nothing goes
 // into the sheet's undo history; the notices set the modified flag, which is
 // put back as found. A sheet not open is compiled from its file.
+// An object a script removed without a notice naming it cannot be named here:
+// the compile keeps it. Do not add DoFileLoad for that: it loses unsaved edits
+// and on AD25 doubled the objects of a sheet edited and saved in the session.
 procedure RefreshOpenSheets(Project: IProject);
 var
     I       : Integer;

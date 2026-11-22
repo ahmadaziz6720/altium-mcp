@@ -1655,6 +1655,42 @@ Fixed in `49ecf2f`. Released in `build-20261123-001227`.
 
 Held 2026-11-23: the scenario test of build 0.7.0-20261123-001227 (findings 2026-11-23, point 3): a sheet with 23 active no-ERC markers (`SuppressAll`) on unused connector pins, listed by earlier releases as 23 "Nets with only one pin" errors, now `total` 4 and `suppressed` 23, Altium counting exactly 23 active markers; with the markers removed from four of the eight copies of point 1's sheet (the project reopened, see A48), 92 of those errors moved from `suppressed` to the list; a project with no markers, 5 warnings and 0 suppressed, as before.
 
+### A74 - `get_erc_violations`' `first` repeats one text - CLOSED 2026-11-23
+
+Sorted out of the entry of 2026-11-23, point 2, the scenario test of build `0.7.0-20261123-001227`: a
+violation's detail does not name its sheet, so on a project of repeated sheets a group's
+first three often read the same ("Net X has only one pin (Pin J1-4)" three times,
+"Duplicate Net Names Wire X" three times), two of the three lines telling nothing. Reported
+success, rightly: the counts are right, the lines wasted.
+
+Local: `first` holds the group's first three *distinct* details (A49's grouping,
+`server/erc_summary.py`). The entry also proposed the sheet with each detail.
+
+Decided 2026-11-23 by the run, not the owner: taken into group 1 again, by the run's rule
+for a new point small and in the group's files (*The scenario test of a group*, 7), because
+it is A49's grouping; the first three distinct details, not the sheet with each, because
+the token rule asks for the smaller change.
+
+Cause: `erc_summary.group` kept the first three details as they came, and a detail that
+Altium gives for each of several copies of a sheet is the same text each time. Fixed in
+the commit that moves it here: a detail already in the group's `first` is not added again,
+so `first` is the first three distinct ones in Altium's order, fewer when the group has
+fewer; `count` still counts the repeats. The description and the README say "first 3
+distinct details" (the tool listing 157,971 to 157,962 characters, 80 tools).
+Tests first: two offline in `tests/test_erc_summary.py` (failed, `['A', 'A', 'A'] !=
+['A', 'B', 'C']` and the same of a group with one distinct detail) and a live one in
+`tests/test_live_erc.py` on four copies of the SpiritLevel-SL1 example's power sheet
+(failed, "Lists differ", the group Duplicate nets starting with one text twice). After,
+2026-11-23: `test_erc_summary` 14/14; live in AD25 `test_live_erc` 3/3 (that project 1,066
+characters before and 1,067 after, the third line now a new one; A49's 207 violations
+2,163 both times, the counts summing to the total), `test_live_compile_refresh` and
+`test_live_drc`'s `LiveCompileFolderTest` 9 run, OK with A48 (b)'s two expected failures;
+the offline list 559, OK.
+
+Fixed in `12ce1ca`. Released in `build-20261123-031122`.
+
+Held 2026-11-23: the scenario test of build 0.7.0-20261123-031122 (findings 2026-11-23, second entry, point 1): on eight copies of one small sheet, groups of 35 (5 distinct texts), 127 (28) and 92 (23) each gave three different lines where their first three violations were one text; a group of 4 with one distinct text gave one line and `count` 4; no `first` repeated a text in any of the 13 replies, the group counts summed to `total` in each, and `compile=false` gave the same groups.
+
 ## Not items
 
 ## Run 2026-11-14

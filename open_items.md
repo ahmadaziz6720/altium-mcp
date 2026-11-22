@@ -12,7 +12,10 @@ upstream, run and held, or decided against moves with its record to
 [`closed_items.md`](closed_items.md), and so does a run's section once every step of it is
 ticked. The layout is the `backlog` plugin's `format.md` (v0.1, since 2026-11-15).
 
-**Open: A11, A15, A23, A25 to A28, A31 to A34, A36 to A39, A41 to A48, A51 to A73, A75.** Sorted
+**Open: A11, A15, A23, A25 to A28, A31 to A34, A36 to A39, A41 to A48, A51 to A73, A75, A76.** Sorted
+2026-11-23, the second entry of 2026-11-23 (the scenario test of group 1's second build,
+`build-20261123-031122`): A74 held and closed; A48 (b) checked, the part built held and the
+rest still open; A76, new, not taken into the run; A34, met again. Sorted
 2026-11-23, the entry of 2026-11-23 (the scenario test of group 1's build,
 `build-20261123-001227`): A49 and A50 held and closed; A48 back to Open, held for edits and
 not for objects a script removed, taken again as A48 (b); A74 and A75, new; A26, A34 and
@@ -366,9 +369,12 @@ is written down before it.
     Decided 2026-11-23 by the run, not the owner: the tests by a Sonnet subagent, the push,
     registration, tag and page by the main session, because what leaves the machine is
     read first where the grant is known.
-- [ ] Group 1 again: scenario test (session id: ade4c3bd-0444-4d86-b3fc-9aacd600eb5c,
+- [x] Group 1 again: scenario test (session id: ade4c3bd-0444-4d86-b3fc-9aacd600eb5c,
   free memory 1123 MB after a restart of Altium, pid 17308; output and launcher in the
   run's scratchpad, `check_031122.*`), its outcome sorted
+  - Ran 03:14 to 03:21, `EXIT 0`, no resume, its entry committed alone (`f6eedbc`): A74
+    held (closed); A48 (b)'s built part held, the item still Open as written, so no fix
+    again; A76 new, out of this run; A34 met again. A46 began beside the sort.
 - [ ] A46: committed
 - [ ] A58: committed
 - [ ] A45: committed
@@ -663,6 +669,11 @@ Decided 2026-11-22 by the owner (the opening answer of `## Run 2026-11-22`), for
 Met again 2026-11-23 (findings 2026-11-23, point 7), build `0.7.0-20261123-001227`, (e): at
 the start of its scenario test the Projects panel held two `MCPResident.PrjScr`, this
 build's and an earlier tag's.
+Met again 2026-11-23 (findings 2026-11-23, second entry, point 6), build
+`0.7.0-20261123-031122`, a small point beside (e): after the test's projects were closed by
+script, the focus was left on the resident's own `MCPResident.PrjScr` (Free Documents at
+the start, the resident not yet started), which a call without `project_path` would take.
+Seen in a workspace read, no tool called so.
 
 ### A36 - A board open under its short (8.3) path is opened a second time - OPEN 2026-11-15
 
@@ -1397,6 +1408,19 @@ the removal is written, `run_altium_script` warning of a `RemoveSchObject` with 
 
 The part built: `71514df`, released in `build-20261123-031122`.
 
+Checked 2026-11-23 by the run's check: the scenario test of build `0.7.0-20261123-031122`
+(findings 2026-11-23, second entry, points 2 to 4): the part built held, the notice the
+description names, for markers (92 removed from four open sheets, nothing saved, the next
+compile following each time: `suppressed` 345, 337, 161; the same lists after a save and a
+reopened project) and for a removed part (gone from `get_project_components` at once).
+Without the notice still stale, as written, reported success: the marker's violation still
+suppressed, the part still listed (15 components where the sheet held 14). The usage (save
+the sheet, close it and open it again) cured both, so for a part too: the caveat above,
+"probed for a marker, not for a part", is settled. The server's own removals show no gap:
+`edit_schematic`'s `delete_at` of a marker and `delete_component`, unsaved, were both in
+the next compile. The refresh for edits held again (a footprint and a sheet size set with
+no notice, the modified flags still 0).
+
 ### A75 - `run_altium_script`'s `List1..3` keep strings, not objects - OPEN 2026-11-23
 
 Sorted out of the entry of 2026-11-23, point 6, the scenario test of build `0.7.0-20261123-001227`: an
@@ -1413,6 +1437,21 @@ strings, not objects; a loop that removes objects takes the first one again each
 Decided 2026-11-23 by the run, not the owner: taken into group 3, a step before its tests,
 by the run's rule for a new point small and in the group's files (*The scenario test of a
 group*, 7), because `run_altium_script`'s description and the recipes are group 3's.
+
+### A76 - Component revision warnings come and go between compiles, and `total` with them - OPEN 2026-11-23
+
+Sorted out of the second entry of 2026-11-23, point 5, the scenario test of build
+`0.7.0-20261123-031122`: Altium's component revision warnings ("Can't perform revision
+status validation: Failed to connect to server") come and go between compiles, so
+`get_erc_violations`' `total` differs between two compiles of the same sheets. In 2 of 12
+compiles all four were absent: `total` 235, then 239 for the same sheets after the project
+was reopened; on another copy 1, where 5 was expected. Reported success. Cause not looked
+for.
+
+Usage: compare two compiles by `errors` and their groups, not by `total`.
+
+Decided 2026-11-23 by the run, not the owner: not taken into this run, because its cause is
+unknown and looks to be Altium's, not a small fix in group 1's files.
 
 ## Waiting
 
@@ -1466,37 +1505,3 @@ Scenario test of that build held (2026-11-12, third entry, 2): 38 rules, the sco
 `filter2` only on binary rules. The reply went from 9.3k to 8.5k characters only (about
 9 %): what is left is mostly the key names and indentation repeated on every rule.
 Waits for the upstream PR.
-
-### A74 - `get_erc_violations`' `first` repeats one text - BUILT 2026-11-23, proof: the scenario test
-
-Sorted out of the entry of 2026-11-23, point 2, the scenario test of build `0.7.0-20261123-001227`: a
-violation's detail does not name its sheet, so on a project of repeated sheets a group's
-first three often read the same ("Net X has only one pin (Pin J1-4)" three times,
-"Duplicate Net Names Wire X" three times), two of the three lines telling nothing. Reported
-success, rightly: the counts are right, the lines wasted.
-
-Local: `first` holds the group's first three *distinct* details (A49's grouping,
-`server/erc_summary.py`). The entry also proposed the sheet with each detail.
-
-Decided 2026-11-23 by the run, not the owner: taken into group 1 again, by the run's rule
-for a new point small and in the group's files (*The scenario test of a group*, 7), because
-it is A49's grouping; the first three distinct details, not the sheet with each, because
-the token rule asks for the smaller change.
-
-Cause: `erc_summary.group` kept the first three details as they came, and a detail that
-Altium gives for each of several copies of a sheet is the same text each time. Fixed in
-the commit that moves it here: a detail already in the group's `first` is not added again,
-so `first` is the first three distinct ones in Altium's order, fewer when the group has
-fewer; `count` still counts the repeats. The description and the README say "first 3
-distinct details" (the tool listing 157,971 to 157,962 characters, 80 tools).
-Tests first: two offline in `tests/test_erc_summary.py` (failed, `['A', 'A', 'A'] !=
-['A', 'B', 'C']` and the same of a group with one distinct detail) and a live one in
-`tests/test_live_erc.py` on four copies of the SpiritLevel-SL1 example's power sheet
-(failed, "Lists differ", the group Duplicate nets starting with one text twice). After,
-2026-11-23: `test_erc_summary` 14/14; live in AD25 `test_live_erc` 3/3 (that project 1,066
-characters before and 1,067 after, the third line now a new one; A49's 207 violations
-2,163 both times, the counts summing to the total), `test_live_compile_refresh` and
-`test_live_drc`'s `LiveCompileFolderTest` 9 run, OK with A48 (b)'s two expected failures;
-the offline list 559, OK.
-
-Fixed in `12ce1ca`. Released in `build-20261123-031122`.

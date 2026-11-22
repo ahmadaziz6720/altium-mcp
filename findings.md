@@ -1526,3 +1526,5 @@ Designer 25. 37 calls, 0 errors, 31.0k characters of results (14 `run_altium_scr
    the resident's own `MCPResident.PrjScr` (Free Documents at the start, the resident not
    yet started), which is what a tool called without `project_path` takes. Seen in a
    workspace read, no tool called so. Bears on A34.
+
+Sorted into A76 (5), new; A48 (2, 3, 4), checked; A34 (6), met again. Held: A74 (1).

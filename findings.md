@@ -668,3 +668,708 @@ through Altium; the largest `search_dblib` 8k). The reference project's
 
 Sorted into A40 (1, 2), A8 (4), Closed; A26 (3), met again and widened; A41 (5), A42 (6),
 A43 (7), A44 (8, the temporary library), new; A34 (e) (8, the resident projects), met again.
+
+**2026-11-18: preparing to draw two schematics from parts in installed libraries, stopped before the first sheet**
+
+Release `bin\0.7.0-20261115-172812`.
+
+1. `get_symbol_primitives` in inventory mode (no `symbol_name`) on a 418-symbol `.SchLib`
+   returned 91k characters, over the tool result limit, so it was saved to a file and read
+   by script. Every symbol's record carries its per-type counts; to find the generic parts
+   (resistor, capacitor, diode, connector) only name and description were needed. Missing:
+   a `name` or `term` filter, or an inventory of names and descriptions only. Reported
+   success.
+2. Missing: a read of several symbols' pins in one call. A layout needs each symbol's pin
+   designator, name, location, orientation and length; `get_symbol_primitives` gives one
+   symbol per call with all its graphics. Done instead by one `run_altium_script` over the
+   library's components for a list of 27 names, then again for 6 in a second library:
+   2 calls in place of 33.
+3. Seen before drawing, not met yet: a sheet of some 60 parts and 150 wires has to go into
+   `build_schematic` and `edit_schematic` as inline JSON (about 20k characters a sheet).
+   `create_symbols_batch` takes a spec file; the sheet tools take none. A `spec_file` on
+   `build_schematic` and `edit_schematic` would spare a large payload per sheet.
+
+4 calls, 0 errors, about 100k characters (91k of them point 1's result).
+
+**2026-11-18: a 9-sheet schematic of 294 parts drawn from a connection table, checked against it**
+
+Release `0.7.0-20261115-172812`.
+
+1. `build_schematic` with a multi-part symbol (6 parts) placed part A only; its `pin_map` listed
+   the pins of all six parts, all at part A's origin, and `success` was true. Nothing says the
+   other parts were not placed; `edit_schematic`'s `place_component` has no `part` either.
+   Workaround: the symbol made single-part. New.
+2. `build_schematic`'s `pin_map` is keyed by pin name: pins sharing a name (several `GND`, two
+   shield pins, five `VDD`) collapse to one entry, the last. Pin numbers would keep them apart.
+   New.
+3. A26, met again: a free document from an earlier `build_schematic` call (no `project_path`)
+   was taken into the project by the next call with `project_path`; `detached_from` `""`.
+   Removing it by script (`DM_RemoveSourceDocument`, then saving the project) left the project
+   file with two `[DocumentN]` sections for the same sheet: Altium rewrites the sections it
+   knows and keeps the stale last one. Fixed by hand in the file.
+4. A28, met again: the project's library made with `run_altium_script`
+   (`Client.OpenNewDocument('SCHLIB', ...)`, `SetFileName`, `DoFileSave`).
+5. No tool sets a sheet's size, title block or document parameters (Title, DocumentNumber,
+   Revision): `build_schematic` makes the sheet in Altium's default size. Done by
+   `run_altium_script` on each sheet (`SheetStyle := eSheetA3`, parameters by iterator), 9 calls.
+   New.
+6. `get_erc_violations` then reported 852 "Object not completely within sheet boundaries", every
+   one beyond x 11500 or y 7600, A4's bounds, though each sheet reads `SheetStyle` A3,
+   `SheetSizeX/Y` 15500 x 11100, saved, and draws A3 on screen. A second run gave the same.
+   Either the compile keeps the size the sheet was created with, or the check reads it from
+   elsewhere. Not resolved. New.
+7. `get_erc_violations` returned 155k characters (capped at 1000 violations) and failed the
+   tool-result limit: read from the saved file. No `type`, `level` or `limit` filter. New.
+8. `build_schematic`'s `net_labels` take no justification: every sheet's labels went in a second
+   call through `edit_schematic`'s `add_net_label`. A `justification` key would save that call.
+   New.
+9. `build_schematic` echoes the whole `pin_map` (a 71-part sheet: about 20k characters) when the
+   caller already computed every pin. An option to leave it out would help. New.
+10. No tool removes a document from a project or deletes its file: a sheet rebuilt from scratch
+    needed `run_altium_script` (`DM_RemoveSourceDocument`, `DeleteFile`) each time (3 times).
+    New.
+11. `run_altium_script`: a local `procedure` with its own `var` block is refused by the lint
+    ("not declared"), and declared globally Altium refuses `procedure` itself ("Unknown
+    identifier"). Loops with `List1` and globals work. Lesson.
+12. A netlist read for checking (nets with pin number and name) needed `run_altium_script`
+    (`DM_Compile`, `DM_DocumentFlattened`, `DM_Nets`, `DM_Pins`) saved to a file; no tool
+    returns the compiled netlist. New.
+13. `check_schematic` found every readability fault the drawing had (text overlaps, wires
+    ending past the last tap, a pin used as a branch point, a wire through a body) and its
+    `clear: true` suggestions applied cleanly with `move_text`. Lesson: worth running after
+    every sheet.
+
+About 150 calls, 4 failed or refused (point 11's twice, a property missing on an interface, the
+ERC result's size).
+
+**2026-11-19: audit of a 9-sheet schematic already drawn: ERC, netlist against its source table, drafting check, footprints**
+
+Release `bin\0.7.0-20261115-172812`.
+
+1. `get_erc_violations(project_path)`: none of the 852 "Object not completely within sheet
+   boundaries" of the 2026-11-18 entry's point 6 (A4's bounds on A3 sheets) came back, in a new
+   Altium session on the same saved sheets, with nothing changed in their size. So the check read
+   the size the sheets were created with, in that session only; a save, close and reopen clears
+   it. Lesson. Bears on that point 6; no item yet.
+2. `get_erc_violations` returned 273 violations, about 150 of them "Duplicate nets" from one
+   sheet of unannotated parts, the rest to be found among them. Point 7 of the 2026-11-18 entry
+   met again: a `type` or `level` filter, or a count per type with the details on request,
+   would have made it one short read.
+3. The compiled netlist (net, pin number, pin name) again needed `run_altium_script`
+   (`DM_Compile`, `DM_DocumentFlattened`, `DM_Nets`, `DM_Pins`, saved to a file), 1 call.
+   Point 12 of the 2026-11-18 entry met again.
+4. `get_project_info` with no project focused returned `"project_path": "Free Documents"` and
+   nothing else; it takes no `project_path`, unlike `get_erc_violations` and
+   `get_project_components`. A `project_path` argument would let it read a project not in
+   focus. New.
+5. `check_schematic` on the `.PrjPcb` with `max_issues_per_sheet: 0` gave the counts of all 10
+   sheets in one short reply. Lesson: the cheap way to re-check a drawn project.
+6. A footprint added to a library symbol with `create_symbols_batch` (`FOOTPRINT`, read back
+   right) does not reach the part already placed from it, and no tool updates a placed part from
+   its library or sets its footprint: `run_altium_script` (`AddSchImplementation`,
+   `AddDataFileLink`), 1 call, then `get_project_components` showed it. Checking the footprint's
+   pad names against the symbol's pins took another script (no tool returns a footprint's pad
+   names short of the full dump of `get_footprint_primitives`). Bears on A16 (closed: the
+   library side) and A11. New.
+
+11 calls, none failed.
+
+**2026-11-19: a ten-sheet schematic made hierarchical with signal harnesses**
+
+Release `bin\0.7.0-20261115-172812`.
+
+1. No tool places a sheet symbol or sheet entry, a port, a harness connector with its entries,
+   or a signal harness, and `edit_schematic` has no op for them (it has wires, net labels,
+   power ports). All of it went through `run_altium_script`: 8 harness connectors, 14 harness
+   lines, 14 ports, 9 sheet symbols with 14 entries, about 300 stub wires and labels. A data
+   file per sheet read by one interpreter script kept each call short. New.
+2. `ISch_HarnessConnector` has no `Side` nor `HarnessConnectorSide` property in DelphiScript
+   ("Undeclared identifier"); the file's `HARNESSCONNECTORSIDE` is set by
+   `HC.Mirror(Point(centre_x, top))` after the connector is registered, which puts the harness
+   on the left and the entries on the right. The type label comes out mirrored and
+   right-justified past the connector: `HarnessConnectorType.IsMirrored := False`,
+   `Justification := 0` and its `Location` set again put it back. `DistanceFromTop` and
+   `PrimaryConnectionPosition` take coordinates (`MilsToCoord(100)` for one grid). Lesson.
+3. A signal harness from `SchObjectFactory(eSignalHarness, eCreate_Default)` gets the smallest
+   line width. Drawn between two sheet entries on a top sheet, compile gave 7 fatal "Missing
+   Harness Type on Signal Harness", "Unconnected line" for each, and one "Multiple Harness
+   Types on harness" naming all seven types: every sheet entry carried the members of every
+   harness. The flattened netlist was still right, by member names that happened to be unique.
+   `LineWidth := eMedium` (Altium's default) on the same lines: 0 fatal, each net joined only
+   through its own harness. The same smallest width between a harness connector and a port on
+   a lower sheet connected without complaint. The scripts reported success. New; a tool placing
+   harnesses would set the width.
+4. A script's `CreateNewDocumentFromDocumentKind('SCH')` for a scratch sheet put it into the
+   focused project and left the project modified; taking it out needed
+   `DM_RemoveSourceDocument` and closing the document. A copied file opened by path stays a
+   free document. A26 met again in kind (a new sheet joining the focused project).
+5. `get_erc_violations` on a project with 199 violations returned about 100,000 characters,
+   over the client's limit three times, read back from the saved file with a script. Most of
+   it was 99 warnings of one kind and 30 of another. A summary option (counts by type, the
+   first few of each) would serve a check. New.
+6. `get_screenshot` for a schematic has no fit option (`zoom_to` is PCB only); a script with
+   `RunProcess('Sch:Zoom')` and `Action=Document` did not fit the sheet, `Sch:ZoomFit` did.
+   New.
+7. DelphiScript lessons: names are case-insensitive (`F` and `f` declared together: "Identifier
+   redeclared"); an interface variable not assigned is not `nil`, so `if SS <> nil` passed and
+   the call on it failed; set it to `nil` first. `TStringList.StrictDelimiter` exists. Lesson.
+8. `check_schematic` read the harness objects right: no wire ending on a harness entry or
+   connector edge was flagged, and its `sheet_entry_margin` caught the eight sheet symbols. It
+   also made the occupancy search for free space possible from the saved files (its `Sheet`
+   and `Checker.obstacles`). Lesson.
+
+About 50 calls, 6 failed (script errors on the API names in 2 and 7).
+9. Changing a project option had no tool: the project was closed by `run_altium_script`
+   (`WorkspaceManager:CloseObject`, ObjectKind Project), its file edited, and reopened by
+   `get_erc_violations(project_path)`; `Client.OpenDocument('PrjPcb', path)` in a script did not
+   put it back in the workspace (the next call found no project). New.
+
+**2026-11-19: a module footprint made in a new project footprint library and given to a symbol and its placed parts**
+
+Release `bin\0.7.0-20261115-172812`.
+
+1. A28 met again: the new `.PcbLib` was made by `run_altium_script`
+   (`Client.OpenNewDocument('PCBLIB', '', '', False)`, `DoSafeChangeFileNameAndSave`,
+   `SetModified(True)`, `DoFileSave('')`), 1 call; with no project in focus ("Free Documents") it
+   joined none, and `add_project_document(create=False)` then added it cleanly. The new library
+   holds Altium's empty default footprint `PCBComponent_1` beside the one made; no tool deletes a
+   footprint, so it stays. New (a `create` for libraries would make it empty, or remove it).
+2. `create_pcb_footprint` takes no hole, so a through-hole footprint went through
+   `create_footprints_batch` instead: 18 plated pads, tracks on two mechanical layers and the
+   overlay, one arc, in one call, no problems. Layer names as `get_footprint_primitives` prints
+   them ("Multi Layer", "Mechanical Layer 15", "Top Overlay") were taken as they are. Lesson: read
+   a library footprint of the same kind first and copy its layers, widths and pad stack.
+3. The previous entry's point 6 met again: `create_symbols_batch` `FOOTPRINT` linked the library
+   symbol (read back right), and the five parts already placed from it needed
+   `run_altium_script` (`AddSchImplementation`, `AddDataFileLink`, `IsCurrent`), 1 call; a second
+   script read them back current in memory. But `get_project_components` (which compiles in
+   memory, "nothing is saved") and a script's own `DM_Compile` both gave the five parts an empty
+   `footprint`. The script had left the sheet's `Modified` false (PreProcess/PostProcess and
+   `SCHM_PrimitiveRegistration` do not set it), so the owner's Save All skipped the sheet and the
+   change stayed in memory only; `Client.GetDocumentByPath(path).SetModified(True)` marked it.
+   Saved then, and even closed and reopened from disk (the records there, read back with
+   `ExportToParameters`, the same as a part whose footprint the compile does show), the compile
+   still gave an empty `footprint`. Only one more script edit on the sheet (one part's datafile
+   link rewritten, `SetModified(True)`) made it give the footprint, for all five parts, the four
+   untouched included. So the project compile keeps a sheet's components from before a script
+   edit until a change it is told of. Reported success with a stale result. Lesson: after a script
+   edit, set the document modified and make a tracked change before reading the compile. A tool
+   setting a placed part's footprint would do it. New; bears on that point 6 and A16 (closed, the
+   library side).
+4. `get_component_data` on schematic parts with no board placement: `"No component data found"`.
+   It reads the board only, which its description does not say; `get_project_components` is the
+   schematic-side read. Lesson.
+5. DelphiScript: `ISch_Document` has no `Modified` property ("Undeclared identifier:
+   Modified"); the `IServerDocument` from `Client.GetDocumentByPath` has it. Lesson.
+
+6. `create_footprints_batch` `EDITFOOTPRINT` with `MODEL3D` (a Y-up STEP, rotation X 90, z offset
+   and x|y offset, embedded) worked first time; `get_footprint_primitives`' standoff and overall
+   height confirmed the orientation before saving, the rotations null until saved, as described.
+   Lesson: read the STEP's pin positions first (an OCCT read) to set the offset.
+
+7. `edit_schematic` `delete_at` with `kind: no_erc` at a point holding two markers removed both
+   (34 to 22 for six points), while it says it removes "the object located there". Reported 6
+   applied. New: one object per op, or the count removed in the result.
+8. No-ERC markers placed by `edit_schematic` (and others placed by script earlier) exactly on the
+   ends of three unconnected input pins, `SuppressAll` true, did not suppress ERC's "Nets
+   containing floating input pins" for those pins ("Unconnected Pin ... at" the same mils),
+   compiled both from disk and from memory; the marker reads "All violations" in Altium's
+   properties. Not resolved; cause unknown. New.
+9. No tool sets a placed part's Comment (`edit_schematic` `set_parameter` creates a parameter by
+   name; Comment is the part's own property): `Comp.Comment.Text` by script, with
+   `SetModified(True)` per point 3. New (small).
+
+35 calls, 4 failed (point 4, the script of point 5, two scripts on DM violation names).
+
+**2026-11-19: no-ERC markers that seemed not to suppress, traced to the ERC reader**
+
+Release `bin\0.7.0-20261115-172812`.
+
+1. `get_erc_violations` lists violations that Altium has suppressed. Six "Nets containing
+   floating input pins" errors on unconnected input pins, each with a no-ERC marker exactly on
+   its end (raw coordinates equal, `IsActive` and `SuppressAll` true), and their six "no driving
+   source" and six "Unconnected Pin ... at" warnings, are in the tool's result (95: 6 errors,
+   89 warnings); Altium's own Messages panel after a GUI compile does not show them: it opens
+   on the first warning, which is No. 7 in the tool's list, the list being the compile's order.
+   A test marker added by `edit_schematic` on another net's pin left that net's "IO Pin and
+   Output Pin" warning in the tool's list too. `GetERCViolations` (other_utils.pas) reads every
+   `Project.DM_Violations(I)` with no suppression test; the project file's
+   `ReportSuppressedErrorsInMessages=0` says the compile keeps suppressed ones and only the
+   panel hides them. Reported success, with errors that are not there. Resolves the 2026-11-19
+   entry's point 8 (cause found). New: filter the suppressed ones, or report them apart
+   (`suppressed: n`); the property that tells them is not known yet (the DM names tried in that
+   entry failed).
+2. A diagnostic test marker left the sheet modified after it was deleted again, with no net
+   change: the owner chooses to save or revert. Lesson.
+
+11 calls (6 `run_altium_script`, 2 `edit_schematic`, 2 `get_erc_violations`, 1 status), 1 failed: a script reading `Location` on every object kind ("Undeclared identifier: Location", the sandbox caught it).
+
+**2026-11-19: a vendor part (symbol and footprint with an embedded 3D model) copied from an extracted `.IntLib` into a project's own libraries**
+
+Release `bin\0.7.0-20261115-172812`.
+
+1. `run_altium_script`'s helper `OpenSchDoc(path)` given a `.SchLib` opens it as a schematic:
+   `Client.GetDocumentByPath(...).Kind` is `SCH`, the document's `ObjectId` 32 (a library
+   opened as a library reads 33). From then on, until that document is closed, every call that
+   needs it as a library fails: `SchLibIterator_Create` and `AddSchComponent` give "Undeclared
+   identifier" (5 scripts), and `create_symbols_batch` with `LIBRARY|<that path>` returns
+   "Could not open and focus ... - nothing was created or edited", because `OpenDocument('SchLib',
+   ...)` only focuses the document already open as SCH. Workaround: `Client.CloseDocument` (it was
+   not modified) and `Client.OpenDocument('SchLib', path)`. The cause took 7 failed calls to
+   find: nothing says which kind a document is open as. New: `OpenSchDoc` refuses a `.SchLib` (or
+   opens it as one), and the batch tool's "could not open and focus" names the kind it found.
+2. `ISch_Component.Replicate` of a symbol in one `.SchLib`, added to another with
+   `AddSchComponent` and `SCHM_PrimitiveRegistration`, copies the symbol's parameters, Comment,
+   Designator and footprint model but **none of its lines and pins**: the script succeeded and
+   the saved copy had 0 primitives (`get_symbol_primitives`). Only the inventory showed it
+   (`"other": 2`, no `pins`). Workaround: replicate the children of kinds `eLine`, `ePin` one
+   by one and `AddSchObject` them to the copy (12 added, then identical to the source in
+   `get_symbol_primitives`). Lesson for scripts; new for a tool (point 4).
+3. Copying a footprint between two `.PcbLib`s by script works, embedded 3D body included:
+   `CreatePCBLibComp`, `RegisterComponent`, then each primitive of the source's
+   `GroupIterator` `Replicate`d, moved by minus the source library's `Board.XOrigin`/`YOrigin`
+   (the source footprint is the one shown, so it is held offset by the origin; the new one is
+   not) and `AddPCBObject`ed. `get_footprint_primitives` on both saved files: the same pads,
+   tracks, arcs, and `bodies_3d` (model embedded, rotation, standoff). Lesson.
+4. Missing tools, met together: extract an `.IntLib`'s sources (done by
+   `IntegratedLibraryManager.ExtractSources(path)`, which writes a folder beside the
+   `.IntLib`), and copy a symbol or a footprint from one library into another (points 2, 3).
+   Bears on A15 (parts from local libraries only) and A28 (library making); neither covers a
+   copy. New.
+
+5. No tool gives a placed part a footprint: `edit_schematic` has no such op (A16 covers a
+   symbol's, in its library). Done by script on 11 placed parts across two sheets:
+   `AddSchImplementation`, `ModelType 'PCBLIB'`, `AddDataFileLink`, `IsCurrent`, inside
+   `SCHM_BeginModify`/`EndModify`; `get_project_components` then read the footprints, and the
+   compiled netlist was unchanged. New (small).
+6. `run_altium_script`'s pre-check refuses a script whose nested procedure declares its own
+   `var` block ("'X' is not declared"): it reads only the leading block. Workaround: all
+   variables in the leading block, the procedure inlined. New (small).
+
+37 calls (23 `run_altium_script`, 3 `get_symbol_primitives`, 2 `get_footprint_primitives`, 2 `create_symbols_batch`, 7 other), 8 failed: 1 script of the session's own error, 5 scripts and 1 `create_symbols_batch` from point 1, 1 script refused by point 6.
+
+**2026-11-19: releasing Altium for the owner's own library search, between sessions**
+
+Release: not read (no tool called this session); the live resident's tag `07987973414d`.
+
+1. Missing: a way to close the resident bridge on purpose. The owner asked to stop the
+   server's script so they could search parts in Altium themselves before moving to a new
+   session. No tool does it, so the session wrote the `stop` file by hand into
+   `C:\Users\Public\altium_mcp\resident\07987973414d\`, from the README's account of how a
+   resident of another build is told to close. Whether the form closed was not seen: the
+   `stop` file stays in the folder (as in the two older tags' folders), and reading
+   `get_server_status` to check was not tried for fear it starts the resident again. A
+   tool, or a `get_server_status` option, that closes the resident and reports it gone
+   would serve. Bears on A34 (e), the resident's project left in the Projects panel.
+
+**2026-11-19: footprints put on placed placeholder parts, and footprint sources surveyed**
+
+Release: `0.7.0-20261115-172812`.
+
+1. Met again (the 2026-11-19 entry's point 5, no tool gives a placed part a footprint):
+   `run_altium_script` (`AddSchImplementation`, `ModelType 'PCBLIB'`, `AddDataFileLink`,
+   `IsCurrent`, the placeholder parameter removed, inside `SCHM_BeginModify`/`EndModify`,
+   then `SaveDoc`) on 6 parts across two sheets, 1 call. This time `get_project_components`
+   read the 6 footprints at once: the stale compile of that entry's point 3 did not recur
+   with `SaveDoc` (which marks the document modified) right after the script. A16.
+2. Missing: a read of which library each placed part's footprint links to. Done by script
+   (each current PCBLIB implementation's `DatafileLink[0].Location`), 2 calls. It showed
+   parts linked to a library file that does not hold their footprint (an older copy of a
+   vendor library at another path), which nothing else reports: `get_project_components`
+   gives the footprint name only, and a compile raises nothing. A `footprint_library` field
+   in `get_project_components`, and a flag when the linked file lacks the footprint, would
+   serve. New (small); bears on A16.
+3. `edit_schematic` `delete_component` on two parts the owner had placed only to bring their
+   library in was refused by the client's own permission check, not the server: nothing to
+   fix here, noted so a session expects it.
+4. Missing: a tool that turns or moves a footprint's 3D body (a vendor model lying across
+   its pads). `IPCB_Model.GetState(RX, RY, RZ, DZ)` through `run_altium_script` returned 3 in
+   every variable (var parameters are not filled through the script's late binding), so the
+   rotation could not be read there; `get_footprint_primitives`' `bodies_3d` read it from the
+   saved file. Turning the body with `RotateAroundXY(origin, 90)` between
+   `PCBM_BeginModify`/`EndModify`, then `SaveDoc`, held: read back rotation Z 90, X kept. New;
+   bears on A28 (library making).
+5. Copying a footprint from a large vendor `.PcbLib` into a project library, the previous
+   entry's point 3 method with `SetBoardToComponentByName` on the source first, held: 15
+   primitives, the embedded body included, read back the same. Repointing placed parts from
+   one footprint to another needed `RemoveSchImplementation` and a new implementation (no
+   setter for a link's location found). A16, the earlier entry's points 3 and 5.
+6. A vendor `.IntLib` whose footprint had no 3D body and whose STEP came as a separate file:
+   extracted (`ExtractSources`), footprint and symbol copied as before (the symbol's children
+   replicated one by one, 8 of 8 held), then `create_footprints_batch` `EDITFOOTPRINT` with a
+   `MODEL3D` record added the body, `create_symbols_batch` `EDITSYMBOL` `FOOTPRINT` relinked
+   the symbol: all held. The model's orientation had to be read from the STEP's points outside
+   Altium (Y-up, base at y 0, so rotation X 90); a tool reporting a STEP's extents and up axis,
+   or `bodies_3d` giving the body's bounding box once placed, would spare that. New (small).
+7. Met again (the entry "releasing Altium for the owner's own library search"): the owner
+   asked for the server's script to be stopped at the end so they could use the vendor's
+   library loader in Altium. Done by writing the resident's `stop` file by hand; no tool does
+   it. A34 (e).
+
+About 20 calls (9 `run_altium_script`, 10 `get_symbol_primitives`/`get_footprint_primitives`
+reads, 1 refused `edit_schematic`, 3 `get_project_components`, 1 `add_project_document`); none
+failed in the server; one script's `GetState` read was useless (point 4). Reading a
+whole footprint library's inventory (`get_footprint_primitives` without a name) overflowed the
+client's result limit at about 60 KB; a name filter would serve.
+
+**2026-11-19: placeholder parts swapped to library parts, a part added to a sheet, symbols deleted from a library**
+
+Release `0.7.0-20261115-172812`.
+
+1. `edit_schematic` `delete_component` then `place_component` from a project `.SchLib`, at the
+   same point, on a symbol whose pins sit where the old one's did: held, the wires kept their
+   connection, the netlist read back equal. `place_component` from a `.SchLib` left Altium's
+   focus on that library: the next `get_screenshot(view_type="sch")` was refused ("Altium has a
+   SCHLIB document focused"), twice in the session, each time one `run_altium_script` of
+   `Client.ShowDocument` on the sheet before the screenshot. Reported success both times. New;
+   near A26 (a tool leaving the focus elsewhere). Local: the edit puts the sheet back in front.
+2. `edit_schematic` `add_power_port` shows the net name by default; every other port on the
+   sheet had it hidden, so the new GND read differently. Redone with `show_net_name: false`
+   (`delete_at` + `add_power_port`, held). Not a fault: noted so a session passes the sheet's
+   own style. A line in the description ("match the sheet's ports") would spare the second call.
+3. Missing, met again: setting a placed part's footprint (a placeholder given a footprint copied
+   into the project library) and copying a footprint between libraries, both by
+   `run_altium_script` as the earlier entries did (`RemoveSchImplementation` + a new
+   implementation; `Replicate` of each primitive), both held. Also by script, no tool for it:
+   removing a part's parameter (`Remove_Parameter`, held), changing a free text label's text
+   and adding a second one (`Replicate` + `RegisterSchObjectInContainer`, held), deleting two
+   symbols from a `.SchLib` (`RemoveSchComponent` on the `SchLibIterator`'s component, then
+   `SaveDoc`, held: read back gone). A28 (library making) for the last; the others new.
+4. `run_altium_script`: parts collected into a scratch `TStringList` with `AddObject` and read
+   back with `Objects[K]` cannot be called (`Undeclared identifier: I_ObjectAddress` on the
+   first call), and `RemoveSchObject` on them did nothing. The sandbox caught it and closed the
+   undo group it left open, as it says. Redone by finding the part again in a fresh iterator for
+   each deletion (bounded `for`), held. Lesson for the description's script notes: keep
+   `IDispatch` variables, not `TStringList` objects.
+
+5. `create_symbols_batch`, six symbols copied from dumped ones (`get_symbol_primitives` ->
+   PIN, GRAPHIC with a label, COMMENT, SYMPARAM, FOOTPRINT): held, one read back identical to
+   its source. Missing: moving placed parts onto another library symbol in place. Done by
+   script, setting `LibReference`, `DesignItemId`, `SourceLibraryName`, `LibraryPath` and
+   `ComponentDescription` on 21 placed parts whose drawing matched the new symbol: held, the
+   compiled project read the new references and the netlist was unchanged. `delete_component`
+   + `place_component` would have lost each part's text positions. New.
+6. Met again (A34 (e)): at the session's end the owner asked to stop the server's script. The
+   `stop` file written by hand into the resident's folder; checked this time without
+   `get_server_status`: an `EnumWindows` search from PowerShell for a window titled
+   `altium-mcp resident` found none 3 s later, so the form closed. The check is cheap and does
+   not wake the resident; a tool doing both would still serve.
+
+About 30 calls (17 `run_altium_script`, 4 `edit_schematic`, 4 `get_footprint_primitives` and
+`get_symbol_primitives`, 4 screenshots, 2 `check_schematic`, 1 `get_erc_violations`, 2
+`get_project_components`); none failed in the server.
+
+**2026-11-19: comparing a vendor footprint against a stand-in, then releasing Altium**
+
+Release `0.7.0-20261115-172812`.
+
+1. Met again (A34 (e)): the owner asked for the server's script to be stopped so they could
+   use the vendor's library loader in Altium. The `stop` file written by hand into the
+   resident's folder; an `EnumWindows` search from PowerShell for `altium-mcp resident` found
+   none 3 s later. The `stop` file was still there afterwards; whether the next start clears
+   it was not checked. No tool does it. The next `run_altium_script`, later in the session,
+   started the resident again without a problem, so the leftover `stop` file did not block it.
+2. Met again (the earlier entry's "extract an `.IntLib`'s sources"): with Altium released to
+   the owner, a vendor `.IntLib`'s footprint was read outside Altium: its `PCBLib/0.pcblib`
+   stream, zlib-compressed, inflates to a whole `.PcbLib` compound file that Altium opens. Python
+   with `olefile` and `zlib`; the same file parsed for pads, tracks, arcs and bodies (record
+   layout as KiCad's Altium importer reads it) gave the numbers to compare without a call. New
+   for a tool: reading an `.IntLib`'s footprint, or `get_footprint_primitives` taking an
+   `.IntLib` path.
+3. Held again: three footprints copied by script from those `.PcbLib`s into a project library,
+   embedded 3D bodies included (the earlier entries' method), read back with
+   `get_footprint_primitives`; then existing tracks and arcs moved in place by `BeginModify`,
+   coordinate change, `EndModify`: held, saved.
+4. Failed silently, no error: adding a new track to an **existing** footprint of a `.PcbLib`.
+   `PCBObjectFactory` track (or a `Replicate` of one of the footprint's tracks) added with
+   `Comp.AddPCBObject(T)`, `Comp` from `GetComponentByName` or from `CurrentComponent` after
+   `SetBoardToComponentByName`, with and without `SendMessageToRobots(Comp.I_ObjectAddress,
+   c_Broadcast, PCBM_BoardRegisteration, T.I_ObjectAddress)`: the comp's `GroupIterator` count
+   rose inside the same script, `SaveDoc` saved, yet the track was not in the saved file and
+   gone from the comp in the next script. Four script runs lost that way. Held:
+   `Board.AddPCBObject(T)` on `PcbLib.Board` after `SetBoardToComponentByName`, coordinates
+   offset by `Board.XOrigin`/`YOrigin`, then `SendMessageToRobots(Board.I_ObjectAddress, ...)`;
+   read back from the saved file. `create_footprints_batch` `EDITFOOTPRINT` takes only
+   `MODEL3D`, so no tool adds or moves primitives of an existing footprint. A28 (library
+   making); the silent loss is new.
+5. `get_screenshot` `view_type "pcb"` captured the project's `.PcbDoc` while a `.PcbLib` was
+   the document the scripts had focused: no way to look at a library footprint. Small, new.
+
+About 15 calls (`get_server_status`, `get_installed_libraries`, 3 `get_footprint_primitives`,
+8 `run_altium_script`, 1 `get_screenshot`); none failed in the server, one pattern lost its
+work silently (point 4).
+
+**2026-11-19: three terminal symbols made, eight placed parts moved onto them, a symbol deleted from a library**
+
+Release `0.7.0-20261115-172812`.
+
+1. `create_symbols_batch`, three symbols copied by hand from a downloaded symbol's placed
+   instance (a filled body, pins on one side): held, footprints read back linked. Missing: the
+   GRAPHIC `rectangle` record takes no line or fill colour, and no record places the symbol's
+   Designator or Comment. Both done by `run_altium_script` on the `SchLibIterator`'s component
+   (`ISch_Rectangle.Color` / `AreaColor`, `Designator.Location`, `Comment.Location`, inside
+   `SCHM_BeginModify` / `SCHM_EndModify`): held, parts placed afterwards carried both. Local: a
+   colour field on the rectangle (and polygon) record, a `DESIGNATOR|x|y|justification` record
+   and `COMMENT` with x|y. New; near A28 (library making).
+2. `edit_schematic` `delete_component` + `place_component` (with `mirror` for two of them) at
+   the old pin-1 point, then `move_text` for the Designator and Comment, in one call per sheet:
+   held, every pin read back where it was, the netlist compared unchanged, texts where they
+   were. Answers the earlier entry's point 5 (text positions lost by delete and place): the
+   `move_text` ops in the same call restore them, so delete and place serves a swap whose
+   drawing differs. Still missing: a swap op that keeps the part's place and text.
+3. `get_component_data` with schematic designators on a project whose board holds no parts
+   returned `{"error": "No component data found"}`: it reads the board only, which its
+   description ("Get all data for components in Altium") does not say. Read with
+   `get_schematic_data` instead. Small, new: a line in the description.
+4. `run_altium_script`'s lint refused a script reading `.Corner` through an `IDispatch`
+   variable before Altium was called, and said to declare `ISch_Rectangle`: held, one call lost.
+5. Met again (A28): a symbol deleted from a `.SchLib` by `RemoveSchComponent`, held, read back
+   gone.
+6. Missing: changing an existing footprint's 3D body placement (rotation, offset) and a pad's
+   stack. A body copied earlier by script into a library kept only its X rotation and lay
+   turned and off the pads; `get_footprint_primitives` reads the placement from the saved file
+   only, so an unsaved change cannot be checked with it. Done by `run_altium_script`:
+   `Model := Body.Model; Model.SetState(90, 0, 270, 0); Body.Model := Model;
+   Body.SetState_FromModel; Body.MoveByXY(...)` inside `PreProcess`/`PostProcess`, read back
+   through an `IPCB_ComponentBody` variable's `BoundingRectangle` (the rotations applied X
+   first, then Z): held. `Pad.Mode := ePadMode_Simple`, `TopShape := eRectangular`: held. Local:
+   an EDITFOOTPRINT record to set a body's rotation and offset, and the body's extent in
+   `get_footprint_primitives` read live. New.
+
+About 15 calls (`get_server_status`, 2 `get_symbol_primitives`, `get_schematic_data`,
+`get_component_data`, `create_symbols_batch`, 3 `edit_schematic`, 8 `run_altium_script`,
+`get_footprint_primitives`,
+`get_erc_violations`); none failed in the server.
+
+**2026-11-19: placed parts selected as a rectangle; two connectors swapped onto another symbol**
+
+Release `0.7.0-20261115-172812`.
+
+1. Placed parts whose own primitives could be selected alone: a click on the part's body
+   selected its rectangle (Properties showed a rectangle, not a part). In the saved sheet a
+   placed part's child primitives carry `IsNotAccesible=T` (Altium's spelling); on 24 parts
+   across nine sheets the body rectangle (on two diodes their six lines) did not. All 24 had
+   been placed or placed again by script or by the server's tools in earlier sessions; parts
+   placed from a library in Altium's own UI all had it. Not reproduced: `edit_schematic`
+   `place_component` today set the flag on both parts it placed. The flag is not readable
+   from DelphiScript: `Obj.IsNotAccesible` and `Obj.IsNotAccessible` on a child rectangle both
+   gave "Undeclared identifier". Found only by reading the saved file's records. Workaround,
+   held: per part, inside `PreProcess`/`PostProcess` and `SCHM_BeginModify`/`SCHM_EndModify`,
+   `Comp.PinsMoveable := True; Comp.PinsMoveable := False;` then save: every child primitive
+   carried the flag after, nothing else in the records changed, the netlist unchanged. Local:
+   `check_schematic` (it reads the saved file) could report a placed part with a child
+   primitive lacking the flag, its fix the toggle; and the place and build tools checked for
+   setting it. New.
+2. `ISch_Component.Locked` in a script: "Undeclared identifier: Locked". Small, a lesson:
+   the component's lock is not under that name; `PinsMoveable` is the Lock Primitives box.
+3. `edit_schematic` `delete_component` + `place_component` + `move_text` in one call, swapping
+   two 3-pin connectors onto a symbol of the same pin geometry at the same origin: held again
+   (the earlier entry's point 2), pins read back on their nets, texts where they were,
+   `check_schematic` no issue.
+
+About 17 calls (`get_server_status`, 11 `run_altium_script`, `get_project_components`,
+`edit_schematic`, `check_schematic`, `get_erc_violations`); none failed in the server.
+
+**2026-11-19: a second project's libraries made from another's, a symbol and footprint added, one sheet drawn**
+
+Release `bin\0.7.0-20261115-172812`.
+
+1. `run_altium_script`'s helper `OpenSchDoc(path)` on a `.SchLib` opened the library as a
+   schematic sheet (document kind `SCH`, `ObjectID` 32, a sheet border and zones shown), not
+   as a library. A second script's `Client.OpenDocument('SCHLIB', path)` returned the same
+   sheet, and an iterator call on it (`SchLibIterator_Create`) failed, the next run hung for
+   120 s. Closed unsaved by script; `get_symbol_primitives(library_path)` then opened it as a
+   library (`ObjectID` 33). Had the sheet been saved, the library file would have been
+   overwritten as a schematic. The helper's description says it returns the ISch_Document;
+   it does not refuse a library. Local: `OpenSchDoc` opens by the file's extension, or
+   refuses a `.SchLib`. New.
+2. Deleting a symbol from a `.SchLib` and a footprint from a `.PcbLib` has no tool:
+   `RemoveSchComponent` and `RemoveComponent` by script, both held after save. A library
+   for a new project was made as a file copy of another project's, then pruned that way.
+   Bears on A28 (no tool makes an empty library).
+3. A footprint copied between two PcbLibs by script (`CreatePCBLibComp`,
+   `RegisterComponent`, each source primitive's `Replicate` added with `AddPCBObject` and
+   registered with `PCBM_BoardRegisteration`, to the component's and in a second try to the
+   library board's address) showed its primitives in `get_footprint_primitives`' inventory
+   before save and none after; both runs reported success. `create_footprints_batch` from
+   the source's dump made it right, the STEP taken out of the source library's embedded
+   models (`Library/Models/<n>`, zlib) since `MODEL3D` needs a file. A tool copying a
+   footprint, 3D body included, between libraries would serve. New.
+4. `get_footprint_primitives` on the footprint just made and saved gives its 3D body's
+   rotations and z offset as null, "not in the saved library file", the body's model named by
+   the full STEP path given to `MODEL3D`; not seen whether the rotations given were applied.
+   New.
+5. Setting a sheet's size and its title block parameters has no tool: a script set
+   `SheetStyle` and each document parameter's `Text`. A first try reading names and values
+   from one TStringList (`Names`, `ValueFromIndex`) failed with "Could not convert variant
+   of type (OleStr) into type (Double)"; two lists by index worked. Lesson.
+
+About 30 calls, 4 failed (points 1 and 5, the replicate's two runs reported success).
+
+**2026-11-19: a sheet drawn, a library symbol's pins moved, the sheet drawn again**
+
+Release `bin\0.7.0-20261115-172812`.
+
+1. `check_schematic` reported a sheet clean while a placed symbol's own pin names crossed:
+   a top pin's vertical name ran down over the left pins' names, and three bottom pins'
+   names over the right side's last pin names. Seen only in `get_screenshot`. Local: a
+   `pin_name_overlap` issue, each visible pin name's box (by its pin's orientation and the
+   font) against the others' of the same part, with the library symbol named as the fix.
+   New.
+2. Moving a pin of a library symbol has no tool: `create_symbols_batch` `EDITSYMBOL` leaves
+   pins and graphics alone, as its description says. Done by script: the pins iterated
+   inside the component, `MoveByXY`, and the body rectangle's `Corner` set directly (a write;
+   the lint did not refuse it), between `SCHM_BeginModify`/`SCHM_EndModify`, then
+   `SaveDoc` on the `.SchLib`; `get_symbol_primitives` read it back as asked. Local: an
+   `EDITSYMBOL` record to move or replace a pin (`MOVEPIN|<number>|x|y`), and a rectangle's
+   resize. New.
+3. Taking a sheet out of a project has no tool, and `build_schematic` refuses an existing
+   path, so a sheet built wrongly cannot be built again in place. Workaround held: every
+   component, wire, net label, power port, junction and no-ERC removed by script (title
+   block parameters and notes kept), then the whole sheet placed again by one
+   `edit_schematic` call of 209 operations (25 `place_component`, 98 `add_wire`, 35
+   junctions, 23 power ports, 22 labels, 6 no-ERC): applied 209, no error, the netlist then
+   as asked. `edit_schematic` has no op for a free text note, so the notes had to be kept.
+   Local: `build_schematic` with `replace: true` on a sheet of the project, keeping its
+   sheet style and parameters; or an `add_note` op. New.
+4. `get_screenshot` captures the current zoom only; a script's
+   `Client.SendMessage('SCH:Zoom', 'Action=Document', 255, Client.CurrentView)` fitted the
+   sheet first. Local: a `fit` option for `sch`. Small, new.
+
+About 20 calls (`get_server_status`, `get_symbol_primitives` 3, `build_schematic`,
+`edit_schematic` 3, `check_schematic` 3, `get_screenshot` 2, 7 `run_altium_script`); none
+failed in the server.
+
+**2026-11-19: a sub-sheet of eight repeated output channels drawn, then a five-sheet hierarchy with two signal harnesses**
+
+Release `bin\0.7.0-20261115-172812`.
+
+1. `build_schematic` without `project_path`, used as the description says for a parts-only
+   call to read the pin map, put its `Sheet1.SchDoc` into the focused project and left the
+   project modified; `DM_FreeDocumentsProject` did not list it. Taken out by script
+   (`DM_RemoveSourceDocument`, the document closed unmodified). Reported success. A26, met
+   again.
+2. `run_altium_script` refused a script that opens several sheets in turn: "1 PreProcess but 2
+   PostProcess call(s)". The script closes each sheet's group before opening the next (one
+   `PostProcess` in the branch that opens a sheet, one after the loop), so the groups were
+   balanced at run time; `skip_lint=True` ran it with no group left open. The lint counts
+   calls in the text. Local: refuse only when the text has fewer `PostProcess` than
+   `PreProcess`, or recognise a `PostProcess` before a `PreProcess` in the same branch. New.
+3. Sheet symbols with entries, harness connectors with entries, signal harnesses, ports, free
+   text notes and document parameters were all placed by script, no tool doing it: one
+   interpreter script reading a line file, 146 lines for three sheets in one call. The
+   earlier 2026-11-19 entry's point 1, met again.
+4. After that call, `get_erc_violations(project_path)` gave 2 fatal "Missing Harness Type on
+   Signal Harness", "Unconnected line" for both harnesses on the top sheet, one "Multiple
+   Harness Types on harness", every sheet entry carrying both harnesses' members, and 16
+   "Invalid Connection to a Harness Connector" on the two connectors whose entries face left,
+   though their saved records match a working sheet's field for field. `LineWidth := eMedium`
+   set on every signal harness (the earlier entry's point 3) and the sheets saved: the same 36
+   violations. The project closed by script (`WorkspaceManager:CloseObject`) and opened again
+   by `get_erc_violations(project_path)`: 0 fatal, every harness violation gone, the netlist
+   as asked. The compile read connectivity made in that session, not what the saved sheets
+   hold, and reported it as the design's. Which of the two changes was needed is not
+   separated: the width was set before the reopen. Local: a `reload` option on
+   `get_erc_violations` (close and reopen the project's sheets first), or a tool that places
+   harness objects and refreshes connectivity. New.
+5. A project option (sheet entries naming nets) changed with no tool, as in the earlier
+   entry's point 9: project saved and closed by script, the `.PrjPcb` edited, reopened by
+   `get_erc_violations(project_path)`. The file Altium writes is LF only; an edit that adds a
+   CR leaves it mixed. Lesson.
+6. Altium adds a `<sheet>.Harness` document to the project for each sheet holding a harness
+   connector, and the project shows modified until saved. Lesson.
+7. `RunProcess('Sch:Zoom')` with `Action=Document` did not fit an A3 sheet before
+   `get_screenshot`: the bottom quarter was cut off. The earlier entries' zoom point, met
+   again.
+
+About 25 calls (`build_schematic` 2, `edit_schematic`, `check_schematic` 4, `get_screenshot`
+4, `get_erc_violations` 3, `get_project_info` 3, `add_project_document`, 9
+`run_altium_script`); one refused by the lint (point 2), none failed in Altium.
+
+**2026-11-19: an isolator sub-sheet drawn in place on an existing sheet, one block of it moved**
+
+Release `bin\0.7.0-20261115-172812`.
+
+1. `check_schematic` reported a sheet clean while two power ports of neighbouring circuits
+   overlapped: a ground port (symbol below its hot spot, net name shown under it) 300 mil
+   above a rail port (bar, net name above it) at the same x, twice on the sheet. Seen only
+   in `get_screenshot`. `text_overlap` lists a port's text against wires, pins, parts and
+   other text, but neither port's graphic and the other's text were taken as colliding.
+   Local: each power port's box, its symbol and its shown name, against the other ports'
+   boxes and part bodies. New; the same kind as the earlier 2026-11-19 entry's point 1 (an
+   overlap seen only in a screenshot).
+2. Moving one block of a drawn sheet (a part, its two decoupling capacitors, 11 wires, 3
+   junctions, 6 power ports, 2 labels, a no-ERC) 300 mil down has no tool:
+   `move_component` moves the part only, its wires stay. Done in one `edit_schematic` of 51
+   operations, built by diffing the sheet's old and new operation lists: 23 `delete_at` (a
+   wire by its first segment's midpoint), 3 `move_component`, 25 adds; applied 51, no error,
+   the netlist then as before. Local: `move_component` with `drag: true` (Altium's drag,
+   wires following), or a `move_region` op moving everything inside a rectangle. New.
+3. `edit_schematic` has no op for a free text note: four notes placed by
+   `run_altium_script` on the existing sheet, the three old ones removed by `delete_at`
+   kind `note` (which held). The earlier 2026-11-19 entry's point 3, met again.
+4. After `edit_schematic` with `move_component`, the last part moved stayed selected in
+   Altium (its handles in the next `get_screenshot`). Harmless; small, new.
+5. `get_screenshot` at the current zoom cut the bottom of an A3 sheet. The earlier entry's
+   point 4, met again.
+
+About 22 calls (`get_server_status`, `search_library_symbol`, `get_symbol_primitives` 3,
+`get_project_info`, `get_schematic_data`, `edit_schematic` 3, `check_schematic` 3,
+`get_screenshot` 3, `get_erc_violations` 2, 4 `run_altium_script`); none failed in the
+server.
+
+**2026-11-20: two library symbols drawn again in a project's style, three parts swapped onto them, a connector symbol restyled in two libraries**
+
+Release `bin\0.7.0-20261115-172812`.
+
+1. The missing `IsNotAccesible=T` on a placed part's body (the 2026-11-19 entry's point 1,
+   "not reproduced" then), reproduced: one `edit_schematic` call with three
+   `place_component` from a project `.SchLib` (two of a 16-pin symbol, one of an 8-pin
+   symbol, both made minutes before by `create_schematic_symbol`, each body a rectangle
+   and a line). The two 16-pin parts carried the flag on both body primitives; the 8-pin
+   part on neither, so a click took its rectangle. Reported success. Found only by reading
+   the saved file. The same read of the project's other sheets, drawn earlier by
+   `build_schematic` and `edit_schematic`, found 19 more parts without it (a 28-pin IC's
+   rectangle, diodes' six lines each). Workaround held again: `PinsMoveable` True then
+   False inside `PreProcess`/`PostProcess`, saved, flag set. Local as before: set it in
+   `place_component` and `build_schematic`, and `check_schematic` reporting it.
+2. `create_schematic_symbol` cannot set the symbol's Comment or add a parameter: the
+   symbols came out with Comment `*` and no designator prefix or part-number parameter,
+   where the library's own symbols carry them. Comment set by `run_altium_script` on the
+   library (`Comp.Comment.Text`); the part number set on the placed parts by
+   `edit_schematic` `set_parameter` instead, since the sandbox says never to register
+   objects into a library. Local: `comment` and `parameters` [{name, value, visible}]
+   arguments. New.
+3. `get_screenshot` for `sch` has no zoom: the earlier entries' point (fit), met again,
+   now for a part rather than the sheet. `RunProcess('Sch:Zoom')` and
+   `Client.SendMessage('SCH:Zoom', 'Action=Selected', 255, Client.CurrentView)` with three
+   parts selected both left the view where it was. The parts were checked by data instead.
+   Local: `zoom_to` designators for `sch` as for `pcb`. Met again.
+4. Swapping three parts onto a symbol of other geometry with every pin where it was: one
+   `edit_schematic` (3 `delete_component`, 3 `place_component` at the old origin plus the
+   offset between the two symbols' origins, 3 `set_parameter`), then `move_text` for the
+   designators `check_schematic` suggested; nets unchanged against the reference netlist.
+   Held.
+5. `create_schematic_symbol` with `footprints: ["<name>"]` (no library) reported the
+   footprint linked, `problems` empty, but the parts placed from the symbol had no
+   footprint in Altium: the footprint was in an installed vendor `.PcbLib`, not in the
+   project's libraries, and the link held no location. Found by the owner. Fixed by
+   setting `DatafileLink(0).Location` to the `.PcbLib` path on the library symbol and on
+   the placed parts by `run_altium_script`. Reported success with a wrong result. Local:
+   resolve a name-only footprint at creation and put it in `problems` when no project
+   library holds it, or fill the location from the installed library that does. The
+   caller's error too: the library path should have been given. New.
+
+6. Point 1 met a third time, later the same day: one `edit_schematic` `place_component`
+   of a 2-pin symbol (four arcs) left all four body primitives without the flag. So it is
+   not one symbol's fault: of six parts placed by `place_component` today, three came in
+   without it. Fixed by the same toggle.
+7. The owner asked to stop the resident bridge. No tool does it; done by writing the
+   `stop` file in `resident\<tag>\` as the README describes, and `get_server_status`
+   then showed no window. The next call started it again. Local: a `stop_resident` tool,
+   or a line in `get_server_status`'s description saying how. New.
+
+About 40 calls (`get_server_status` 2, `get_symbol_primitives` 6, `get_schematic_data` 2,
+`create_schematic_symbol` 2, `edit_schematic` 2, `check_schematic` 2,
+`get_erc_violations`, `get_screenshot` 4, 13 `run_altium_script`); one script failed on
+"Undeclared identifier: IsNotAccesible", as the earlier entry said it would.

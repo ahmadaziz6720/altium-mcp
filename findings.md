@@ -1428,3 +1428,5 @@ Release `bin\0.7.0-20261115-172812` (the sessions of 2026-11-18 to 20).
    images in one session were next to nothing beside them. Lesson: these four items are
    where the server's share of a design session's cost sits; a summary by default with the
    detail on request (A49's proposal) is the pattern for each.
+
+Sorted into A49 (1), met again; A46 (1), met again; A58 (1), met again; A57 (1), met again.

@@ -13,6 +13,8 @@ upstream, run and held, or decided against moves with its record to
 ticked. The layout is the `backlog` plugin's `format.md` (v0.1, since 2026-11-15).
 
 **Open: A11, A15, A23, A25 to A28, A31 to A34, A36 to A39, A41 to A72.** Sorted
+2026-11-22, the entry of 2026-11-22 (token cost of seventeen design sessions): A49, A46, A58
+and A57, met again, the four where the server's results weigh most. Sorted
 2026-11-22, the eighteen entries of 2026-11-18 to 2026-11-20 (schematic and library work on
 `build-20261115-172812`): A45 to A72, new; A34 (f), a new part; A26 and A28, met again. Most
 of the new items are tools missing for schematic and library work; those that report success
@@ -434,6 +436,10 @@ would keep them apart. And the whole map comes back on every call (a 71-part she
 Proposed: local; keyed by pin number, the name as a field, and an option to leave the map
 out. Not decided.
 
+Met again 2026-11-22 (findings 2026-11-22, point 1), build `0.7.0-20261115-172812`, measured
+from seventeen sessions' transcripts: `build_schematic` 142k characters of results over 14
+calls in one session, the whole pin map coming back each time (with A58: 171k of input).
+
 ### A47 - No tool sets a sheet's size, title block or document parameters - OPEN 2026-11-22
 
 Sorted out of the entries of 2026-11-18 (second), point 5, and 2026-11-19 (twelfth), point
@@ -482,6 +488,11 @@ times, most of it 99 warnings of one kind and 30 of another.
 
 Proposed: local; a summary by default (counts by type and level, the first few of each),
 with `type`, `level` and `limit` filters for the details. Not decided.
+
+Met again 2026-11-22 (findings 2026-11-22, point 1), build `0.7.0-20261115-172812`, measured
+from the transcripts of seventeen schematic and library sessions: up to 105k characters of
+results in one session (6 calls) and 76k in another (2 calls), the largest of the server's
+own share of a session's cost.
 
 ### A50 - `get_erc_violations` lists violations Altium has suppressed - OPEN 2026-11-22
 
@@ -583,6 +594,12 @@ Proposed: local; a `name` or `term` filter and a names-and-descriptions inventor
 tools, a list of symbol names with a pins-only mode, and a pads-only mode for footprints.
 Not decided.
 
+Met again 2026-11-22 (findings 2026-11-22, point 1), build `0.7.0-20261115-172812`, measured
+from seventeen sessions' transcripts: `get_symbol_primitives` and `get_footprint_primitives`
+20k to 44k characters of results in a session each. The same point names
+`get_project_components`, 63k in one session (7 calls), filed here as the entry did: it is a
+project read, not a library one, and no item yet covers its size.
+
 ### A58 - `build_schematic` and `edit_schematic` take no spec file - OPEN 2026-11-22
 
 Sorted out of the entry of 2026-11-18 (first), point 3, seen before drawing: a sheet of some
@@ -590,6 +607,10 @@ Sorted out of the entry of 2026-11-18 (first), point 3, seen before drawing: a s
 `create_symbols_batch` takes a spec file, the sheet tools none.
 
 Proposed: local; a `spec_file` on both. Not decided.
+
+Met again 2026-11-22 (findings 2026-11-22, point 1), build `0.7.0-20261115-172812`, measured
+from seventeen sessions' transcripts: 171k characters of `build_schematic` input over 14
+calls in one session, the inline sheet sent each time (with A46: 142k of results).
 
 ### A59 - No tool places sheet symbols, ports, harness connectors or signal harnesses - OPEN 2026-11-22
 

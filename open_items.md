@@ -153,7 +153,11 @@ release just registered, by the procedure in its `reports/uji-skenario.md`.
    "cek". It watches by a background `Bash` until-loop of its own (the `EXIT` line,
    `tasklist` on the pid, the transcript unwritten over 1800 s, `sleep 60`), re-armed if
    it is ended, and goes on in the same session past 150k tokens (Claude Code compacts
-   it; this checklist carries the state).
+   it; this checklist carries the state). Changed again 2026-11-23 by the owner ("altium udah beres
+   kenapa ada nganggur lama? itu harus lo benerin"): the loop polls every 10 s, and the
+   next step that uses Altium (a fix again, the next group's first item) starts as soon as
+   a check ends, beside the sort; its subagent does not edit `open_items.md` but gives the
+   item's text in its report, written in by the main session after the sort.
 6. **Stopped with no entry**, or the transcript unwritten 30 minutes with the process
    alive (stopped first by `Stop-Process`): resumed unasked from the same folder,
    `claude -p --resume <uuid> "lanjutkan uji skenario"`, same flags, up to three times;
@@ -318,6 +322,23 @@ explained (the first asking left "op", "recipe" and "usage file" unexplained):
 - [x] A48: committed (891ee59)
 - [x] Group 1: tests and release (build: 0.7.0-20261123-001227, tag build-20261123-001227)
 - [ ] Group 1: scenario test (session id: af570230-bb0a-49b3-aac8-e3f16361ede9, started 2026-11-23, free memory 1237 MB after the restart), its outcome sorted
+  - Ran 00:14 to 00:22, `EXIT 0`, one run; its entry committed alone (`eeaacd2`), **not
+    sorted yet**. The run's decisions for the sort (2026-11-23, the main session): A49 held
+    (point 1) and A50 held (point 3), each to `closed_items.md`; A48 held for edits (point
+    4), not for objects a script removed (point 5): back under `## Open` as A48 (b), fixed
+    again (a probe for a sheet-level re-read; not found, the fallback: a short
+    `stale_sheets` in both tools' result and one line in `run_altium_script`'s description
+    on the `SCHM_PrimitiveRegistration` notice after a removal), then group 1 checked
+    again; point 2, a new item (`--next-code`), the first three *distinct* details in
+    `first`, taken into group 1 again; point 6 (`List1.Objects[j]` is not the interface), a
+    new item, a step of group 3 (a line beside the recipes); point 7, A26 and A34 met
+    again, and A44 met again for the three pathless `PCBn.PcbDoc` (a live test made boards
+    in the user's project restored in focus). The sort writes after this line:
+    `A48 (b) again: committed`, `A74: committed` (or the code it gets), `Group 1 again:
+    tests and release (build: )`, `Group 1 again: scenario test (session id: ), its
+    outcome sorted`, and the point-6 item's line before group 3's tests.
+  - Altium is left running with the user's project in focus, modified in memory by tests
+    (pathless documents); nothing of it saved. The next group's restart drops it.
 - [ ] A46: committed
 - [ ] A58: committed
 - [ ] A45: committed

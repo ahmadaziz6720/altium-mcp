@@ -328,6 +328,14 @@ explained (the first asking left "op", "recipe" and "usage file" unexplained):
 - Extras (multiSelect): "Recipes file, Item: trim descriptions". Not taken: A2 to follow
   upstream PR #113; A15 (b) to Closed as DECIDED AGAINST.
 
+Added by the owner 2026-11-23 02:18, going to sleep while the run works on A48 (b): "gw
+tinggal tidur ya, jangan stop krn alasan sepele. semua yang dibutuhkan saya izinkan,
+jangan sampe terhambat karena izin. kalau perlu restart altium silakan restart". So what
+this plan's steps need is granted without asking, and Altium may be restarted when a step
+needs it, not only when it hangs. The plan's scope stands (*Out of this run*, the choices
+left to the owner). A restart does not save the owner's documents: what was open modified
+is written down before it.
+
 ### Where the run stands
 
 - [x] Phase 1: the opening question asked and answered (2026-11-22, in two sessions)

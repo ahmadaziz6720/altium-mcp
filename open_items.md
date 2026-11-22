@@ -414,8 +414,25 @@ is written down before it.
 - [ ] A70: committed
 - [ ] A28: committed
 - [ ] A60 (a): committed
-- [x] The recipes (A47, A51, A52, A54, A55, A59, A62 to A65, A67, A69, A34 (f), A56 (b)): committed
+- [x] The recipes (A47, A51, A52, A54, A55, A59, A62 to A65, A67, A69, A34 (f), A56 (b)): committed (ba17162)
+  - Of fourteen items only A55 had a script proved in full: it waits, the others stay Open,
+    each saying what is missing. Built offline: 574 of the 583 offline tests run, OK; the 9
+    that start processes or call the real status tool are to run before the release (the
+    subagent's report; two of its first runs did call `get_server_status`'s test by mistake).
+    The scenario test runs first A55, A34 (f) and A52's removal.
 - [ ] A75: committed
+  - **Stopped here 2026-11-23 about 04:55 at the usage limit**, A75 not started: it needs no
+    Altium and is the next step that can be done while Altium is blocked (A26's line). With
+    Altium ended by the owner, the run goes on from A26 instead.
+  - The watcher for Altium's end and the subagents' watchdog were stopped by Claude Code
+    for low memory (546 MB free, Altium 2.4 GB private) and not started again, so closing
+    Altium no longer wakes the run: the owner says "lanjut", or opens a session with the
+    sentence in A26's line. The session's hourly self-check (cron `5d89c99b`, gone with the
+    session) is left to resume after the limit resets. It restarts no Altium that runs.
+  - Does not travel by file: the commits since `6aa0661` are local, pushed at group 2's
+    release; A26's fix is in its stash; the subagents' brief and the helper scripts are in
+    the session's scratchpad. Not written yet: the run's `learned.md` entry, and as items at
+    the run's end what A46, A45, A58 and A55 list as seen and left.
 - [ ] Group 3: tests and release (build: )
 - [ ] Group 3: scenario test (session id: ), its outcome sorted
 - [ ] The report

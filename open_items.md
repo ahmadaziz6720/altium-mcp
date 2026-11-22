@@ -310,8 +310,8 @@ explained (the first asking left "op", "recipe" and "usage file" unexplained):
 - [x] Phase 1: the opening question asked and answered (2026-11-22, in two sessions)
 - [x] A49: committed (69f2cf9)
 - [x] A50: committed (49ecf2f)
-- [x] A48: committed
-- [ ] Group 1: tests and release (build: )
+- [x] A48: committed (891ee59)
+- [x] Group 1: tests and release (build: 0.7.0-20261123-001227, tag build-20261123-001227)
 - [ ] Group 1: scenario test (session id: ), its outcome sorted
 - [ ] A46: committed
 - [ ] A58: committed
@@ -1175,7 +1175,7 @@ and first three (36,626 bytes); `test_live_drc.LiveCompileFolderTest`, which cal
 added to `tests.yml`; the whole list 556/556 pass. Tool listing: 80 tools, 164,529
 characters before, 164,709 after (+180, 0.1 %).
 
-Fixed in the commit that moves it here.
+Fixed in `69f2cf9`. Released in `build-20261123-001227`.
 
 ### A50 - `get_erc_violations` lists violations Altium has suppressed - BUILT 2026-11-22, proof: the scenario test
 
@@ -1231,7 +1231,7 @@ together 16/16 pass. Offline: `tests/test_erc_summary.py` 12 tests (one added); 
 list of `tests.yml` 557/557 pass. Tool listing: 80 tools, 164,709 characters before,
 164,841 after (+132, 0.08 %).
 
-Fixed in the commit that moves it here.
+Fixed in `49ecf2f`. Released in `build-20261123-001227`.
 
 ### A48 - The project compile reads stale sheets after a script's edit - BUILT 2026-11-22, proof: the scenario test
 
@@ -1338,4 +1338,4 @@ suppressed, 6 groups, 2,164 characters). Offline: the whole list of `tests.yml` 
 the new module is live only, not in it. Tool listing: 80 tools, 164,841 characters before
 and after.
 
-Fixed in the commit that moves it here.
+Fixed in `891ee59`. Released in `build-20261123-001227`.

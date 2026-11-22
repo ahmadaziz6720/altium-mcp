@@ -423,13 +423,12 @@ is written down before it.
 - [x] A75: committed (b764b10)
   - Stopped 2026-11-23 about 04:55 at the usage limit, taken up by the session's hourly
     self-check at 05:54 (Altium still blocked): A75 done offline, its tests in its item.
-  - **Blocked since 06:0x: every step left needs Altium** (A26's line). The self-check cron
+  - **Blocked since 06:00: every step left needs Altium** (A26's line). The self-check cron
     was deleted with this line, as its own prompt says for a run written down Blocked.
   - The watcher for Altium's end and the subagents' watchdog were stopped by Claude Code
     for low memory (546 MB free, Altium 2.4 GB private) and not started again, so closing
     Altium no longer wakes the run: the owner says "lanjut", or opens a session with the
-    sentence in A26's line. The session's hourly self-check (cron `5d89c99b`, gone with the
-    session) is left to resume after the limit resets. It restarts no Altium that runs.
+    sentence in A26's line.
   - Does not travel by file: the commits since `6aa0661` are local, pushed at group 2's
     release; A26's fix is in its stash; the subagents' brief and the helper scripts are in
     the session's scratchpad. Not written yet: the run's `learned.md` entry, and as items at

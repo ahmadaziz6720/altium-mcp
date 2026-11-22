@@ -1488,3 +1488,41 @@ characters of results (10 `get_erc_violations` 1.1k to 1.8k each, 15 `run_altium
    user's project had focus). A26, A34, met again.
 
 Sorted into A74 (2), new; A48 (5), failed; A75 (6), new; A26 (7), met again; A34 (7), met again; A44 (7), met again. Held: A49 (1); A50 (3); A48 (4).
+
+**2026-11-23: scenario test of a release listing distinct ERC details and telling scripts to send the notice for a removed object (A74, A48 (b) in part)**
+
+Release `bin\0.7.0-20261123-031122` (build `0.7.0-ad25-20261123-031122 6aa0661`), Altium
+Designer 25. 37 calls, 0 errors, 31.0k characters of results (14 `run_altium_script`, 13
+`get_erc_violations` 0.6k to 2.1k each).
+
+1. A74, held. On eight copies of one small sheet, checked against the full-list file where
+   it was read: groups of 35 (5 distinct texts), 127 (28) and 92 (23) each gave three
+   different lines where their first three violations were one text; a group of 4 with one
+   distinct text gave one line and `count` 4. No `first` repeated a text in any of the 13
+   replies, the group counts summed to `total` in each, and `compile=false` gave the same
+   groups.
+2. A48 (b), the part built held: the notice the description names
+   (`SCHM_PrimitiveRegistration` naming the object just removed) is enough. 92 no-ERC
+   markers removed by script from four open sheets (4, then 88 in one process per sheet),
+   nothing saved: the next `get_erc_violations` followed each time (`suppressed` 345, 337,
+   161). Saved, the project closed and reopened: the same list of errors and suppressed
+   violations. The notice worked for a marker sent inside the process and after it, and
+   for a removed part inside it (`get_project_components` dropped it at once).
+3. A48 (b), still open as written: with no notice a removed marker stayed compiled in
+   (its violation still suppressed) and a removed part stayed listed (15 components where
+   the sheet held 14), both reported success with a stale result. The item's usage (save
+   the sheet, close it, open it again) cured both, so it holds for a part too, which the
+   item marks as not probed.
+4. A48 (b), no gap seen in the server's own removals: `edit_schematic`'s `delete_at` of a
+   no-ERC marker and `delete_component`, unsaved, were both in the next compile. A48's
+   refresh for edits held again (a footprint and a sheet size set by script with no
+   notice, the modified flags still 0).
+5. New, small, cause not looked for: Altium's component revision warnings ("Can't perform
+   revision status validation: Failed to connect to server") come and go between compiles.
+   In 2 of 12 compiles all four were absent: `total` 235, then 239 for the same sheets
+   after the project was reopened; on another copy 1, where 5 was expected. Reported
+   success. Lesson: compare two compiles by `errors` and their groups, not by `total`.
+6. New, small: after the test's projects were closed by script, the focused project was
+   the resident's own `MCPResident.PrjScr` (Free Documents at the start, the resident not
+   yet started), which is what a tool called without `project_path` takes. Seen in a
+   workspace read, no tool called so. Bears on A34.

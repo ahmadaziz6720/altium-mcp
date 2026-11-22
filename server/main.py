@@ -42,6 +42,7 @@ import win_processes
 import foreground
 import functools
 import altium_messages
+import pin_map
 import resident
 from outjob_parser import parse_outjob
 
@@ -2574,8 +2575,9 @@ async def build_schematic(ctx: Context, parts: list, wires: list = None,
         a few microns out of level and turns diagonal when its part moves.
 
     Returns:
-        JSON with the created sheet name, counts, and the pin map - every
-        placed pin's true connection point, for routing a follow-up call.
+        JSON with the created sheet name and counts; without wires pin_map,
+        {designator: {pin number ("#2" on a repeat): {name, x, y}}}, each
+        pin's connection point; with wires pin_counts and pin_map_file.
         With project_path also sheet_path and project: add_project_document's
         result (the project's documents read back from Altium, and whether
         the saved project file lists the sheet). A sheet with missing parts
@@ -2664,17 +2666,13 @@ async def build_schematic(ctx: Context, parts: list, wires: list = None,
         except ValueError:
             return result
 
-    # Hand back the measured pin map so the caller can route a second pass
-    pin_map = {}
+    # The measured pin map. Read before anything else goes to Altium: the
+    # next build's script writes over the file
+    pins = {}
     pm = Path("C:/Users/Public/altium_mcp/pin_map.txt")
     if pm.is_file():
-        for line in read_altium_text(pm).splitlines():
-            f = line.strip().split("|")
-            if len(f) == 5 and f[0] == "PIN":
-                pin_map.setdefault(f[1], {})[f[2]] = [int(f[3]) / 10000, int(f[4]) / 10000]
-    result["pin_map"] = pin_map
-    result["pin_map_note"] = ("Absolute electrical connection points. Route "
-                              "wires from these, not from predicted offsets.")
+        pins = pin_map.parse(read_altium_text(pm))
+    built_sheet = result.get("sheet", "")
     if project_path:
         if not result.get("success"):
             result["project_note"] = ("Not saved into the project: parts were missing. The sheet is "
@@ -2683,10 +2681,28 @@ async def build_schematic(ctx: Context, parts: list, wires: list = None,
             added = await _add_to_project(project_path, sheet_path, source_document=result.get("sheet", ""))
             result["sheet_path"] = sheet_path
             result["project"] = added
-            if not added.get("success"):
+            if added.get("success"):
+                built_sheet = sheet_path
+            else:
                 result["success"] = False
                 result["error"] = f"The sheet was built but not saved into the project: {added.get('error')}"
-    return json.dumps(result, indent=2)
+
+    # A call with wires has its coordinates already: it gets the map as a file
+    path = error = ""
+    if wires:
+        path, error = pin_map.write(_data_dir() / "pin_maps", built_sheet, pins)
+    if path:
+        result["pin_counts"] = pin_map.counts(pins)
+        result["pin_map_file"] = path
+    else:
+        # The pin read, or the file could not be written: the map itself
+        if error:
+            result["pin_map_file_error"] = error
+        result["pin_map"] = pins
+        result["pin_map_note"] = ("Absolute electrical connection points. Route "
+                                  "wires from these, not from predicted offsets.")
+    # Not indented: indented, the map takes nearly twice the characters
+    return json.dumps(result, separators=(",", ":"))
 
 @_tool()
 async def edit_schematic(ctx: Context, sheet_path: str, operations: list, unit: str = "mil",

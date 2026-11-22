@@ -93,7 +93,7 @@
     },
     {
       "name": "build_schematic",
-      "description": "Build a wired schematic on a new sheet from .SchLib parts, wires, junctions, net labels and power ports; returns each placed pin's connection point"
+      "description": "Build a wired schematic on a new sheet from .SchLib parts, wires, junctions, net labels and power ports; without wires, returns each placed pin's connection point"
     },
     {
       "name": "check_schematic",

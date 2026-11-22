@@ -1715,7 +1715,8 @@ end;
 {   WIRE|x1|y1|x2|y2[|...]      JUNCTION|x|y                                    }
 {   NETLABEL|x|y|orient|text    POWER|x|y|orient|style|text|shownetname         }
 {   NOTE|x|y|text                                                               }
-{ pin_map.txt gives each pin's connection point in coords too.                }
+{ pin_map.txt gives each pin's connection point in coords too, a line a pin: }
+{   PIN|desig|number|x|y|name    (the name last: it may hold a pipe)          }
 {                                                                              }
 { Uses LOCAL variables throughout, deliberately. The dev sandbox shares scratch }
 { variables between blocks and that silently corrupted results three separate   }
@@ -2324,8 +2325,8 @@ begin
         while (Param <> nil) do
         begin
             GetPinHotEnd(Param, HotX, HotY);
-            PinMap.Add('PIN|' + Prim.Designator.Text + '|' + Param.Name + '|' +
-                       IntToStr(HotX) + '|' + IntToStr(HotY));
+            PinMap.Add('PIN|' + Prim.Designator.Text + '|' + Param.Designator + '|' +
+                       IntToStr(HotX) + '|' + IntToStr(HotY) + '|' + Param.Name);
             PinCount := PinCount + 1;
             Param := ChildIter.NextSchObject;
         end;

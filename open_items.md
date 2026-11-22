@@ -12,7 +12,7 @@ upstream, run and held, or decided against moves with its record to
 [`closed_items.md`](closed_items.md), and so does a run's section once every step of it is
 ticked. The layout is the `backlog` plugin's `format.md` (v0.1, since 2026-11-15).
 
-**Open: A11, A15, A23, A25 to A28, A31 to A34, A36 to A39, A41 to A48, A51 to A73, A75, A76.** Sorted
+**Open: A11, A15, A23, A25 to A28, A31 to A34, A36 to A39, A41 to A45, A47, A48, A51 to A73, A75, A76.** Sorted
 2026-11-23, the second entry of 2026-11-23 (the scenario test of group 1's second build,
 `build-20261123-031122`): A74 held and closed; A48 (b) checked, the part built held and the
 rest still open; A76, new, not taken into the run; A34, met again. Sorted
@@ -375,7 +375,7 @@ is written down before it.
   - Ran 03:14 to 03:21, `EXIT 0`, no resume, its entry committed alone (`f6eedbc`): A74
     held (closed); A48 (b)'s built part held, the item still Open as written, so no fix
     again; A76 new, out of this run; A34 met again. A46 began beside the sort.
-- [ ] A46: committed
+- [x] A46: committed
 - [ ] A58: committed
 - [ ] A45: committed
 - [ ] A26: committed
@@ -774,20 +774,6 @@ symbol made single-part. Reported success with a wrong result.
 
 Proposed: local; every part placed (or the parts asked, a `part` key on both tools), and
 `pin_map` per placed part; a live test with a multi-part symbol. Not decided.
-
-### A46 - `build_schematic`'s `pin_map` is keyed by pin name and always returned whole - OPEN 2026-11-22
-
-Sorted out of the entry of 2026-11-18 (second), points 2 and 9. Pins sharing a name
-(several `GND`, two shield pins, five `VDD`) collapse to one entry, the last; pin numbers
-would keep them apart. And the whole map comes back on every call (a 71-part sheet: about
-20k characters) when the caller has already computed every pin.
-
-Proposed: local; keyed by pin number, the name as a field, and an option to leave the map
-out. Not decided.
-
-Met again 2026-11-22 (findings 2026-11-22, point 1), build `0.7.0-20261115-172812`, measured
-from seventeen sessions' transcripts: `build_schematic` 142k characters of results over 14
-calls in one session, the whole pin map coming back each time (with A58: 171k of input).
 
 ### A47 - No tool sets a sheet's size, title block or document parameters - OPEN 2026-11-22
 
@@ -1505,3 +1491,63 @@ Scenario test of that build held (2026-11-12, third entry, 2): 38 rules, the sco
 `filter2` only on binary rules. The reply went from 9.3k to 8.5k characters only (about
 9 %): what is left is mostly the key names and indentation repeated on every rule.
 Waits for the upstream PR.
+
+### A46 - `build_schematic`'s `pin_map` is keyed by pin name and always returned whole - BUILT 2026-11-23, proof: the scenario test
+
+Sorted out of the entry of 2026-11-18 (second), points 2 and 9. Pins sharing a name
+(several `GND`, two shield pins, five `VDD`) collapse to one entry, the last; pin numbers
+would keep them apart. And the whole map comes back on every call (a 71-part sheet: about
+20k characters) when the caller has already computed every pin.
+
+Proposed: local; keyed by pin number, the name as a field, and an option to leave the map
+out. Not decided.
+
+Met again 2026-11-22 (findings 2026-11-22, point 1), build `0.7.0-20261115-172812`, measured
+from seventeen sessions' transcripts: `build_schematic` 142k characters of results over 14
+calls in one session, the whole pin map coming back each time (with A58: 171k of input).
+
+Decided 2026-11-22 in the plan, not the owner: `pin_map` keyed by pin number, the name a
+field; returned in full only on a call with no wires (the pin read the description advises);
+with wires, a count per part, the map written to a JSON file in the server's own folder and
+that file's path given; no new argument, because it is the smaller change.
+
+Cause: the bridge's `pin_map.txt` had each pin's name and not its number, so
+`build_schematic` could key only by name, a later pin of one name replacing the earlier; and
+it put the map into every result, indented, four lines a pin.
+
+Fixed in the commit that moves it here: the script writes `PIN|designator|number|x|y|name`
+(the name last, as it may hold a pipe), and the new `server/pin_map.py` makes
+`{designator: {number: {name, x, y}}}` of it. With no wires that is `pin_map`; with wires
+the result has `pin_counts` and `pin_map_file` instead, and if the file cannot be written
+the map itself with `pin_map_file_error`. The description, the README and the manifest's
+line say so (the tool listing 157,962 to 158,036 characters, 80 tools).
+
+Decided 2026-11-23 by the run, not the owner:
+- a number a part has twice (two shield pins `SH`, two parts of one designator) gets `#2`,
+  `#3`, because keyed by number alone such pins would be lost as the names' were;
+- "the server's own folder" is the per-user data folder, `%USERPROFILE%\.altium-mcp\pin_maps`,
+  because A49's full list goes to that data folder and the exchange folder is readable by
+  every account on the machine;
+- one file per build, the newest 20 kept, not one per sheet, because Altium named two builds
+  in a row `Sheet1.SchDoc` (the first closed), so a path given earlier would have come to
+  hold another sheet's pins;
+- the tool's result is JSON without indents, because indented, the map with a name in each
+  pin would take nearly twice the characters.
+
+Tests first. Live, `tests/test_live_pin_map.py`, on 24 parts of a 16-pin symbol made in a
+copy of the SpiritLevel-SL1 example's library (four GND, three VDD, two pins numbered SH),
+2 failed: "pins of the map were lost" (10 of each part's 16) and "14022 not less than or
+equal to 2000 : the result with wires is too large". Offline, `tests/test_pin_map.py`, 8
+failed on the code before (5 failures, 3 errors: `'pin_map' unexpectedly found`,
+`KeyError: 'pin_map_file'`, and the new line format read as `{}`).
+
+After, 2026-11-23, live in AD25: `test_live_pin_map` 2/2 (with wires 447 characters, was
+14,022; without 16,568 with all 384 pins, was 14,022 with 240; each pin's number, name and
+point equal to what Altium gives on the sheet), `test_live_libraries` 5/5,
+`test_live_project_setup` 9/9, and of `test_live_symbol_footprint` the one test that builds a
+sheet, 1/1; the offline list, the new module added, 567, OK. The other live tests not run.
+
+Seen and left: a build with a missing part comes back as the error text, with no pin map;
+`pin_map.txt` in the exchange folder is read after the bridge's lock is released, so two
+sessions building at once could read each other's map (both by reading the code, not
+tested). A part on a multi-part symbol is A45's.

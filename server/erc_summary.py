@@ -6,6 +6,11 @@ result; most of them are a few kinds repeated (a sheet's duplicate nets, a
 copied block's duplicate designators). So the reply is grouped here, after
 Altium returns it: one group per level and type, with its count and its
 first few details, and the full list goes to a file the reply names.
+
+A violation Altium suppresses (a no-ERC marker on its pin) is marked
+suppressed by the bridge and counted apart there (suppressed, outside total);
+it is left out of the groups, as Altium's Messages panel leaves it out, and
+kept in the full list.
 """
 import hashlib
 import json
@@ -43,11 +48,11 @@ def group(violations: list, first: int = FIRST) -> list:
 
 
 def summarize(data: dict, full_list: str, error: str = "") -> dict:
-    """data, Altium's reply, with its violations replaced by their groups and
-    the path of the file holding them all (None, with full_list_error, when
-    it could not be written)."""
+    """data, Altium's reply, with its violations replaced by the groups of
+    those not suppressed and the path of the file holding them all (None,
+    with full_list_error, when it could not be written)."""
     out = {k: v for k, v in data.items() if k != "violations"}
-    out["groups"] = group(data.get("violations", []))
+    out["groups"] = group([v for v in data.get("violations", []) if not v.get("suppressed")])
     out["full_list"] = full_list or None
     if error:
         out["full_list_error"] = error

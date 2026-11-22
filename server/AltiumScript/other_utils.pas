@@ -2307,12 +2307,17 @@ begin
     end;
 end;
 
+// Every violation of the compiled project. One Altium suppresses (a no-ERC
+// marker on its pin, IViolation.DM_IsSuppressed) is kept, marked, and
+// counted in suppressed instead of total and its level, as the Messages
+// panel leaves it out.
 function GetERCViolations(ROOT_DIR: String; DoCompile: Boolean; ProjectPath: String): String;
 var
     Project     : IProject;
     Violation   : IViolation;
     I, Level    : Integer;
-    NFatal, NError, NWarning : Integer;
+    NFatal, NError, NWarning, NSuppressed : Integer;
+    Suppressed  : Boolean;
     ResultProps : TStringList;
     ViolArray   : TStringList;
     ItemProps   : TStringList;
@@ -2329,7 +2334,7 @@ begin
     if DoCompile then
         Project.DM_Compile;
 
-    NFatal := 0; NError := 0; NWarning := 0;
+    NFatal := 0; NError := 0; NWarning := 0; NSuppressed := 0;
 
     ResultProps := TStringList.Create;
     ViolArray := TStringList.Create;
@@ -2338,14 +2343,20 @@ begin
         begin
             Violation := Project.DM_Violations(I);
             Level := Violation.DM_ErrorLevel;
-            if Level = 3 then Inc(NFatal);
-            if Level = 2 then Inc(NError);
-            if Level = 1 then Inc(NWarning);
+            Suppressed := Violation.DM_IsSuppressed;
+            if Suppressed then Inc(NSuppressed)
+            else
+            begin
+                if Level = 3 then Inc(NFatal);
+                if Level = 2 then Inc(NError);
+                if Level = 1 then Inc(NWarning);
+            end;
             ItemProps := TStringList.Create;
             try
                 AddJSONProperty(ItemProps, 'level', ErrorLevelName(Level));
                 AddJSONProperty(ItemProps, 'type', Violation.DM_DescriptorString);
                 AddJSONProperty(ItemProps, 'detail', Violation.DM_DetailString);
+                AddJSONBoolean(ItemProps, 'suppressed', Suppressed);
                 ViolArray.Add(BuildJSONObject(ItemProps, 1));
             finally
                 ItemProps.Free;
@@ -2355,7 +2366,8 @@ begin
         AddJSONProperty(ResultProps, 'project_path', Project.DM_ProjectFullPath);
         AddJSONBoolean(ResultProps, 'compiled', DoCompile);
         AddProjectSheetStatus(Project, ResultProps);
-        AddJSONInteger(ResultProps, 'total', ViolArray.Count);
+        AddJSONInteger(ResultProps, 'total', ViolArray.Count - NSuppressed);
+        AddJSONInteger(ResultProps, 'suppressed', NSuppressed);
         AddJSONInteger(ResultProps, 'fatal', NFatal);
         AddJSONInteger(ResultProps, 'errors', NError);
         AddJSONInteger(ResultProps, 'warnings', NWarning);

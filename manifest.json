@@ -45,7 +45,7 @@
     },
     {
       "name": "get_erc_violations",
-      "description": "Compile a project (the focused one, or one by path) in memory and count its ERC/compiler violations by level and type, the first few of each, the full list in a file"
+      "description": "Compile a project (the focused one, or one by path) in memory and count its ERC/compiler violations by level and type, the first few of each, those Altium suppresses counted apart, the full list in a file"
     },
     {
       "name": "get_board_summary",

@@ -12,7 +12,7 @@ upstream, run and held, or decided against moves with its record to
 [`closed_items.md`](closed_items.md), and so does a run's section once every step of it is
 ticked. The layout is the `backlog` plugin's `format.md` (v0.1, since 2026-11-15).
 
-**Open: A11, A15, A23, A25 to A28, A31 to A34, A36 to A39, A41 to A48, A50 to A73.** Sorted
+**Open: A11, A15, A23, A25 to A28, A31 to A34, A36 to A39, A41 to A48, A51 to A73.** Sorted
 2026-11-22, the entry of 2026-11-22 (token cost of seventeen design sessions): A49, A46, A58
 and A57, met again, the four where the server's results weigh most. Sorted
 2026-11-22, the eighteen entries of 2026-11-18 to 2026-11-20 (schematic and library work on
@@ -308,8 +308,8 @@ explained (the first asking left "op", "recipe" and "usage file" unexplained):
 ### Where the run stands
 
 - [x] Phase 1: the opening question asked and answered (2026-11-22, in two sessions)
-- [x] A49: committed
-- [ ] A50: committed
+- [x] A49: committed (69f2cf9)
+- [x] A50: committed
 - [ ] A48: committed
 - [ ] Group 1: tests and release (build: )
 - [ ] Group 1: scenario test (session id: ), its outcome sorted
@@ -750,21 +750,6 @@ trusting a compile, close and reopen the project.
 Proposed: local; a `reload` option on `get_erc_violations` and `get_project_components` (the
 project's sheets closed and reopened first), and a probe for the call that refreshes the
 compile. Not decided.
-
-### A50 - `get_erc_violations` lists violations Altium has suppressed - OPEN 2026-11-22
-
-Sorted out of the entry of 2026-11-19 (fourth), point 1, which found the cause of
-2026-11-19 (third), point 8. Six "Nets containing floating input pins" errors, each on a pin
-with a no-ERC marker exactly on its end (`IsActive` and `SuppressAll` true), and their twelve
-warnings are in the tool's result; Altium's Messages panel after a GUI compile does not show
-them. A test marker on another net's pin left that net's warning in the list too.
-`GetERCViolations` (other_utils.pas) reads every `Project.DM_Violations(I)` with no
-suppression test; `ReportSuppressedErrorsInMessages=0` in the project file says the compile
-keeps suppressed ones and the panel hides them. Reported success, with errors that are not
-there: a session spent calls on markers that worked.
-
-Proposed: local; the suppressed ones left out, or reported apart (`suppressed: n`); the
-property that tells them is not known yet (the DM names tried failed). Not decided.
 
 ### A51 - `build_schematic`'s net labels take no justification - OPEN 2026-11-22
 
@@ -1215,5 +1200,61 @@ and first three (36,626 bytes); `test_live_drc.LiveCompileFolderTest`, which cal
 2/2 pass (it now deletes the file it made). Offline: `tests/test_erc_summary.py`, 11 tests,
 added to `tests.yml`; the whole list 556/556 pass. Tool listing: 80 tools, 164,529
 characters before, 164,709 after (+180, 0.1 %).
+
+Fixed in the commit that moves it here.
+
+### A50 - `get_erc_violations` lists violations Altium has suppressed - BUILT 2026-11-22, proof: the scenario test
+
+Sorted out of the entry of 2026-11-19 (fourth), point 1, which found the cause of
+2026-11-19 (third), point 8. Six "Nets containing floating input pins" errors, each on a pin
+with a no-ERC marker exactly on its end (`IsActive` and `SuppressAll` true), and their twelve
+warnings are in the tool's result; Altium's Messages panel after a GUI compile does not show
+them. A test marker on another net's pin left that net's warning in the list too.
+`GetERCViolations` (other_utils.pas) reads every `Project.DM_Violations(I)` with no
+suppression test; `ReportSuppressedErrorsInMessages=0` in the project file says the compile
+keeps suppressed ones and the panel hides them. Reported success, with errors that are not
+there: a session spent calls on markers that worked.
+
+Proposed: local; the suppressed ones left out, or reported apart (`suppressed: n`); the
+property that tells them is not known yet (the DM names tried failed). Not decided.
+
+Decided 2026-11-22 in the plan (the owner's token rule): no new tool or argument; a probe
+first; found, the suppressed ones left out of the groups and counted as `suppressed: n`.
+
+Cause: the bridge's `GetERCViolations` (`other_utils.pas`) put every `DM_Violations(I)` in
+the reply and counted it in `total` and its level, with no suppression test. Probe (a
+sandbox script on the test's sheet below): `IViolation.DM_IsSuppressed` exists on AD25 and
+reads True for exactly the two violations of the pin under the marker (the floating input
+pin's error and its net's no-driving-source warning), False for the others;
+`DM_Suppressed`, `DM_IsHidden`, `DM_IsIgnored` and `DM_IsVisible` do not exist, and
+`DM_CompilationStage`, `DM_GeneralField`, `DM_ImageIndex` and the descriptor strings do not
+tell. The violation's related pin gives no location (`DM_LocationX` -9999), so a match
+against the markers would have had to find each pin on its sheet.
+
+Fix: the bridge marks each violation `suppressed` (true or false) and counts the suppressed
+ones in `suppressed`, outside `total`, `fatal`, `errors` and `warnings`;
+`erc_summary.summarize` groups only those not suppressed; the full-list file keeps every
+violation, marked. The description, `manifest.json` and `README.md` say so.
+
+Decided 2026-11-22 by the run, not the owner: the suppressed ones counted out of `total` and
+their level's count as well as out of the groups, because the result then counts what
+Altium's Messages panel shows and the groups still sum to `total`.
+
+Decided 2026-11-22 by the run, not the owner: Altium's own `DM_IsSuppressed`, not a match of
+pin locations against the active no-ERC markers, because it is Altium's decision, markers
+that suppress chosen types only included, with nothing re-implemented.
+
+Test before: `tests/test_live_erc.py`, `LiveErcSuppressedTest` (a one-sheet project, a copy
+of the SpiritLevel-SL1 example's power sheet, a test point moved so its input pin floats,
+then a no-ERC marker on that pin's end), on the old code: `AssertionError: Lists differ:
+[{...}] != [] ... : a violation Altium suppresses is still listed: [{'level': 'error',
+'type': 'Nets containing floating input pins', 'count': 1, 'first': ['Net NetTP1_1 contains
+floating input pins (Pin TP1-1)']}]`. After: 1/1 pass in AD25, 4 violations before the
+marker, after it 2 listed and 2 suppressed, the two marked in the file. A49's test on the
+same example's doubled project: 207 violations listed and 69 suppressed by the example's own
+markers (276 in all), 6 groups, 2,164 characters. `test_live_erc` and `test_live_drc`
+together 16/16 pass. Offline: `tests/test_erc_summary.py` 12 tests (one added); the whole
+list of `tests.yml` 557/557 pass. Tool listing: 80 tools, 164,709 characters before,
+164,841 after (+132, 0.08 %).
 
 Fixed in the commit that moves it here.

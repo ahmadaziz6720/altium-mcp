@@ -7,8 +7,12 @@ full list in a file the result names.
 See tests/live_altium.py for how to run it. It works on a copy of the
 SpiritLevel-SL1 example Altium installs (skipped when it is not there): its
 four child sheets as a flat project with a second copy of each, so every
-designator and net is there twice (276 violations of six kinds on AD25),
-closed unsaved.
+designator and net is there twice (276 violations of six kinds on AD25,
+69 of them suppressed by the example's no-ERC markers), closed unsaved.
+
+A50: a violation Altium suppresses (a no-ERC marker on its pin) is left out
+of the groups and counted as suppressed; on a one-sheet copy of the same
+example's power sheet, a test point moved so its input pin floats.
 """
 import asyncio
 import json
@@ -85,13 +89,84 @@ class LiveErcSummaryTest(unittest.TestCase):
         self.addCleanup(path.unlink, missing_ok=True)
         full = json.loads(path.read_text(encoding="utf-8"))
         self.assertEqual(full["project_path"], erc["project_path"])
-        self.assertEqual(len(full["violations"]), erc["total"])
+        self.assertEqual(len(full["violations"]), erc["total"] + erc["suppressed"])
+        listed = [v for v in full["violations"] if not v["suppressed"]]
         for g in groups:
-            mine = [v["detail"] for v in full["violations"] if (v["level"], v["type"]) == (g["level"], g["type"])]
+            mine = [v["detail"] for v in listed if (v["level"], v["type"]) == (g["level"], g["type"])]
             self.assertEqual(len(mine), g["count"], g["type"])
             self.assertEqual(mine[:3], g["first"], g["type"])
-        print(f"\nA49: {erc['total']} violations in {len(groups)} groups, {len(text)} characters; "
+        print(f"\nA49: {erc['total']} violations ({erc['suppressed']} more suppressed) in {len(groups)} "
+              f"groups, {len(text)} characters; "
               f"the file {path.stat().st_size} bytes")
+
+
+@unittest.skipUnless(LIVE, SKIP_REASON)
+@unittest.skipUnless((SL1 / "SL_Power.SchDoc").exists(), f"Altium's example sheet is not in {SL1}")
+class LiveErcSuppressedTest(unittest.TestCase):
+    """A50: a violation Altium suppresses (a no-ERC marker on its pin) is
+    left out of the groups and counted apart, as Altium's Messages panel
+    leaves it out; the full list keeps it, marked."""
+
+    FLOATING = "Nets containing floating input pins"
+
+    @classmethod
+    def setUpClass(cls):
+        check_scripts_are_this_checkouts()
+
+    def setUp(self):
+        tmp = Path(win32api.GetLongPathName(tempfile.mkdtemp(prefix="erc_live_")))
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        # A one-sheet project: the example's power sheet, whose test point
+        # TP1 has an input pin
+        self.sheet = tmp / "SL_Power.SchDoc"
+        shutil.copyfile(SL1 / "SL_Power.SchDoc", self.sheet)
+        self.project = tmp / "Suppressed.PrjPcb"
+        self.project.write_text("[Design]\r\nVersion=1.0\r\n\r\n[Document1]\r\nDocumentPath=SL_Power.SchDoc\r\n",
+                                encoding="latin-1")
+        self.addCleanup(close_all_under, str(tmp))
+
+    def edit(self, operations):
+        out = json.loads(asyncio.run(main.edit_schematic(None, str(self.sheet), operations, save=True)))
+        self.assertTrue(out.get("success"), out)
+
+    def erc(self):
+        erc = json.loads(asyncio.run(main.get_erc_violations(None, project_path=str(self.project))))
+        if erc.get("full_list"):
+            self.addCleanup(Path(erc["full_list"]).unlink, missing_ok=True)
+        return erc
+
+    def floating(self, erc):
+        return [g for g in erc["groups"] if g["type"] == self.FLOATING]
+
+    def test_a_violation_under_a_no_erc_marker_is_counted_apart(self):
+        # TP1 moved to an empty corner: its input pin floats. The pin points
+        # down 100 mil from the body, so its connection point is the origin.
+        self.edit([{"op": "move_component", "designator": "TP1", "x": 1500, "y": 1500}])
+        before = self.erc()
+        self.assertEqual(len(self.floating(before)), 1, f"the fixture made no floating input pin: {before}")
+        self.assertIn("TP1", self.floating(before)[0]["first"][0])
+        self.assertEqual(before.get("suppressed", 0), 0, before)
+
+        self.edit([{"op": "add_no_erc", "x": 1500, "y": 1500}])
+        after = self.erc()
+        self.assertEqual(self.floating(after), [],
+                         f"a violation Altium suppresses is still listed: {self.floating(after)}")
+        # The floating input pin's error and its net's no-driving-source warning
+        self.assertEqual(after.get("suppressed"), 2, after)
+        self.assertEqual(after["total"], before["total"] - 2, (before, after))
+        self.assertEqual(after["errors"], before["errors"] - 1, (before, after))
+        self.assertEqual(after["total"], after["fatal"] + after["errors"] + after["warnings"], after)
+        self.assertEqual(sum(g["count"] for g in after["groups"]), after["total"], after)
+        self.assertFalse(any("TP1" in d for g in after["groups"] for d in g["first"]), after)
+
+        # The full list keeps every violation, the suppressed ones marked
+        full = json.loads(Path(after["full_list"]).read_text(encoding="utf-8"))
+        marked = [v for v in full["violations"] if v.get("suppressed")]
+        self.assertEqual(len(marked), 2, full)
+        self.assertTrue(all("TP1" in v["detail"] for v in marked), marked)
+        self.assertEqual(len(full["violations"]), after["total"] + after["suppressed"], full)
+        print(f"\nA50: {before['total']} violations before the marker; after it {after['total']} "
+              f"listed and {after['suppressed']} suppressed")
 
 
 if __name__ == "__main__":

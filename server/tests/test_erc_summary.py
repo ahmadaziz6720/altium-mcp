@@ -1,4 +1,5 @@
-"""get_erc_violations' reply grouped by level and type (A49), offline."""
+"""get_erc_violations' reply grouped by level and type (A49), the suppressed
+violations left out of the groups (A50), offline."""
 import asyncio
 import json
 import os
@@ -62,6 +63,17 @@ class SummarizeTest(unittest.TestCase):
         self.assertEqual(out["groups"][0]["count"], 300)
         self.assertLess(len(json.dumps(out)), len(json.dumps(data)) / 20)
         self.assertEqual(len(data["violations"]), 300, "the reply itself is not changed")
+
+    def test_suppressed_violations_left_out_of_the_groups(self):
+        # A50: the bridge marks what Altium suppresses and counts it apart
+        listed = [violation("error", "Duplicate nets", i) for i in range(4)]
+        hidden = [dict(violation("error", "Floating input pins", 0), suppressed=True),
+                  dict(violation("warning", "No driving source", 0), suppressed=True)]
+        data = dict(reply(listed), suppressed=2, violations=[dict(v, suppressed=False) for v in listed] + hidden)
+        out = erc_summary.summarize(data, "f.json")
+        self.assertEqual([(g["type"], g["count"]) for g in out["groups"]], [("Duplicate nets", 4)])
+        self.assertEqual((out["total"], out["errors"], out["warnings"], out["suppressed"]), (4, 4, 0, 2))
+        self.assertEqual(len(data["violations"]), 6, "the full list keeps them")
 
     def test_a_file_not_written_says_so(self):
         out = erc_summary.summarize(reply([violation("error", "E", 0)]), "", "could not write")

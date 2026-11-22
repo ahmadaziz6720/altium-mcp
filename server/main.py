@@ -1829,6 +1829,15 @@ SANDBOX_PAS = SANDBOX_DIR / "Sandbox.pas"
 SANDBOX_RUNS = EXCHANGE_DIR / "runs"
 # Pictures of the dialogs a run answered (their text is often not readable)
 SANDBOX_DIALOGS = EXCHANGE_DIR / "dialogs"
+# Scripts proved in Altium for jobs no tool does. A release's folder differs
+# each time, so run_altium_script's description takes the path from this one
+RECIPES = MCP_DIR.resolve().parent / "docs" / "recipes.md"
+
+
+def _naming_recipes(func):
+    """Put the recipes file's path into func's description."""
+    func.__doc__ = func.__doc__.replace("{RECIPES}", str(RECIPES))
+    return func
 
 
 def _window_process_name(hwnd) -> str:
@@ -1939,6 +1948,7 @@ def _keeping_foreground(fn):
 
 
 @_tool()
+@_naming_recipes
 @_keeping_foreground
 async def run_altium_script(ctx: Context, script: str, timeout_seconds: int = 120,
                             skip_lint: bool = False) -> str:
@@ -2010,6 +2020,8 @@ async def run_altium_script(ctx: Context, script: str, timeout_seconds: int = 12
       (ObjectID 32 = schematic, 33 = symbol library).
     - Copper: add routed tracks with route_track instead of computing segment
       ends here, and run check_routing after moving tracks, vias or parts.
+
+    Recipes for jobs no tool does, read before writing one: {RECIPES}
 
     For API guidance - interfaces, object models, worked examples - use the
     "altium-script" skill. ensure_altium_script_skill reports whether that

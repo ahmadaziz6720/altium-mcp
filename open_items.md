@@ -12,7 +12,7 @@ upstream, run and held, or decided against moves with its record to
 [`closed_items.md`](closed_items.md), and so does a run's section once every step of it is
 ticked. The layout is the `backlog` plugin's `format.md` (v0.1, since 2026-11-15).
 
-**Open: A11, A15, A23, A25 to A28, A31 to A34, A36 to A39, A41 to A44, A47, A48, A51 to A57, A59 to A73, A75, A76.** Sorted
+**Open: A11, A15, A23, A25 to A28, A31 to A34, A36 to A39, A41 to A44, A47, A48, A51 to A54, A56, A57, A59 to A73, A75, A76.** Sorted
 2026-11-23, the second entry of 2026-11-23 (the scenario test of group 1's second build,
 `build-20261123-031122`): A74 held and closed; A48 (b) checked, the part built held and the
 rest still open; A76, new, not taken into the run; A34, met again. Sorted
@@ -414,7 +414,7 @@ is written down before it.
 - [ ] A70: committed
 - [ ] A28: committed
 - [ ] A60 (a): committed
-- [ ] The recipes (A47, A51, A52, A54, A55, A59, A62 to A65, A67, A69, A34 (f), A56 (b)): committed
+- [x] The recipes (A47, A51, A52, A54, A55, A59, A62 to A65, A67, A69, A34 (f), A56 (b)): committed
 - [ ] A75: committed
 - [ ] Group 3: tests and release (build: )
 - [ ] Group 3: scenario test (session id: ), its outcome sorted
@@ -745,6 +745,13 @@ script, the focus was left on the resident's own `MCPResident.PrjScr` (Free Docu
 the start, the resident not yet started), which a call without `project_path` would take.
 Seen in a workspace read, no tool called so.
 
+(f) written 2026-11-23 in `docs/recipes.md`, marked *No script*: the `stop` file in each
+resident's folder, as the sessions did by hand and as `test_live_resident`'s
+`stop_all_residents` does. Not run today.
+Decided 2026-11-23 by the run, not the owner: (f) written as that file step, not as a
+DelphiScript, because no session ran a script for it and the step needs none. A34 stays
+Open for its other parts; what is left of (f) is the scenario test of that step.
+
 ### A36 - A board open under its short (8.3) path is opened a second time - OPEN 2026-11-15
 
 A tool given a
@@ -848,6 +855,13 @@ Proposed: local; `sheet_style` and `parameters` on `build_schematic`, and an
 
 Decided 2026-11-22 by the owner (the opening answer of `## Run 2026-11-22`): no tool; written as a recipe in `docs/recipes.md` (a DelphiScript a session proved, with its `run_altium_script` call), pointed to by one line of `run_altium_script`'s description, and closed as usage once the scenario test held for the file. A record with no proven script leaves the item Open.
 
+Not written 2026-11-23, still Open: the record holds no script a session proved, only the
+calls (`SheetStyle`, the parameters by an iterator, two lists by index). Missing: the
+script that sets a style and the parameters, run and read back from the saved sheet.
+`test_live_compile_refresh` has a script setting `UseCustomSheet` and `CustomX/Y` to 2000,
+not taken as a recipe: it sets no style and no parameter, saves nothing, and its check
+(over 100 objects out of bounds) passes whatever unit the 2000 is in.
+
 ### A51 - `build_schematic`'s net labels take no justification - OPEN 2026-11-22
 
 Sorted out of the entry of 2026-11-18 (second), point 8: every sheet's labels went in a
@@ -856,6 +870,11 @@ second call through `edit_schematic`'s `add_net_label`.
 Proposed: local; a `justification` key on `net_labels`. Not decided.
 
 Decided 2026-11-22 by the owner (the opening answer of `## Run 2026-11-22`): no tool; written as a recipe in `docs/recipes.md` (a DelphiScript a session proved, with its `run_altium_script` call), pointed to by one line of `run_altium_script`'s description, and closed as usage once the scenario test held for the file. A record with no proven script leaves the item Open.
+
+Written 2026-11-23 in `docs/recipes.md`, marked *No script*, still Open: the way the record
+proved is a tool call (`edit_schematic`'s `add_net_label` with `justification`), and the
+decision asks for a script. Missing: such a script, proved, or a decision that the tool
+call is enough to close it as usage.
 
 ### A52 - No tool takes a sheet out of a project, so a sheet cannot be built again in place - OPEN 2026-11-22
 
@@ -871,6 +890,14 @@ Proposed: local; `build_schematic` with `replace: true` on a sheet of the projec
 its sheet style and parameters, and a remove in `add_project_document`. Not decided.
 
 Decided 2026-11-22 by the owner (the opening answer of `## Run 2026-11-22`): no tool; written as a recipe in `docs/recipes.md` (a DelphiScript a session proved, with its `run_altium_script` call), pointed to by one line of `run_altium_script`'s description, and closed as usage once the scenario test held for the file. A record with no proven script leaves the item Open.
+
+Written in part 2026-11-23, still Open: `docs/recipes.md` has the one removal script
+proved, `remove_by_script` of `test_live_compile_refresh` with its
+`SCHM_PrimitiveRegistration` (A48 b): the last no-ERC marker or part of a sheet, one per
+call. Missing, each with only its calls in the record: a script that clears a whole sheet
+keeping its parameters and notes (the workaround that held), and one that takes a sheet out
+of its project and deletes its file (`DM_RemoveSourceDocument`, `DeleteFile`; a removal by
+script once left two `[DocumentN]` sections, A26).
 
 ### A53 - `run_altium_script`'s lint refuses scripts that run - OPEN 2026-11-22
 
@@ -898,15 +925,11 @@ a file when large. Not decided.
 
 Decided 2026-11-22 by the owner (the opening answer of `## Run 2026-11-22`): no tool; written as a recipe in `docs/recipes.md` (a DelphiScript a session proved, with its `run_altium_script` call), pointed to by one line of `run_altium_script`'s description, and closed as usage once the scenario test held for the file. A record with no proven script leaves the item Open.
 
-### A55 - `get_project_info` takes no `project_path` - OPEN 2026-11-22
-
-Sorted out of the entry of 2026-11-19 (first), point 4: with no project focused it returned
-`"project_path": "Free Documents"` and nothing else, unlike `get_erc_violations` and
-`get_project_components`, which take a path.
-
-Proposed: local; a `project_path` argument. Not decided.
-
-Decided 2026-11-22 by the owner (the opening answer of `## Run 2026-11-22`): no tool; written as a recipe in `docs/recipes.md` (a DelphiScript a session proved, with its `run_altium_script` call), pointed to by one line of `run_altium_script`'s description, and closed as usage once the scenario test held for the file. A record with no proven script leaves the item Open.
+Not written 2026-11-23, still Open: the record holds no script a session proved, only the
+calls. Missing: the script that walks `DM_Nets` and `DM_Pins` (pin number and name, saved
+to a file), with how it brings a stale compile up to date first: a script's own
+`DM_Compile` reads stale after a script's edit (A48). `test_live_multipart`'s compile
+script lists designators only.
 
 ### A56 - No tool sets a placed part's footprint or says which library it links to - OPEN 2026-11-22
 
@@ -928,6 +951,13 @@ field in `get_project_components`, flagged when the linked file lacks the footpr
 decided.
 
 Decided 2026-11-22 by the owner (the opening answer of `## Run 2026-11-22`): (a) taken, an `edit_schematic` op setting a placed part's footprint. (b), which library a part links to: a recipe in `docs/recipes.md` if a session's script is in the record, no field in `get_project_components` (the plan, not the owner).
+
+(b) written 2026-11-23 in `docs/recipes.md`: `test_live_symbol_footprint`'s `read_models`,
+the script that test ran on a placed part, one designator per call, read from
+`ExportToParameters` (`ISCURRENT`, `MODELDATAFILE0`). On a placed part the test asserted the
+name and the current mark, and the library's field on library symbols only: that field on a
+placed part is not run, for the scenario test. Not covered: every part in one call, and
+whether the linked file holds the footprint. A56 stays Open for (a), another step.
 
 ### A57 - Library reads return too much, or one symbol per call - OPEN 2026-11-22
 
@@ -969,6 +999,12 @@ Altium's default. Not decided.
 
 Decided 2026-11-22 by the owner (the opening answer of `## Run 2026-11-22`): no tool; written as a recipe in `docs/recipes.md` (a DelphiScript a session proved, with its `run_altium_script` call), pointed to by one line of `run_altium_script`'s description, and closed as usage once the scenario test held for the file. A record with no proven script leaves the item Open.
 
+Not written 2026-11-23, still Open: the record holds no script a session proved, only the
+calls and API notes (the interpreter scripts and their data files are not in it). Missing:
+one script per object (sheet symbol with entries, port, harness connector with entries,
+signal harness with `LineWidth := eMedium`), each run and its compile read after the
+project was reopened (A48 c).
+
 ### A60 - `get_screenshot` cannot fit or zoom a schematic, nor show a library footprint - OPEN 2026-11-22
 
 (a) `zoom_to` is for PCB only, and a sheet is captured at its current zoom, the bottom of an
@@ -1008,6 +1044,12 @@ itself. Not decided.
 
 Decided 2026-11-22 by the owner (the opening answer of `## Run 2026-11-22`): no tool; written as a recipe in `docs/recipes.md` (a DelphiScript a session proved, with its `run_altium_script` call), pointed to by one line of `run_altium_script`'s description, and closed as usage once the scenario test held for the file. A record with no proven script leaves the item Open.
 
+Written in part 2026-11-23, still Open: `docs/recipes.md` has the proved open by path
+(`DM_OpenProject`, `open_project` of `server/tests/live_altium.py`) and the record's steps
+around it. Missing: a proved script that saves and closes the project without losing
+unsaved work (the record names `WorkspaceManager:CloseObject` only; the live tests' closing
+scripts discard changes), and a run showing that the reopened project has the option.
+
 ### A63 - No tool copies, deletes or extracts library parts - OPEN 2026-11-22
 
 Met in seven sessions, all done by `run_altium_script`, build `0.7.0-20261115-172812`:
@@ -1034,6 +1076,12 @@ included) between libraries and delete one, and `get_footprint_primitives` takin
 
 Decided 2026-11-22 by the owner (the opening answer of `## Run 2026-11-22`): no tool; written as a recipe in `docs/recipes.md` (a DelphiScript a session proved, with its `run_altium_script` call), pointed to by one line of `run_altium_script`'s description, and closed as usage once the scenario test held for the file. A record with no proven script leaves the item Open.
 
+Not written 2026-11-23, still Open: none of (a) to (d) has a script a session proved in the
+record, only calls. Missing: (a) a run of `ExtractSources` with its folder read back, (b)
+the script copying a symbol and its children, (c) the footprint copy, with why it was lost
+at the save in one of five sessions, (d) the two removals, each saved and read back, with
+what notice a library's removal needs (A48 b's was proved on sheets only).
+
 ### A64 - No tool edits an existing footprint's primitives, pads or 3D body - OPEN 2026-11-22
 
 `create_footprints_batch` `EDITFOOTPRINT` takes only `MODEL3D`. Met:
@@ -1057,6 +1105,11 @@ decided.
 
 Decided 2026-11-22 by the owner (the opening answer of `## Run 2026-11-22`): no tool; written as a recipe in `docs/recipes.md` (a DelphiScript a session proved, with its `run_altium_script` call), pointed to by one line of `run_altium_script`'s description, and closed as usage once the scenario test held for the file. A record with no proven script leaves the item Open.
 
+Not written 2026-11-23, still Open: the record holds no script a session proved, only
+calls, and (a)'s wrong way reports success. Missing: the script adding a primitive through
+`Board.AddPCBObject` after `SetBoardToComponentByName`, and the one setting a body's
+rotation and offset and a pad's stack, each read back from the saved file.
+
 ### A65 - The symbol tools cannot set colours, Comment, parameters or text positions, nor move a pin - OPEN 2026-11-22
 
 2026-11-19 (tenth), point 1: `create_symbols_batch`'s GRAPHIC `rectangle` takes no line or
@@ -1072,6 +1125,12 @@ Proposed: local; a colour on the rectangle and polygon records,
 resize in `EDITSYMBOL`; `comment` and `parameters` on `create_schematic_symbol`. Not decided.
 
 Decided 2026-11-22 by the owner (the opening answer of `## Run 2026-11-22`): no tool; written as a recipe in `docs/recipes.md` (a DelphiScript a session proved, with its `run_altium_script` call), pointed to by one line of `run_altium_script`'s description, and closed as usage once the scenario test held for the file. A record with no proven script leaves the item Open.
+
+Not written 2026-11-23, still Open: the record holds no script a session proved, only
+properties and calls. Missing: the scripts setting a rectangle's colours and the text
+positions, the Comment, and a pin's move with the body's corner, each saved and read back
+from the library; a parameter added to a library symbol was never done by script (the
+description says never to register objects into a library).
 
 ### A66 - `create_schematic_symbol` reports a footprint linked by name that no library of the project holds - OPEN 2026-11-22
 
@@ -1101,6 +1160,12 @@ Proposed: usage; a line in each of the three descriptions. Not decided.
 
 Decided 2026-11-22 by the owner (the opening answer of `## Run 2026-11-22`): no tool; written as a recipe in `docs/recipes.md` (a DelphiScript a session proved, with its `run_altium_script` call), pointed to by one line of `run_altium_script`'s description, and closed as usage once the scenario test held for the file. A record with no proven script leaves the item Open.
 
+Written in part 2026-11-23, still Open: in `docs/recipes.md`, (c) by A52's proved script,
+which keeps the object in an `IDispatch` variable; (a) and (b) marked *No script*, the tool
+calls the sessions used. Missing for (a) and (b): nothing a script can prove; a decision
+that the notes are enough to close them as usage. The description's own line on lists is
+A75's.
+
 ### A68 - `edit_schematic` `delete_at` removes every object at the point - OPEN 2026-11-22
 
 Sorted out of the entry of 2026-11-19 (third), point 7: with `kind: no_erc` at points
@@ -1129,6 +1194,12 @@ Proposed: local; ops for a note (add and edit), a part's Comment, a parameter re
 `move_component` with `drag: true` or a `move_region`, and a swap. Not decided.
 
 Decided 2026-11-22 by the owner (the opening answer of `## Run 2026-11-22`): no tool; written as a recipe in `docs/recipes.md` (a DelphiScript a session proved, with its `run_altium_script` call), pointed to by one line of `run_altium_script`'s description, and closed as usage once the scenario test held for the file. A record with no proven script leaves the item Open.
+
+Written in part 2026-11-23, still Open: (d) in `docs/recipes.md`, marked *No script*, the
+swap by one `edit_schematic` call that held. Missing, with no script a session proved in
+the record: (a) a note added or changed, (b) the Comment set and a parameter removed, (c) a
+block moved (done by 51 ops only), (d) the swap in place by `LibReference` and the fields
+beside it.
 
 ### A70 - `run_altium_script`'s `OpenSchDoc` opens a `.SchLib` as a sheet - OPEN 2026-11-22
 
@@ -1712,3 +1783,63 @@ Seen and left, by reading the code, not tested: the same part given twice under 
 designator is placed twice, unreported; text placement by `param_placement.txt` measures
 the body over all of a symbol's parts; a warning of a failed build is inside its error text,
 as the rest of that result is.
+
+### A55 - `get_project_info` takes no `project_path` - BUILT 2026-11-23, proof: the scenario test
+
+Sorted out of the entry of 2026-11-19 (first), point 4: with no project focused it returned
+`"project_path": "Free Documents"` and nothing else, unlike `get_erc_violations` and
+`get_project_components`, which take a path.
+
+Proposed: local; a `project_path` argument. Not decided.
+
+Decided 2026-11-22 by the owner (the opening answer of `## Run 2026-11-22`): no tool; written as a recipe in `docs/recipes.md` (a DelphiScript a session proved, with its `run_altium_script` call), pointed to by one line of `run_altium_script`'s description, and closed as usage once the scenario test held for the file. A record with no proven script leaves the item Open.
+
+Cause: `GetProjectInfo` (`other_utils.pas`) reads `DM_FocusedProject` alone.
+
+Fixed in the commit that moves it here, as usage, the tool unchanged: `docs/recipes.md`
+(new) has a script reading a project by path, focused or not, and `run_altium_script`'s
+description names the file by its absolute path, computed from `main.py`'s folder at
+import. The script is `project_state` of `test_live_pcblib_from_board`, run in that test's
+pass of 2026-11-15 (A8); the same read by path with another project focused ran in
+`test_live_project_setup`. It gives the project file's unsaved flag and the documents, not
+the parameters, the variants or each document's state. Not run in Altium today: the step
+was offline.
+
+Decided 2026-11-23 by the run, not the owner, for the whole recipes file:
+- a proved script is one whose text exists and was run: here, a live test's script in this
+  repo that passed in Altium, kept word for word but its placeholders. The items' records
+  and their `findings.md` entries hold calls and no script text, and no session's transcript
+  was read for one, because the plan names those two as the source;
+- no script composed from a record's calls is in the file, labelled or not: those items
+  stay Open with what is missing, because the owner's decision says so and a script in that
+  file would be run as proved;
+- where the proved way was a tool call or a file step, the section says *No script* and
+  the item stays Open (A34 (f), A51, A67 (a) and (b), A69 (d)), because the decision asks
+  for a script;
+- A55 moves here though its script returns less than the tool would, because what was met
+  (a project not in focus not readable at all) is covered, and the recipe says what it
+  leaves out;
+- README's manual packaging command takes `docs` too, because the description's path
+  would name no file in a package made with it.
+
+Test first, `tests/test_recipes.py` (new, offline, in the workflow's list), before: 1
+failure and 3 errors of 4: `AssertionError: unexpectedly None : run_altium_script's
+description names no recipes file`; `FileNotFoundError` on `docs/recipes.md`. After: 4/4,
+also from a copy laid out as a release in a folder with a space in its name: the path
+exists, each script passes the sandbox's checks and equals the one its live test sends, a
+removal has its notice. The offline list: 574 of 583 run, OK; 9 not run, as they start or
+stop processes or look for Altium's windows, which this step did not do (`InUseTest` 2,
+`ExchangeLockTest` 2, `test_dblib`'s database tests 4, `ServerStatusTest` 1). The tool
+listing: 80 tools, 158,879 to 159,000 characters (0.08%) from this checkout; a release's
+longer path adds to it.
+
+Met by the first two runs of that list today, before they were isolated: `test_build_info`'s
+`ServerStatusTest` calls the real `get_server_status`, so an offline run looks for Altium's
+windows and may write and prune the resident's folder. The window call was refused by the
+run's guard and that folder's time was unchanged; `test_symbol_footprint` made and removed
+a temporary file in the exchange folder, and the server's log grew. The runs after used a
+scratch exchange and data folder, the real ones unchanged.
+
+For the scenario test, the three to run: this script (A55, its proof), the step of A34 (f)
+(met in five entries) and A52's removal (two entries, and A48 b's notice). Next, when there
+is room: A56 (b), whose library field on a placed part no test asserted.

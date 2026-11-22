@@ -71,7 +71,7 @@ On a slow network the first build can exceed the client's 60-second startup time
 3. Update `manifest.json`: set `entry_point` to `start_server.py`, remove any `env`/`PYTHONPATH` fields, and use `manifest_version: "0.3"`
 4. Package the DXT — either use `dxt pack` or manually zip and rename:
 ```powershell
-Compress-Archive -Path manifest.json, start_server.py, pyproject.toml, requirements.txt, server -DestinationPath altium-mcp.zip
+Compress-Archive -Path manifest.json, start_server.py, pyproject.toml, requirements.txt, server, docs -DestinationPath altium-mcp.zip
 Rename-Item altium-mcp.zip altium-mcp.dxt
 ```
    Build from a clean checkout. Release packages leave out `server/tests/`, `__pycache__` folders, `*.pyc` and log files.

@@ -19,6 +19,18 @@ of the new items are tools missing for schematic and library work; those that re
 with a wrong result are A45, A48, A50, A66 and A71, and A63 (c) and A64 (a) lost work
 silently.
 
+The owner, 2026-11-22, on the items above: "gw gamau bikin fitur tapi terus2an dan konsumsi
+token tambah gede" (no stream of features that keeps growing token use). Every tool and
+argument is sent in every turn of every session that loads the server, so a new one costs
+for good, used or not. Proposed in that session, not decided: first the items that report
+success with a wrong result or lose work (A45, A48, A50, A66, A71, A63 (c), A64 (a)) and
+those that shrink a result (A49, A46, A57); most "no tool for X" items (A47, A59, A62 to
+A65, A69 and the like) to usage notes on how the script does it, or not taken, a few at
+most as ops on an existing tool. For `get_erc_violations` (A49, A50), no new argument: the
+result grouped by type with a count and two or three details each, the full list left in
+the file it already writes, and the suppressed ones counted apart (`suppressed: n`).
+Upstream's `get_erc_violations` is the same code as `ad25`'s: both faults are upstream's.
+
 A2, A7, A4 and A6 went out together in `build-20261112-120520` (owner, 2026-11-12), so one
 scenario test covers them; A3 and A8 were not waited for. That test ran and held for
 all four (findings 2026-11-12, third entry). A live test uses the helpers in

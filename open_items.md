@@ -12,9 +12,12 @@ upstream, run and held, or decided against moves with its record to
 [`closed_items.md`](closed_items.md), and so does a run's section once every step of it is
 ticked. The layout is the `backlog` plugin's `format.md` (v0.1, since 2026-11-15).
 
-**Open: A11, A15, A23, A25, A28, A31 to A34, A36 to A39, A41 to A44, A47, A48, A51 to A54, A57, A59 to A70, A72, A73, A76.** Sorted
-2026-11-23, the second entry of 2026-11-23 (the scenario test of group 1's second build,
-`build-20261123-031122`): A74 held and closed; A48 (b) checked, the part built held and the
+**Open: A11, A15, A23, A25, A28, A31 to A34, A36 to A39, A41 to A44, A47, A48, A51 to A54, A57, A59 to A70, A72, A73, A76 to A78.** Sorted
+2026-11-23, the third entry of 2026-11-23 (the scenario test of group 2's build,
+`build-20261123-103915`): A46, A58, A45, A26, A27, A71, A56 and A75 held and closed, A55
+closed as usage; A77 and A78, new, taken into group 3; A61, met again; A34 and A52,
+checked. Sorted 2026-11-23, the second entry of 2026-11-23 (the scenario test of group
+1's second build, `build-20261123-031122`): A74 held and closed; A48 (b) checked, the part built held and the
 rest still open; A76, new, not taken into the run; A34, met again. Sorted
 2026-11-23, the entry of 2026-11-23 (the scenario test of group 1's build,
 `build-20261123-001227`): A49 and A50 held and closed; A48 back to Open, held for edits and
@@ -74,7 +77,8 @@ flow needs that no tool does (2026-11-12). They are features, not faults.
 
 A run is planned below, `## Run 2026-11-22`: three groups on the owner's token rule, its
 opening question answered, phase 2 under way: group 1 released, its scenario test run and
-sorted, A48 (b) and A74 taken into it again.
+sorted, A48 (b) and A74 taken into it again; group 2 released and its scenario test run and
+sorted; group 3 next.
 
 ## Run 2026-11-22
 
@@ -298,6 +302,16 @@ release just registered, by the procedure in its `reports/uji-skenario.md`.
   - A75 (point 6 of the scenario test of build 0.7.0-20261123-001227): a line in
     `run_altium_script`'s description beside the recipes, that `List1..3` keep strings,
     not objects. Files: `server/main.py`'s description.
+  - A77 (point 4 of the scenario test of build 0.7.0-20261123-103915), new: one way of
+    filling a placed part's library fields in `build_schematic` and `place_component`, so a
+    component's parts placed by both compile as one. Test first: part B by the build and
+    part C by place_component, one designator, compiled as two today. Files:
+    `server/AltiumScript/schematic_utils.pas`, tests. Decided 2026-11-23 by the run, not the
+    owner: a new item in group 3, not A45 fixed again with group 2 checked again, because
+    A45's own promise held (point 3) and the fault is in how the two tools fill a part's
+    library fields, older than A45.
+  - A78 (point 10 of the same test), new: A52's recipe says its script leaves the sheet
+    unmodified; it does not. The sentence corrected, offline. Model: Sonnet.
 - **For the owner, prepared**: A11, whether the ECO done by hand (Import Changes,
   Validate, Execute, Close), then new projects made, brings Altium's RCW error too; if it
   does, it is Altium's and the stashed tool may go in with a usage note (the item, its
@@ -418,7 +432,7 @@ is written down before it.
     first (pid 12520 to 6756), every document unmodified, the 223 files of the test
     project hashed before and after the restart, none changed. The listing 157,962 to
     159,660 characters (+1.07%), why in the release notes. A56 (a) is commit 8f57314.
-- [ ] Group 2: scenario test (session id: 06cf5507-82ca-4d5d-86ae-310e8c0c0ddd), its outcome sorted
+- [x] Group 2: scenario test (session id: 06cf5507-82ca-4d5d-86ae-310e8c0c0ddd), its outcome sorted
   - Started 10:42 by its launcher (pid 21664), output and launcher in the session's
     scratchpad (`check_103915.*`); Altium restarted for memory first (pid 6756 to 17088,
     the 223 files hashed before and after, none changed); free memory 845 MB.
@@ -427,6 +441,10 @@ is written down before it.
     the two checks before ran at 1.1 to 1.2 GB.
   - The owner, 2026-11-23: "beres grup 2, kita pindah sesi ya": once this step is ticked
     and committed, the session hands over, and group 3 starts in a new session.
+  - Ran 10:42 to 10:54, `EXIT 0`, no resume, 89 turns, about $5.41; its entry committed
+    alone (`c1385bb`), sorted 2026-11-23: A46, A58, A45, A26, A27, A71, A56, A75 held
+    (closed), A55 closed as usage; A77 and A78 new, steps in group 3; A61, A34, A52 met or
+    checked.
 - [ ] A57: committed
 - [ ] A66: committed
 - [ ] A41: committed
@@ -452,6 +470,8 @@ is written down before it.
     release; A26's fix is in its stash; the subagents' brief and the helper scripts are in
     the session's scratchpad. Not written yet: the run's `learned.md` entry, and as items at
     the run's end what A46, A45, A58 and A55 list as seen and left.
+- [ ] A77: committed
+- [ ] A78: committed
 - [ ] Group 3: tests and release (build: )
 - [ ] Group 3: scenario test (session id: ), its outcome sorted
 - [ ] The report
@@ -695,6 +715,8 @@ Decided 2026-11-23 by the run, not the owner: (f) written as that file step, not
 DelphiScript, because no session ran a script for it and the step needs none. A34 stays
 Open for its other parts; what is left of (f) is the scenario test of that step.
 
+Checked 2026-11-23 by the run's check: its recipe in docs/recipes.md ran as written in the scenario test of build 0.7.0-20261123-103915 (findings 2026-11-23, the group 2 entry, point 10): A34 (f): the stop file closed the form within about 7 s and the next call started it again.
+
 ### A36 - A board open under its short (8.3) path is opened a second time - OPEN 2026-11-15
 
 A tool given a
@@ -842,6 +864,8 @@ keeping its parameters and notes (the workaround that held), and one that takes 
 of its project and deletes its file (`DM_RemoveSourceDocument`, `DeleteFile`; a removal by
 script once left two `[DocumentN]` sections, A26).
 
+Checked 2026-11-23 by the run's check: its recipe in docs/recipes.md ran as written in the scenario test of build 0.7.0-20261123-103915 (findings 2026-11-23, the group 2 entry, point 10): A52: the no-ERC marker removed, the next compile dropping it.
+
 ### A53 - `run_altium_script`'s lint refuses scripts that run - OPEN 2026-11-22
 
 (a) 2026-11-18 (second), point 11, and 2026-11-19 (fifth), point 6: a nested `procedure`
@@ -945,6 +969,17 @@ part moved stayed selected, its handles in the next screenshot; harmless.
 
 Proposed: local; the edit puts the sheet back in front and clears its selection. Not
 decided.
+
+Met again 2026-11-23 (findings 2026-11-23, the group 2 entry, point 6), build
+0.7.0-20261123-103915: the same in `build_schematic`. After a build the focused project is
+Free Documents, and the symbol library the build used, already open, is left in front,
+where another project's board was before; a tool called without `project_path` next reads
+Free Documents (`get_project_info` did). Not reported in the result. Local: the document
+that was in front shown again at the end.
+
+Decided 2026-11-23 by the run, not the owner: into A61, not a step of this run, because A61
+is out of this run by the owner's choice of three groups and the point is the same fault in
+another tool.
 
 ### A62 - No tool changes a project option - OPEN 2026-11-22
 
@@ -1436,6 +1471,39 @@ Usage: compare two compiles by `errors` and their groups, not by `total`.
 Decided 2026-11-23 by the run, not the owner: not taken into this run, because its cause is
 unknown and looks to be Altium's, not a small fix in group 1's files.
 
+### A77 - The parts of one component placed by `build_schematic` and by `place_component` do not compile as one - OPEN 2026-11-23
+
+Sorted out of the group 2 entry of 2026-11-23, point 4, the scenario test of build
+`0.7.0-20261123-103915`. Part B of a multi-part symbol placed by `build_schematic` and part
+C, same designator and library, by `edit_schematic` `place_component` on the same sheet:
+ERC "Duplicate Component Designators" for it and "unused sub-part(s) (1) and (2)" and "(1)
+and (3)", and `get_project_components` lists the designator twice. Parts B and C both
+placed by `place_component` compile as one. In the saved file the build's part has
+`DESIGNITEMID` set, `SOURCELIBRARYNAME` `*` and no `LIBRARYPATH`; `place_component`'s has
+`LIBRARYPATH` and `SOURCELIBRARYNAME` the library's file name and no `DESIGNITEMID`: the two
+tools fill a placed part's library fields differently. `edit_schematic`'s `warnings`
+treated them as one component ("part A not placed on this sheet"). Reported success. The
+entry filed it under A45 as failed.
+
+Local: one way of filling the library fields in both tools.
+
+Decided 2026-11-23 by the run, not the owner: a new item in group 3, not A45 fixed again
+with group 2 checked again, because A45's own promise held (point 3) and the fault is in how
+the two tools fill a part's library fields, older than A45.
+
+Taken into `## Run 2026-11-22`, group 3 (a step of its own).
+
+### A78 - A52's recipe says its script does not mark the sheet modified, but it does - OPEN 2026-11-23
+
+Sorted out of the group 2 entry of 2026-11-23, point 10, the scenario test of build
+`0.7.0-20261123-103915`, small: A52's section of `docs/recipes.md` says its removal script
+"does not mark the sheet modified", but after it the sheet was modified (its flag set,
+listed in `unsaved_in_altium`), as the notice it sends does.
+
+Local: that sentence corrected, offline.
+
+Taken into `## Run 2026-11-22`, group 3 (a step of its own).
+
 ## Waiting
 
 ### A1 - `get_server_status` reports no version or commit - BUILT 2026-11-12, proof: the upstream PR for the version part, not sent yet
@@ -1489,496 +1557,3 @@ Scenario test of that build held (2026-11-12, third entry, 2): 38 rules, the sco
 9 %): what is left is mostly the key names and indentation repeated on every rule.
 Waits for the upstream PR.
 
-### A46 - `build_schematic`'s `pin_map` is keyed by pin name and always returned whole - BUILT 2026-11-23, proof: the scenario test
-
-Sorted out of the entry of 2026-11-18 (second), points 2 and 9. Pins sharing a name
-(several `GND`, two shield pins, five `VDD`) collapse to one entry, the last; pin numbers
-would keep them apart. And the whole map comes back on every call (a 71-part sheet: about
-20k characters) when the caller has already computed every pin.
-
-Proposed: local; keyed by pin number, the name as a field, and an option to leave the map
-out. Not decided.
-
-Met again 2026-11-22 (findings 2026-11-22, point 1), build `0.7.0-20261115-172812`, measured
-from seventeen sessions' transcripts: `build_schematic` 142k characters of results over 14
-calls in one session, the whole pin map coming back each time (with A58: 171k of input).
-
-Decided 2026-11-22 in the plan, not the owner: `pin_map` keyed by pin number, the name a
-field; returned in full only on a call with no wires (the pin read the description advises);
-with wires, a count per part, the map written to a JSON file in the server's own folder and
-that file's path given; no new argument, because it is the smaller change.
-
-Cause: the bridge's `pin_map.txt` had each pin's name and not its number, so
-`build_schematic` could key only by name, a later pin of one name replacing the earlier; and
-it put the map into every result, indented, four lines a pin.
-
-Fixed in the commit that moves it here: the script writes `PIN|designator|number|x|y|name`
-(the name last, as it may hold a pipe), and the new `server/pin_map.py` makes
-`{designator: {number: {name, x, y}}}` of it. With no wires that is `pin_map`; with wires
-the result has `pin_counts` and `pin_map_file` instead, and if the file cannot be written
-the map itself with `pin_map_file_error`. The description, the README and the manifest's
-line say so (the tool listing 157,962 to 158,036 characters, 80 tools).
-
-Decided 2026-11-23 by the run, not the owner:
-- a number a part has twice (two shield pins `SH`, two parts of one designator) gets `#2`,
-  `#3`, because keyed by number alone such pins would be lost as the names' were;
-- "the server's own folder" is the per-user data folder, `%USERPROFILE%\.altium-mcp\pin_maps`,
-  because A49's full list goes to that data folder and the exchange folder is readable by
-  every account on the machine;
-- one file per build, the newest 20 kept, not one per sheet, because Altium named two builds
-  in a row `Sheet1.SchDoc` (the first closed), so a path given earlier would have come to
-  hold another sheet's pins;
-- the tool's result is JSON without indents, because indented, the map with a name in each
-  pin would take nearly twice the characters.
-
-Tests first. Live, `tests/test_live_pin_map.py`, on 24 parts of a 16-pin symbol made in a
-copy of the SpiritLevel-SL1 example's library (four GND, three VDD, two pins numbered SH),
-2 failed: "pins of the map were lost" (10 of each part's 16) and "14022 not less than or
-equal to 2000 : the result with wires is too large". Offline, `tests/test_pin_map.py`, 8
-failed on the code before (5 failures, 3 errors: `'pin_map' unexpectedly found`,
-`KeyError: 'pin_map_file'`, and the new line format read as `{}`).
-
-After, 2026-11-23, live in AD25: `test_live_pin_map` 2/2 (with wires 447 characters, was
-14,022; without 16,568 with all 384 pins, was 14,022 with 240; each pin's number, name and
-point equal to what Altium gives on the sheet), `test_live_libraries` 5/5,
-`test_live_project_setup` 9/9, and of `test_live_symbol_footprint` the one test that builds a
-sheet, 1/1; the offline list, the new module added, 567, OK. The other live tests not run.
-
-Seen and left: a build with a missing part comes back as the error text, with no pin map;
-`pin_map.txt` in the exchange folder is read after the bridge's lock is released, so two
-sessions building at once could read each other's map (both by reading the code, not
-tested). A part on a multi-part symbol is A45's.
-
-Built in build `0.7.0-20261123-103915` (tag `build-20261123-103915`), commit `a441051`.
-
-### A58 - `build_schematic` and `edit_schematic` take no spec file - BUILT 2026-11-23, proof: the scenario test
-
-Sorted out of the entry of 2026-11-18 (first), point 3, seen before drawing: a sheet of some
-60 parts and 150 wires goes in as inline JSON, about 20k characters a sheet;
-`create_symbols_batch` takes a spec file, the sheet tools none.
-
-Proposed: local; a `spec_file` on both. Not decided.
-
-Met again 2026-11-22 (findings 2026-11-22, point 1), build `0.7.0-20261115-172812`, measured
-from seventeen sessions' transcripts: 171k characters of `build_schematic` input over 14
-calls in one session, the inline sheet sent each time (with A46: 142k of results).
-
-Decided 2026-11-22 by the owner (the opening answer of `## Run 2026-11-22`): taken, a `spec_file` argument on `build_schematic` and `edit_schematic`, the one new argument of that run.
-
-Cause: both tools took the sheet only as call arguments, `parts`, or `sheet_path` and
-`operations`, required there.
-
-Fixed in the commit that moves it here: both take `spec_file`, the full path of a JSON file
-of their other arguments, read by the new `server/spec_args.py` and checked as the same
-types. An argument in both places is refused, and nothing is sent to Altium. The
-descriptions, the README and the manifest's two lines say so. The tool listing 158,036 to
-158,565 characters (0.3%), 80 tools.
-
-Decided 2026-11-23 by the run, not the owner:
-- arguments that are not in the file may be given inline beside it, because the decision
-  refuses the argument given twice, and two different ones need no merge rule;
-- the other arguments of both tools default to none, `parts`, `sheet_path` and `operations`
-  asked for by the tool and no longer by the schema, because the file may hold them, and
-  because a default value given inline (`unit` mil, `save` false) is otherwise not told from
-  one not given and would lose to the file's unnoticed;
-- a name the tool does not have, in the file, is refused, because a misspelled `wires` would
-  build a sheet without wires and report success;
-- a relative path is refused, because it would be read from the server's folder.
-
-Tests first. Offline, `tests/test_spec_args.py`, called through the server as a client
-calls it, all failing on the code before (40 failures in 10 tests): "'spec_file' not found
-in ['parts', 'wires', ...]", "1 validation error for build_schematicArguments parts Field
-required", and with `parts` inline beside a file "True is not false": the unknown argument
-was dropped and success reported. Live, `tests/test_live_spec_file.py`, 1 failed with the
-same "parts Field required".
-
-After, 2026-11-23: offline 10/10, and the list with the new module 577, OK. Live in AD25,
-`test_live_spec_file` 1/1: a build from a file into a project (two parts, a parameter that
-is not ASCII, two wires, a junction, a label, a power port, a note) read back from the
-saved .SchDoc, then an edit from a file in mm read back the same way, and one with `unit`
-in both places refused, the sheet's bytes unchanged. The callers' live tests:
-`test_live_pin_map` 2/2, `test_live_libraries` 5/5, `test_live_project_setup` 9/9,
-`test_live_compile_refresh` 7 (2 of them expected failures), `test_live_erc` 3/3, and the
-one test of `test_live_symbol_footprint` that builds a sheet. The other live tests not run.
-
-Seen and left: on every tool the server drops an inline argument it does not know, without
-a word (the mcp package's argument model; how the test before got its false success).
-
-Built in build `0.7.0-20261123-103915` (tag `build-20261123-103915`), commit `cc27c73`.
-
-### A45 - `build_schematic` places only part A of a multi-part symbol - BUILT 2026-11-23, proof: the scenario test
-
-Sorted out of the entry of 2026-11-18 (second), point 1, build `0.7.0-20261115-172812`. A
-symbol of six parts was placed with part A only; `pin_map` listed the pins of all six parts,
-all at part A's origin, and `success` was true. Nothing said the other parts were not
-placed, and `edit_schematic`'s `place_component` takes no `part` either. Workaround: the
-symbol made single-part. Reported success with a wrong result.
-
-Proposed: local; every part placed (or the parts asked, a `part` key on both tools), and
-`pin_map` per placed part; a live test with a multi-part symbol. Not decided.
-
-Decided 2026-11-22 in the plan, not the owner: a `part` key (letter or number) in a part
-entry of both tools, part A when there is none, the parts not placed under `warnings`, and
-`pin_map` with the placed parts' pins only; a key inside an existing list, not an argument.
-
-Cause: both tools replicated the symbol and never set its current part, so the part placed
-was the one the library was saved showing: A mostly, but part C for a symbol last shown at
-C (one of the SpiritLevel-SL1 example's symbols is saved so). The pin map took every pin
-the component's iterator gives, which is every part's. Nothing read the part count.
-
-Fixed in the commit that moves it here: `part` in `build_schematic`'s parts and in
-`place_component`, set on each placed part, from a `.SchLib` and from an `.IntLib`; the pin
-map and `pins` count what each placed part shows (its part's pins and those of all parts,
-in its display mode); `warnings` has a line per component with parts not on the sheet
-(`U1 (<symbol>): parts B, C not placed on this sheet`), absent when there is none. The
-descriptions and the README say so (the tool listing 158,565 to 158,879 characters, 80
-tools, no new argument).
-
-Decided 2026-11-23 by the run, not the owner:
-- `place_component` gets the key as `build_schematic` does, with nothing left for the token
-  rule, because it is an operation inside `edit_schematic`'s `operations` list: its values
-  are keys there, not arguments of the tool;
-- the other operations' `part` takes a letter too, because one key with two forms in one
-  tool would need explaining, and they read it in the same line of code;
-- a part the symbol does not have is not placed and is reported as a missing part or a
-  failed operation, because placing another in its place would be a wrong result again; from
-  an `.IntLib` it is placed and taken off again, as the count is known only then;
-- `warnings` goes by what the sheet holds after the call and says "on this sheet", given a
-  `part` or not, because a part may sit on another sheet, which the tools do not read, and
-  a part placed by an earlier edit is placed.
-
-Tests first. Live, `tests/test_live_multipart.py`, a six-part symbol with a pin all parts
-share, made in a copy of the example's library and compiled into an `.IntLib`, 7 of 7
-failed: "silent on parts B, C, D, E, F of U1, which are not placed" (success, 13 pins for
-part A's 3), "not the parts asked" (six entries, six times part A), a symbol shown at part
-C placed as part 3, and a part G placed with success. Offline, `test_sch_edit` and
-`test_pin_map`, 3 failed ("place_component does not take part", no part in the bridge's
-line).
-
-After, 2026-11-23, live in AD25: `test_live_multipart` 8/8 (an undo test added; places,
-parts and pins read from the saved file; six entries compile to one component),
-`test_live_pin_map` 2/2, `test_live_spec_file` 1/1, `test_live_libraries` 5/5,
-`test_live_project_setup` 9/9, `test_live_compile_refresh` 7 (two expected failures,
-A48 (b)), `test_live_erc`'s test that edits a sheet 1/1, `test_live_symbol_footprint`'s
-test that builds one 1/1. A one-off build of all 39 symbols of the example's library: the
-map's 467 pins equal to the saved file's, each symbol at part A. The offline list 579, OK.
-The other live tests not run.
-
-Seen and left, by reading the code, not tested: the same part given twice under one
-designator is placed twice, unreported; text placement by `param_placement.txt` measures
-the body over all of a symbol's parts; a warning of a failed build is inside its error text,
-as the rest of that result is.
-
-Built in build `0.7.0-20261123-103915` (tag `build-20261123-103915`), commit `007672a`.
-
-### A55 - `get_project_info` takes no `project_path` - BUILT 2026-11-23, proof: the scenario test
-
-Sorted out of the entry of 2026-11-19 (first), point 4: with no project focused it returned
-`"project_path": "Free Documents"` and nothing else, unlike `get_erc_violations` and
-`get_project_components`, which take a path.
-
-Proposed: local; a `project_path` argument. Not decided.
-
-Decided 2026-11-22 by the owner (the opening answer of `## Run 2026-11-22`): no tool; written as a recipe in `docs/recipes.md` (a DelphiScript a session proved, with its `run_altium_script` call), pointed to by one line of `run_altium_script`'s description, and closed as usage once the scenario test held for the file. A record with no proven script leaves the item Open.
-
-Cause: `GetProjectInfo` (`other_utils.pas`) reads `DM_FocusedProject` alone.
-
-Fixed in the commit that moves it here, as usage, the tool unchanged: `docs/recipes.md`
-(new) has a script reading a project by path, focused or not, and `run_altium_script`'s
-description names the file by its absolute path, computed from `main.py`'s folder at
-import. The script is `project_state` of `test_live_pcblib_from_board`, run in that test's
-pass of 2026-11-15 (A8); the same read by path with another project focused ran in
-`test_live_project_setup`. It gives the project file's unsaved flag and the documents, not
-the parameters, the variants or each document's state. Not run in Altium today: the step
-was offline.
-
-Decided 2026-11-23 by the run, not the owner, for the whole recipes file:
-- a proved script is one whose text exists and was run: here, a live test's script in this
-  repo that passed in Altium, kept word for word but its placeholders. The items' records
-  and their `findings.md` entries hold calls and no script text, and no session's transcript
-  was read for one, because the plan names those two as the source;
-- no script composed from a record's calls is in the file, labelled or not: those items
-  stay Open with what is missing, because the owner's decision says so and a script in that
-  file would be run as proved;
-- where the proved way was a tool call or a file step, the section says *No script* and
-  the item stays Open (A34 (f), A51, A67 (a) and (b), A69 (d)), because the decision asks
-  for a script;
-- A55 moves here though its script returns less than the tool would, because what was met
-  (a project not in focus not readable at all) is covered, and the recipe says what it
-  leaves out;
-- README's manual packaging command takes `docs` too, because the description's path
-  would name no file in a package made with it.
-
-Test first, `tests/test_recipes.py` (new, offline, in the workflow's list), before: 1
-failure and 3 errors of 4: `AssertionError: unexpectedly None : run_altium_script's
-description names no recipes file`; `FileNotFoundError` on `docs/recipes.md`. After: 4/4,
-also from a copy laid out as a release in a folder with a space in its name: the path
-exists, each script passes the sandbox's checks and equals the one its live test sends, a
-removal has its notice. The offline list: 574 of 583 run, OK; 9 not run, as they start or
-stop processes or look for Altium's windows, which this step did not do (`InUseTest` 2,
-`ExchangeLockTest` 2, `test_dblib`'s database tests 4, `ServerStatusTest` 1). The tool
-listing: 80 tools, 158,879 to 159,000 characters (0.08%) from this checkout; a release's
-longer path adds to it.
-
-Met by the first two runs of that list today, before they were isolated: `test_build_info`'s
-`ServerStatusTest` calls the real `get_server_status`, so an offline run looks for Altium's
-windows and may write and prune the resident's folder. The window call was refused by the
-run's guard and that folder's time was unchanged; `test_symbol_footprint` made and removed
-a temporary file in the exchange folder, and the server's log grew. The runs after used a
-scratch exchange and data folder, the real ones unchanged.
-
-For the scenario test, the three to run: this script (A55, its proof), the step of A34 (f)
-(met in five entries) and A52's removal (two entries, and A48 b's notice). Next, when there
-is room: A56 (b), whose library field on a placed part no test asserted.
-
-Built in build `0.7.0-20261123-103915` (tag `build-20261123-103915`), commit `ba17162`.
-
-### A75 - `run_altium_script`'s `List1..3` keep strings, not objects - BUILT 2026-11-23, proof: the scenario test
-
-Sorted out of the entry of 2026-11-23, point 6, the scenario test of build `0.7.0-20261123-001227`: an
-object stored by `List1.AddObject` and read back as `List1.Objects[j]` is not the
-interface. `Doc.RemoveSchObject(List1.Objects[j])` ran with no error and removed nothing
-(the script reported 23 removed per sheet, and the sheets were saved with all 23), and
-`List1.Objects[j].I_ObjectAddress` failed "Undeclared identifier: I_ObjectAddress", the
-sandbox's diagnosis reading it as a call on nil. Iterating again for the first object each
-time worked. Reported success with nothing done.
-
-Local: a line in `run_altium_script`'s description beside the recipes: `List1..3` keep
-strings, not objects; a loop that removes objects takes the first one again each time.
-
-Decided 2026-11-23 by the run, not the owner: taken into group 3, a step before its tests,
-by the run's rule for a new point small and in the group's files (*The scenario test of a
-group*, 7), because `run_altium_script`'s description and the recipes are group 3's.
-
-Cause: the sandbox's `List1..3` are `TStringList`s, and in Altium's DelphiScript an
-object kept by `AddObject` does not come back as the interface it was; the description
-called them `TStringList` and said nothing more.
-
-Fixed in the commit that moves it here, as usage, the sandbox unchanged: two lines of
-`run_altium_script`'s description, after the recipes line: `List1..3` keep strings, not
-objects; `Objects[j]` is no interface, so a removal through it does nothing; take the first
-object again each time. Not run in Altium: the step was offline, Altium blocked (A26's
-line in the run).
-
-Test first, `tests/test_recipes.py`'s
-`test_the_description_says_the_lists_keep_strings_not_objects` (offline), before: 1
-failure of 5, `AssertionError: Regex didn't match: 'List1\.\.3 keep strings, not objects'
-not found in 'Run a DelphiScript snippet ...'`. After: 5/5. The offline list: 573 of 584
-run, OK; 11 not run, as they start or stop processes or look for Altium's windows
-(`test_start_server`'s `InUseTest` 2, `ExchangeLockTest` 4, `test_dblib`'s
-`SearchDatabaseTest` 4, `ServerStatusTest` 1). The tool listing: 80 tools, 159,000 to
-159,149 characters (+0.09%), from this checkout.
-
-Built in build `0.7.0-20261123-103915` (tag `build-20261123-103915`), commit `b764b10`.
-
-### A26 - `build_schematic` leaves the focused project modified, and puts its sheet in it - BUILT 2026-11-23, proof: the scenario test
-
-With another project in focus, `build_schematic(project_path, sheet_path)` took its sheet
-back from that project (`project.detached_from` names it) but left that project's file flag
-set: unmodified before, modified after, twice in a row (its file not written).
-`add_project_document(create=True)` in the same state puts the flag back. In the same result
-the top-level `detached_from` is `""` while the nested one names the project, and `sheet`
-gives the unsaved name (`Sheet1.SchDoc`) where `sheet_path` gives the file saved.
-(2026-11-14, fifth entry, 3 and 6.)
-Met again 2026-11-15 (second entry, 8; third entry, 3), widened: without `project_path` the
-new sheet went into the focused project and set its flag, `success` true, `detached_from`
-`""`; with `project_path` and a part missing, the unsaved sheet stayed in the focused project
-with its flag set, not mentioned. Met again 2026-11-18 (second entry, point 3; A52),
-2026-11-19 (second entry, point 4, in kind; fourteenth entry, point 1) and 2026-11-23 (point
-7, build `0.7.0-20261123-001227`): a `Sheet1.SchDoc` with no path in the focused project,
-left modified.
-
-Decided (the run's plan): the focused project's modified flag left as found; without
-`project_path` the sheet stays a free document; after a failure the unsaved sheet is taken
-out again; one `detached_from`, and `sheet` the saved name.
-Decided 2026-11-23 by the run, not the owner:
-- after a failure the sheet is taken out of the project and stays open as a free document,
-  named in the error, not closed, because a close leaves its entry in the list and the
-  partial sheet is what shows what was placed;
-- `detached_from` is the project's full path, because that is what `add_project_document`
-  gives and two projects can share a file name;
-- the live test's check that Free Documents is unchanged leaves out the test's own library,
-  because the build opens it as a free document of its own and it is not the sheet the
-  check is for.
-
-Cause, from a probe in AD25: `DM_CreateNewDocument('SCH')` puts the sheet into the focused
-project and sets its flag, and from then on `DM_FocusedProject` is Free Documents.
-`build_schematic` read the focused project only after that, so it found nothing to take out
-(`detached_from` `""`); with `project_path` the add took the sheet out later, when the flag
-was already set, and so left it set. Closing a sheet never saved takes it out of neither
-list, a project's or Free Documents'.
-
-Fixed in the commit that moves it here: the focused project and its flag read before the
-sheet is made, the sheet taken out and the flag put back in the same script; one
-`detached_from`, at the top (the build's, else the add's); `sheet` the path saved; a build
-with parts missing says in its error that the sheet is open as an unsaved free document.
-`build_schematic`'s description and the README say so. No new argument.
-
-Test first, `tests/test_live_build_focus.py` (4 tests, live in AD25, on temporary projects
-and a copy of an example library): before, on the code without the fix, 4 failures of 4,
-each `AssertionError: Tuples differ: (True, [...other.schdoc, 'sheet1.schdoc']) != (False,
-[...other.schdoc]) : the focused project is not as it was found (modified, its documents)`
-(the one into a project: the sheet gone, the flag still set). Offline, `test_project_setup`'s
-`test_build_schematic_names_the_saved_sheet_and_one_detached_from` failed before:
-"'Sheet1.SchDoc' != ... sheet is not the name the sheet was saved as".
-After: `test_live_build_focus` 4/4; the live tests that build (`test_live_project_setup`,
-`test_live_multipart`, `test_live_pin_map`, `test_live_spec_file`, `test_live_libraries`,
-`test_live_symbol_footprint`) 34/34, none skipped; the offline list 585/585, none skipped.
-The tool listing 80 tools, 159,149 to 159,305 characters (+0.1%). The clean-up met no
-dialog: sheets closed before their projects, no project opened twice.
-
-Built in build `0.7.0-20261123-103915` (tag `build-20261123-103915`), commit `153c546`.
-
-### A27 - `build_schematic` with `footprint` on a symbol that has a current one gives two - BUILT 2026-11-23, proof: the scenario test
-
-A part whose library symbol already has a current footprint, placed with `footprint`, gets
-the named model added (by name, no library) as current while the library's current one keeps
-its mark: two current PCB footprints (`IsCurrent` 1 on both through the API, `ISCURRENT=T`
-twice in the saved sheet). Rare before A16, now the common case. Reported success. Local:
-the footprint given becomes the only current one, its mark moved when the symbol already has
-a model of that name. (2026-11-14, fifth entry, 5.)
-
-Cause: the build's FOOTPRINT record (`schematic_utils.pas`) always added a new
-implementation with `IsCurrent` true and never looked at the models the placed part came
-with from its library symbol, so the library's current footprint kept its mark; a name the
-symbol already held was added a second time.
-
-Fixed in the commit that moves it here: `SetPlacedFootprint` in `schematic_utils.pas`,
-called by the build for each FOOTPRINT record, makes the symbol's own model of that name
-(any case) current, or adds it (by name, no library) when there is none, and takes the mark
-from every other footprint of the part; 3D and simulation models are left alone. The
-`footprint` line of `build_schematic`'s description says so. `place_component` takes no
-footprint and is not affected.
-
-Decided 2026-11-23 by the run, not the owner: a name the symbol already has is made current,
-not added again, because a second model of one name would be a duplicate; the fix stays in
-the build, not in `ApplyFootprint`, because that one links a library file and would clear an
-existing model's link; the description gets one sentence (124 characters), because the
-behaviour is part of the argument's contract.
-
-Test before: `tests/test_live_build_footprint.py`, 3 of 5 failed: "Lists differ: [('HDR1X2',
-True), ('NT', True)] != [('HDR1X2', False), ('NT', True)] : the part has two current
-footprints, or the wrong one"; the saved sheet gave `['HDR1X2', 'NT'] != ['NT']`; asking for
-a model the symbol had gave a second one, "[('HDR1X2', False), ('NT', True), ('hdr1x2',
-True)] ... a second model was added, or both are current". After:
-`test_live_build_footprint` 5/5; with `test_live_symbol_footprint` (its `read_models` now on
-a `read_model_list` that shows a duplicate), `test_live_project_setup`, `test_live_pin_map`
-and `test_live_build_focus` 29 OK; the offline list 585 OK. The tool listing 159,305 to
-159,429 characters. Not tested live: a part from an `.IntLib`, the same code path.
-
-Built in build `0.7.0-20261123-103915` (tag `build-20261123-103915`), commit `71f8054`.
-
-### A71 - Parts placed by the tools sometimes lack the flag that locks their body - BUILT 2026-11-23, proof: the scenario test
-
-2026-11-19 (eleventh), point 1: a click on a placed part's body selected its rectangle. In
-the saved sheet a placed part's child primitives carry `IsNotAccesible=T`; on 24 parts
-placed by script or by the server's tools the body did not, while parts placed in Altium's
-own UI all had it. Not reproduced that day. 2026-11-20, points 1 and 6: reproduced; of six
-parts placed by `edit_schematic` `place_component` that day three came in without it (an
-8-pin symbol's rectangle and line, a 2-pin symbol's four arcs), and 19 more were found on
-sheets drawn earlier by `build_schematic` and `edit_schematic`. Reported success. Not
-readable from DelphiScript ("Undeclared identifier: IsNotAccesible"); found only in the
-saved file. Workaround held: `Comp.PinsMoveable := True`, then `False`, inside
-`PreProcess`/`PostProcess` and `SCHM_BeginModify`/`EndModify`, saved.
-
-Proposed: local; the toggle after placing in `place_component` and `build_schematic`, and
-`check_schematic` reporting a part with a child lacking the flag; a live test with the
-symbols that lost it. Decided by the run's plan: the toggle; the `check_schematic` part not
-in this run, left for an item of its own at the run's end.
-
-Cause (2026-11-23, backlog run): a part lacks the flag exactly when its symbol is the one
-shown in the library editor while it is placed. Altium then hands that symbol's body to the
-library document, `Replicate` leaves it out, and `ReplicateLibSymbol`'s second pass (issue
-#22) adds copies of the graphics without the flag. A symbol not shown is copied whole and
-keeps the flag. Which symbol the editor showed is what made the fault look intermittent.
-Pins, designators and parameters do not carry the flag, even on parts placed in Altium's UI.
-
-Fixed in the commit that moves it here: `LockPartBody` in `schematic_utils.pas`. Once a part
-copied from a `.SchLib` is on the sheet, inside the modify, it flips `PinsMoveable` to the
-opposite value and sets it back to the symbol's own; Altium then sets the flag on every body
-graphic. It runs in `build_schematic` and in `edit_schematic`'s `place_component`. `.IntLib`
-parts, placed by Altium's `PlaceLibraryComponent`, are left as they were. The tool listing
-unchanged (159,429 characters).
-
-Decided 2026-11-23 by the run, not the owner: the value set back rather than forced to
-False, because a symbol saved with movable pins keeps that setting (only the False case,
-every placed part, tested); the `.IntLib` path not touched, because the fault is in the copy
-path (the `.IntLib` path untested); each symbol placed five times while shown and five while
-not, because the item named no cause and the split shows which condition fails.
-
-Test: `tests/test_live_body_lock.py` makes an 8-pin symbol drawn with a rectangle and a line
-and a 2-pin one drawn with four arcs in a copy of an example library; each tool places each
-symbol ten times, five while it is the shown symbol, and the test reads `IsNotAccesible` on
-every body graphic from the saved sheet. Before: "10 of 20 placed parts have a body graphic
-without IsNotAccesible=T" for each tool, the 10 every placement made while its own symbol
-was shown. After: 0 of 40, 2/2. The live tests of the tools touched 46 OK (2 expected
-failures, already marked); the offline list 585 OK.
-
-Built in build `0.7.0-20261123-103915` (tag `build-20261123-103915`), commit `9ae6937`.
-
-### A56 - No tool sets a placed part's footprint or says which library it links to - BUILT 2026-11-23, proof: the scenario test
-
-A footprint given to a library symbol (A16, closed, the library side) does not reach the
-parts already placed from it, and no tool sets or changes a placed part's footprint. Done by
-`run_altium_script` (`AddSchImplementation`, `ModelType 'PCBLIB'`, `AddDataFileLink`,
-`IsCurrent`, inside `SCHM_BeginModify`/`EndModify`, then `SaveDoc`; to repoint,
-`RemoveSchImplementation` and a new implementation, no setter for a link's location found)
-in five sessions: 2026-11-19 (first), point 6; (third), point 3, the compile then stale (A48
-(b)); (fifth), point 5, 11 parts; (seventh), points 1 and 5; (eighth), point 3. Also missing
-(2026-11-19 (seventh), point 2): which library each placed part's footprint links to. A
-script showed parts linked to a file that does not hold their footprint (an older copy of a
-vendor library at another path), which neither `get_project_components` (the footprint's
-name only) nor a compile reports.
-
-Proposed: local; an `edit_schematic` op setting a placed part's footprint (name and
-library), or one updating placed parts from their library symbol; a `footprint_library`
-field in `get_project_components`, flagged when the linked file lacks the footprint. Not
-decided.
-
-Decided 2026-11-22 by the owner (the opening answer of `## Run 2026-11-22`): (a) taken, an
-`edit_schematic` op setting a placed part's footprint. (b), which library a part links to: a
-recipe in `docs/recipes.md` if a session's script is in the record, no field in
-`get_project_components` (the plan, not the owner).
-
-(b) written 2026-11-23 in `docs/recipes.md`: `test_live_symbol_footprint`'s `read_models`,
-the script that test ran on a placed part, one designator per call, read from
-`ExportToParameters` (`ISCURRENT`, `MODELDATAFILE0`). Not covered: every part in one call,
-and whether the linked file holds the footprint. Its "Proved by" line now says that
-`MODELDATAFILE0` on a placed part is asserted by `test_live_set_footprint` (the same script,
-`read_model_list`).
-
-(a) fixed in the commit that moves it here: an `edit_schematic` op `set_footprint`
-(`designator`, `footprint`, `library`), one more entry in its operations list, no new tool
-or argument. Every part of that designator on the sheet gets the footprint as its only
-current one, linked to the `.PcbLib` given: `SetPartFootprint` in `schematic_utils.pas`
-calls the library side's `ApplyFootprint` (A16's `FOOTPRINT` record, current `1`) inside the
-part's `SCHM_BeginModify`/`EndModify`. A footprint of that name the part has already is
-linked anew (`ClearAllDatafileLinks`, `AddDataFileLink`), not added twice; the other
-footprints lose their current mark and stay; 3D and simulation models are left alone (A27's
-rule). After the edit each part is read back: one current footprint, the one asked, linked
-to that library, or the op fails saying how many are current. Before Altium is called,
-`sch_edit` refuses a library that is not a `.PcbLib`, does not exist, cannot be read, or
-whose saved file does not hold the footprint (`pcblib_file.holds_footprint`, by the
-`PATTERN` name). `pcblib_file` now reads an empty stream as no bytes, where it used to
-raise. The README's `edit_schematic` entry names the op.
-
-Decided 2026-11-23 by the run, not the owner:
-- the footprint replaced stays on the part as a non-current alternative, not removed with `RemoveSchImplementation` as the sessions' scripts did, because `ApplyFootprint` (A16, A27) does it so: one current footprint, nothing the part held lost, and reuse the smaller change;
-- the library required and checked to hold the footprint in its saved file (a footprint not saved yet refused until its library is saved), because the item's own failure was parts linked to a file that does not hold their footprint;
-- no `part` key: every part of the designator gets the footprint, because a footprint belongs to the component, not to one of its parts (a multi-part component not tested live);
-- the offline tests in the modules already in `tests.yml` (`test_sch_edit`, `test_pcblib_file`), because the op is encoded in `sch_edit` and the check is in `pcblib_file`.
-
-Tests before, on the code without the fix: `test_live_set_footprint` 3 of 3 failed, its
-setUp reading the part's own HDR1X2 as the only current footprint and every call returning
-`"operation 1: 'op' must be one of move_component, ..., place_component"`; offline
-`test_sch_edit.SetFootprintTest` 2 of 2 failed with the same message, and
-`test_pcblib_file.test_holds_footprint` with `AttributeError: module 'pcblib_file' has no
-attribute 'holds_footprint'`. After: `test_live_set_footprint` 3/3 (through Altium and from
-the saved sheet's `MODELDATAFILE0`, `ISCURRENT`: the footprint given the only current one,
-linked to the library given; one the part has linked anew, not added; the other models
-unchanged); the live tests of the tools touched (set_footprint, build_footprint,
-symbol_footprint, body_lock, compile_refresh, erc, libraries, multipart, spec_file) 43 OK, 2
-expected failures already marked; offline 588/588. The tool listing 159,429 to 159,660
-characters (+0.14%).
-
-Built in build `0.7.0-20261123-103915` (tag `build-20261123-103915`), commit `8f57314`.

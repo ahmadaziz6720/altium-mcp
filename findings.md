@@ -1593,3 +1593,5 @@ Designer 25. 42 calls, 0 errors, 39.6k characters of results (14 `run_altium_scr
     single-pin violation it hid listed). Small: A52's section says the script "does not
     mark the sheet modified", but the sheet was modified after it (flag set, listed in
     `unsaved_in_altium`), as the notice does. Local: that sentence corrected.
+
+Sorted into A77 (4), new; A61 (6), met again; A78 (10), new; A34 (10), checked; A52 (10), checked. Held: A46 (1); A58 (2); A45 (3); A26 (5); A27 (7); A71 (8); A56 (9, 10); A75 (10); A55 (10), usage.

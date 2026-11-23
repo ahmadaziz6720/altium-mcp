@@ -52,6 +52,15 @@ def read_models(path, symbol, in_library=True):
     """The models a symbol carries, read through Altium from the file at
     path (opened when it is not): {(type, name): (library file, current)},
     the library file as Altium stores it."""
+    models = {}
+    for kind, name, library, current in read_model_list(path, symbol, in_library):
+        models[(kind, name)] = (library, current)
+    return models
+
+
+def read_model_list(path, symbol, in_library=True):
+    """read_models as a list, one (type, name, library file, current) a model
+    in the order Altium gives them: a model twice on one symbol shows twice."""
     dtype = "ISch_Lib" if in_library else "ISch_Document"
     if in_library:
         open_part = ("Obj1 := Client.OpenDocument('SchLib', '%s');\nClient.ShowDocument(Obj1);\nSleep(800);\n"
@@ -94,13 +103,13 @@ ResultText := S;
 end;""" % (dtype, open_part, symbol, symbol))
     if out.strip() == "NOT FOUND":
         raise AssertionError(f"{symbol} is not in {path}")
-    models = {}
+    models = []
     for line in out.splitlines():
         if not line.strip():
             continue
         kind, name, params = line.split("|", 2)
         rec = dict(p.split("=", 1) for p in params.split("|") if "=" in p)
-        models[(kind.upper(), name)] = (rec.get("MODELDATAFILE0", ""), rec.get("ISCURRENT") == "T")
+        models.append((kind.upper(), name, rec.get("MODELDATAFILE0", ""), rec.get("ISCURRENT") == "T"))
     return models
 
 

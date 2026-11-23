@@ -12,7 +12,7 @@ upstream, run and held, or decided against moves with its record to
 [`closed_items.md`](closed_items.md), and so does a run's section once every step of it is
 ticked. The layout is the `backlog` plugin's `format.md` (v0.1, since 2026-11-15).
 
-**Open: A11, A15, A23, A25, A27, A28, A31 to A34, A36 to A39, A41 to A44, A47, A48, A51 to A54, A56, A57, A59 to A73, A76.** Sorted
+**Open: A11, A15, A23, A25, A28, A31 to A34, A36 to A39, A41 to A44, A47, A48, A51 to A54, A56, A57, A59 to A73, A76.** Sorted
 2026-11-23, the second entry of 2026-11-23 (the scenario test of group 1's second build,
 `build-20261123-031122`): A74 held and closed; A48 (b) checked, the part built held and the
 rest still open; A76, new, not taken into the run; A34, met again. Sorted
@@ -378,7 +378,7 @@ is written down before it.
 - [x] A46: committed (a441051)
 - [x] A58: committed (cc27c73)
 - [x] A45: committed (007672a)
-- [x] A26: committed
+- [x] A26: committed (153c546)
   - Done 2026-11-23 after the owner ended Altium by hand: Altium started again from its exe
     (pid 12520), the stash applied and dropped, the fix held live (4/4, 34/34, 585/585
     offline). About 129k tokens, 19 minutes.
@@ -406,7 +406,8 @@ is written down before it.
     recipes, A75) taken now, out of their order, offline, because the owner asked at 02:18
     that the run not stop and neither reaches Altium; their proof stays the scenario test.
     Nothing is pushed or released until the live tests can run.
-- [ ] A27: committed
+- [x] A27: committed
+  - Sonnet, about 116k tokens, 15 minutes; 3 of 5 failed before, 5/5 after.
 - [ ] A71: committed
 - [ ] A56 (a): committed
 - [ ] Group 2: tests and release (build: )
@@ -558,15 +559,6 @@ shape. Local: reproduce in a live test on a new board, then a fix (the region re
 the board saved and reopened by the tool), or the call refused or flagged on a board never
 saved. Usage until then: save, close and reopen a new board before setting its shape is
 relied on. (2026-11-14, fifth entry, 2.) For the next run.
-
-### A27 - `build_schematic` with `footprint` on a symbol that has a current one gives two - OPEN 2026-11-14
-
-A part whose library symbol already has a current footprint, placed with `footprint`, gets
-the named model added (by name, no library) as current while the library's current one
-keeps its mark: two current PCB footprints (`IsCurrent` 1 on both through the API,
-`ISCURRENT=T` twice in the saved sheet). Rare before A16, now the common case. Reported
-success. Local: the footprint given becomes the only current one, its mark moved when the
-symbol already has a model of that name. (2026-11-14, fifth entry, 5.) For the next run.
 
 ### A28 - No tool makes an empty library - OPEN 2026-11-14
 
@@ -1856,3 +1848,40 @@ After: `test_live_build_focus` 4/4; the live tests that build (`test_live_projec
 `test_live_symbol_footprint`) 34/34, none skipped; the offline list 585/585, none skipped.
 The tool listing 80 tools, 159,149 to 159,305 characters (+0.1%). The clean-up met no
 dialog: sheets closed before their projects, no project opened twice.
+
+### A27 - `build_schematic` with `footprint` on a symbol that has a current one gives two - BUILT 2026-11-23, proof: the scenario test
+
+A part whose library symbol already has a current footprint, placed with `footprint`, gets
+the named model added (by name, no library) as current while the library's current one keeps
+its mark: two current PCB footprints (`IsCurrent` 1 on both through the API, `ISCURRENT=T`
+twice in the saved sheet). Rare before A16, now the common case. Reported success. Local:
+the footprint given becomes the only current one, its mark moved when the symbol already has
+a model of that name. (2026-11-14, fifth entry, 5.)
+
+Cause: the build's FOOTPRINT record (`schematic_utils.pas`) always added a new
+implementation with `IsCurrent` true and never looked at the models the placed part came
+with from its library symbol, so the library's current footprint kept its mark; a name the
+symbol already held was added a second time.
+
+Fixed in the commit that moves it here: `SetPlacedFootprint` in `schematic_utils.pas`,
+called by the build for each FOOTPRINT record, makes the symbol's own model of that name
+(any case) current, or adds it (by name, no library) when there is none, and takes the mark
+from every other footprint of the part; 3D and simulation models are left alone. The
+`footprint` line of `build_schematic`'s description says so. `place_component` takes no
+footprint and is not affected.
+
+Decided 2026-11-23 by the run, not the owner: a name the symbol already has is made current,
+not added again, because a second model of one name would be a duplicate; the fix stays in
+the build, not in `ApplyFootprint`, because that one links a library file and would clear an
+existing model's link; the description gets one sentence (124 characters), because the
+behaviour is part of the argument's contract.
+
+Test before: `tests/test_live_build_footprint.py`, 3 of 5 failed: "Lists differ: [('HDR1X2',
+True), ('NT', True)] != [('HDR1X2', False), ('NT', True)] : the part has two current
+footprints, or the wrong one"; the saved sheet gave `['HDR1X2', 'NT'] != ['NT']`; asking for
+a model the symbol had gave a second one, "[('HDR1X2', False), ('NT', True), ('hdr1x2',
+True)] ... a second model was added, or both are current". After:
+`test_live_build_footprint` 5/5; with `test_live_symbol_footprint` (its `read_models` now on
+a `read_model_list` that shows a duplicate), `test_live_project_setup`, `test_live_pin_map`
+and `test_live_build_focus` 29 OK; the offline list 585 OK. The tool listing 159,305 to
+159,429 characters. Not tested live: a part from an `.IntLib`, the same code path.

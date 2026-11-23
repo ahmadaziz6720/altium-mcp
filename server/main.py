@@ -2566,9 +2566,11 @@ async def build_schematic(ctx: Context, parts: list = None, wires: list = None,
             (full path of a .SchLib or an .IntLib file; get_installed_libraries
             lists the libraries Altium has installed), symbol (the library
             reference), x, y (mils). Optional: design_item_id, orientation
-            (0-3), mirror (0/1), comment, description, footprint,
-            parameters ({name: value}), part (of a multi-part symbol: "B" or
-            2; A when not given; one entry per part, the designator repeated).
+            (0-3), mirror (0/1), comment, description, footprint (a PCB
+            footprint model name: the part's only current footprint, the
+            library's own mark moved to it), parameters ({name: value}), part
+            (of a multi-part symbol: "B" or 2; A when not given; one entry per
+            part, the designator repeated).
             A part from an .IntLib is placed by Altium as from its Components
             panel: linked to the library by its Design Item ID (the library
             reference unless design_item_id is given), with the footprints

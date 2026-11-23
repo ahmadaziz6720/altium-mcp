@@ -2295,13 +2295,7 @@ begin
         else if (Kind = 'FOOTPRINT') then
         begin
             if (Comp <> nil) then
-            begin
-                Impl := Comp.AddSchImplementation;
-                Impl.ModelName := GetFieldFromPipeString(Rec, 1);
-                Impl.ModelType := 'PCBLIB';
-                Impl.IsCurrent := True;
-                Impl.UseComponentLibrary := True;
-            end;
+                SetPlacedFootprint(Comp, GetFieldFromPipeString(Rec, 1));
         end
 
         else if (Kind = 'PARAM') then
@@ -2857,6 +2851,54 @@ begin
     if (UpperCase(FootprintLibrary(Found)) <> UpperCase(LibPath)) then
         Problems.Add('"' + JSONEscapeString(Comp.LibReference + ': footprint ' + Model + ' stored the library "' +
             FootprintLibrary(Found) + '", not "' + LibPath + '"') + '"');
+end;
+
+// The footprint a build gives a placed part (FOOTPRINT|<model>): the only
+// current one. A part comes with the models its library symbol holds, one of
+// them the current footprint; the model asked for is the symbol's own when it
+// has one of that name (made current, not added a second time), else it is
+// added, linked by name alone to the component library. The mark is taken
+// from every other footprint, so the part never has two current ones. Other
+// model types (3D, simulation) are left alone.
+procedure SetPlacedFootprint(Comp: ISch_Component; Model: String);
+var
+    Iter  : ISch_Iterator;
+    Impl  : ISch_Implementation;
+    Found : ISch_Implementation;
+begin
+    Found := nil;
+    Iter := Comp.SchIterator_Create;
+    Iter.AddFilter_ObjectSet(MkSet(eImplementation));
+    Impl := Iter.FirstSchObject;
+    while (Impl <> nil) do
+    begin
+        if IsFootprintModel(Impl) and (UpperCase(Impl.ModelName) = UpperCase(Trim(Model))) then
+            Found := Impl;
+        Impl := Iter.NextSchObject;
+    end;
+    Comp.SchIterator_Destroy(Iter);
+
+    if (Found = nil) then
+    begin
+        Found := Comp.AddSchImplementation;
+        Found.ModelName := Trim(Model);
+        Found.ModelType := 'PCBLIB';
+        Found.UseComponentLibrary := True;
+    end;
+
+    Iter := Comp.SchIterator_Create;
+    Iter.AddFilter_ObjectSet(MkSet(eImplementation));
+    Impl := Iter.FirstSchObject;
+    while (Impl <> nil) do
+    begin
+        if IsFootprintModel(Impl) and (Impl.I_ObjectAddress <> Found.I_ObjectAddress) then
+            if FootprintIsCurrent(Impl) then
+                Impl.IsCurrent := False;
+        Impl := Iter.NextSchObject;
+    end;
+    Comp.SchIterator_Destroy(Iter);
+
+    Found.IsCurrent := True;
 end;
 
 // Apply edit records to a symbol, as one undo step:

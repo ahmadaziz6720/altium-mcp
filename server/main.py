@@ -5899,7 +5899,8 @@ async def get_screenshot(ctx: Context, view_type: str = "pcb", zoom_to: list = N
     foreground back.
 
     Args:
-        view_type (str): Type of view to capture - 'pcb' or 'sch'
+        view_type (str): Type of view to capture - 'pcb' or 'sch' (the sheet
+            fitted whole first)
         zoom_to (list, optional): List of component designators (e.g. ["U12", "R42"]).
             PCB view only: Altium zooms to the bounding box of these components
             (plus a margin) before the capture, so the components fill the frame.
@@ -5916,7 +5917,11 @@ async def get_screenshot(ctx: Context, view_type: str = "pcb", zoom_to: list = N
         # First, execute the Altium command to ensure the right document type
         # is focused, optionally zooming to the requested components
         params = {"view_type": view_type.lower()}
-        if zoom_to:
+        warnings = []
+        if zoom_to and view_type.lower() == "sch":
+            # A sheet is fitted whole instead (A60)
+            warnings.append("zoom_to is for PCB only; the sheet was fitted whole")
+        elif zoom_to:
             params["designators"] = zoom_to
         response = await altium_bridge.execute_command(
             "take_view_screenshot",
@@ -6058,8 +6063,22 @@ async def get_screenshot(ctx: Context, view_type: str = "pcb", zoom_to: list = N
                 time.sleep(1.0)
 
                 # Measure AFTER activation: restoring or switching can change
-                # the frame's size.
-                left, top, right, bottom = win32gui.GetWindowRect(hwnd)
+                # the frame's size. Measured in the window's own DPI context,
+                # the size its pixels are drawn at: a system-aware Altium at
+                # 120 DPI on a 96 DPI monitor is drawn at 125% and scaled
+                # down by Windows, and measured per monitor the capture held
+                # only its top-left 80% (A60).
+                user32 = ctypes.windll.user32
+                user32.GetWindowDpiAwarenessContext.restype = ctypes.c_void_p
+                user32.GetWindowDpiAwarenessContext.argtypes = [ctypes.c_void_p]
+                user32.SetThreadDpiAwarenessContext.restype = ctypes.c_void_p
+                user32.SetThreadDpiAwarenessContext.argtypes = [ctypes.c_void_p]
+                measured_in = user32.SetThreadDpiAwarenessContext(user32.GetWindowDpiAwarenessContext(hwnd))
+                try:
+                    left, top, right, bottom = win32gui.GetWindowRect(hwnd)
+                finally:
+                    if measured_in:
+                        user32.SetThreadDpiAwarenessContext(measured_in)
                 width = right - left
                 height = bottom - top
                 if width < 200 or height < 150:
@@ -6151,6 +6170,8 @@ async def get_screenshot(ctx: Context, view_type: str = "pcb", zoom_to: list = N
         # What was actually captured, as opposed to what was requested
         result["captured_kind"] = focused_kind or None
         result["captured_document"] = focused_document or None
+        if warnings:
+            result["warnings"] = warnings
         return [
             json.dumps(result),
             MCPImage(data=png_bytes, format="png"),

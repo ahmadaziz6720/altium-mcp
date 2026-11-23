@@ -826,7 +826,8 @@ end;
 
 // Add a screenshot function that supports both PCB and SCH views.
 // If DesignatorsList is non-empty (PCB view only), the view is zoomed to
-// those components before the server captures the window.
+// those components before the server captures the window; a sheet is
+// fitted whole.
 function TakeViewScreenshot(ViewType: String; DesignatorsList: TStringList): String;
 var
     Board          : IPCB_Board;
@@ -880,6 +881,11 @@ begin
         FocusedKind := Client.CurrentView.OwnerDocument.Kind;
         FocusedName := ExtractFileName(Client.CurrentView.OwnerDocument.FileName);
     end;
+
+    // A sheet is captured whole: fitted first, as View > Fit Document does
+    // (A60). Not a library, which the server refuses for a 'sch' view.
+    if (DocType = 'SCH') and (FocusedKind = 'SCH') then
+        Client.SendMessage('SCH:Zoom', 'Action=Document', 255, Client.CurrentView);
 
     // Create result JSON
     ResultProps := TStringList.Create;

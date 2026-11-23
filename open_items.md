@@ -464,9 +464,11 @@ is written down before it.
   - Sonnet, about 150k tokens, 25 minutes; 2 live failures before, 4/4 after, 607 offline. One
     run of the touched tools' 32 live tests failed `test_parts_from_an_intlib` once at about
     600 MB free, held alone and in sequence: watched at group 3's full pass.
-- [x] A28: committed
+- [x] A28: committed (ad9e9da)
   - About 130k tokens, 40 minutes; refused before, 14/14 live after, 608 offline.
-- [ ] A60 (a): committed
+- [x] A60 (a): committed
+  - About 120k tokens, 30 minutes; 2 of 2 live failed before, 2/2 after (twice), 608 offline.
+    The capture was cut by DPI scaling as well as by the zoom: images now 2418x1308 here.
 - [x] The recipes (A47, A51, A52, A54, A55, A59, A62 to A65, A67, A69, A34 (f), A56 (b)): committed (ba17162)
   - Of fourteen items only A55 had a script proved in full: it waits, the others stay Open,
     each saying what is missing. Built offline: 574 of the 583 offline tests run, OK; the 9
@@ -923,6 +925,37 @@ Proposed: local; `fit` and `zoom_to` designators for `sch`, and a view of a `.Pc
 footprint by name. Not decided.
 
 Decided 2026-11-22 by the owner (the opening answer of `## Run 2026-11-22`): (a) taken, a `sch` capture fitted to the sheet, no new argument (the run's plan: by default). (b) not in that run.
+
+(a) BUILT 2026-11-23, proof: the scenario test. Cause, two: the capture kept the sheet's
+zoom, and the capture itself was cut. Altium is system DPI aware (120 DPI, the main
+monitor's); on a 96 DPI monitor its window is drawn at 125% and scaled down by Windows,
+while `get_screenshot` measured the window per monitor and copied that many pixels: the
+top-left 80% of the window, its bottom and right cut at any zoom. Probed on an A3 sheet:
+`Client.SendMessage('SCH:Zoom', 'Action=Document', ...)`, `RunProcess('Sch:Zoom')` with
+`Action=Document` and `RunProcess('Sch:ZoomFit')` all fitted the view alike, and the capture
+still lost the sheet's bottom quarter; the whole window copied, the fitted sheet was whole.
+That fits the sessions that found a fit by script did not help.
+Fix: `TakeViewScreenshot` (`other_utils.pas`) fits a sheet in front (kind `SCH`) with
+`Client.SendMessage('SCH:Zoom', 'Action=Document', 255, Client.CurrentView)` before the
+capture; `get_screenshot` sends no designators for `sch` and answers `zoom_to` there with
+`warnings: ["zoom_to is for PCB only; the sheet was fitted whole"]`; the capture measures
+the window in its own DPI context (`GetWindowDpiAwarenessContext`), the size its pixels are
+drawn at (2418 x 1308 here, was 1934 x 1046). No new tool or argument; the description and
+the README's entry say the sheet is fitted whole. The tool listing 159,770 to 159,813
+characters (+0.03%).
+Decided 2026-11-23 by the run, not the owner:
+- the capture measured in the window's own DPI context as well, not the fit alone, because with the fit alone the sheet stayed cut on this display and the result would not be true;
+- the image returned at the size Altium draws it, not scaled to the monitor's, because it is the smaller change and keeps Altium's own pixels;
+- the fit only for a sheet, not for a library in front, because the server refuses a `sch` capture of a library (A61's case).
+Test before (`tests/test_live_screenshot_fit.py`, new: an example sheet copied, set to A3,
+zoomed in twice by `SCH:Zoom` `Action=ZoomIn`; the whole sheet read from the image as its
+black border closed on four sides in A3's proportion), 2 of 2 failed:
+`test_a_sheet_zoomed_in_is_captured_whole`: "AssertionError: unexpectedly None : the
+1934x1046 capture shows no closed sheet border: the sheet is cut";
+`test_zoom_to_on_a_sheet_is_answered_with_a_warning`: no `warnings` in the result. After:
+2/2, twice; `test_live_unrouted` 4/4 (the PCB capture, its view read from the image);
+offline 608/608. (a) fixed in the commit that writes this paragraph. A60 stays Open for (b),
+out of the run.
 
 ### A61 - `edit_schematic` leaves Altium's focus or selection changed - OPEN 2026-11-22
 

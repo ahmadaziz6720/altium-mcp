@@ -2318,16 +2318,30 @@ async def ensure_altium_script_skill(ctx: Context, install: bool = False) -> str
                            "error": str(e)[:300]}, indent=2)
 
 
+def library_inventory_json(result: dict, list_key: str) -> str:
+    """A library inventory (A57) as compact JSON, one entry a line: indented,
+    the keys and spaces of a few hundred entries cost more than their names."""
+    entries = result.get(list_key)
+    if not isinstance(entries, list):
+        return json.dumps(result, indent=2)
+    head = json.dumps({k: v for k, v in result.items() if k != list_key}, separators=(",", ":"))[:-1]
+    if head != "{":
+        head += ","
+    body = ",\n".join(json.dumps(e, separators=(",", ":")) for e in entries)
+    return f'{head}"{list_key}":[\n{body}\n]}}'
+
+
 @_tool(read_only=True)
 async def get_footprint_primitives(ctx: Context, library_path: str = "", footprint_name: str = "") -> str:
     """
     Read the primitives of footprints in a PCB library (.PcbLib).
 
     Modes:
-    - footprint_name omitted: inventory of every footprint with per-type
-      primitive counts (pads, tracks, arcs, fills, texts, regions, vias,
-      component_bodies)
-    - footprint_name given (exact, case-insensitive): full geometry dump -
+    - footprint_name omitted: inventory, each footprint's name,
+      description and pad count
+    - footprint_name given (exact, case-insensitive; several
+      comma-separated dump each into footprints, not_found listing the
+      rest): full geometry dump -
       pads (position, rotation, layer, sizes/shape per stack, hole size/
       type/width/rotation, plating, paste_mode/paste_expansion,
       mask_mode/mask_expansion, locked), tracks, arcs, fills, texts,
@@ -2352,11 +2366,12 @@ async def get_footprint_primitives(ctx: Context, library_path: str = "", footpri
         library_path (str, optional): Full path to the .PcbLib. Omit to use
             the currently focused PCB library (an already-open library is
             only focused, never reloaded).
-        footprint_name (str, optional): Exact footprint name, or "*".
+        footprint_name (str, optional): Exact footprint name, several
+            comma-separated, or "*".
 
     Returns:
         str: JSON - inventory: {library_name, footprint_count, footprints:
-             [{name, description, <type counts>}]}; dump: primitives and
+             [{name, description, pads}]}; dump: primitives and
              bodies_3d per footprint
     """
     logger.info(f"Getting footprint primitives (library={library_path}, footprint={footprint_name})")
@@ -2378,6 +2393,8 @@ async def get_footprint_primitives(ctx: Context, library_path: str = "", footpri
             return result
     if isinstance(result, dict):
         pcblib_file.add_body_placements(result)
+        if not footprint_name:
+            return library_inventory_json(result, "footprints")
     return json.dumps(result, indent=2)
 
 @_tool()
@@ -3098,11 +3115,11 @@ async def get_symbol_primitives(ctx: Context, library_path: str = "", symbol_nam
     Read the graphic primitives of symbols in a schematic library (.SchLib).
 
     Two modes:
-    - symbol_name omitted: inventory of every symbol in the library with
-      per-type primitive counts (pins, rectangles, lines, polylines,
-      polygons, arcs, ellipses, beziers, labels, ...). Use this to survey
-      what drawing features a library's symbols require.
-    - symbol_name given (exact match, case-insensitive): full geometry dump
+    - symbol_name omitted: inventory, each symbol's name, description and
+      pin count.
+    - symbol_name given (exact match, case-insensitive; several
+      comma-separated dump each into symbols, not_found listing the rest;
+      "*" all): full geometry dump
       of that symbol - every primitive with coordinates in mils, plus pin
       details (number, name, electrical type, orientation, length,
       owner_part_id). Use this as the reference/spec when recreating or
@@ -3111,11 +3128,11 @@ async def get_symbol_primitives(ctx: Context, library_path: str = "", symbol_nam
     Args:
         library_path (str, optional): Full path to the .SchLib file to open.
             Omit to use the schematic library currently focused in Altium.
-        symbol_name (str, optional): Exact symbol (LibReference) name to dump.
+        symbol_name (str, optional): Exact symbol (LibReference) name(s) to dump.
 
     Returns:
         str: JSON object - inventory mode: {library_name, symbol_count,
-             symbols: [{name, description, part_count, <type counts>}]};
+             symbols: [{name, description, pins}]};
              dump mode: {library_name, symbol_name, description, part_count,
              comment: {text, visible}, parameters: [{name, value, visible,
              x, y, justification, autoposition, font: {name, size}}],
@@ -3140,6 +3157,8 @@ async def get_symbol_primitives(ctx: Context, library_path: str = "", symbol_nam
         return json.dumps({"success": False, "error": f"Failed to get symbol primitives: {error_msg}"})
 
     result = response.get("result", {})
+    if isinstance(result, dict) and not symbol_name:
+        return library_inventory_json(result, "symbols")
     return json.dumps(result, indent=2) if not isinstance(result, str) else result
 
 @_tool(read_only=True)

@@ -12,7 +12,7 @@ upstream, run and held, or decided against moves with its record to
 [`closed_items.md`](closed_items.md), and so does a run's section once every step of it is
 ticked. The layout is the `backlog` plugin's `format.md` (v0.1, since 2026-11-15).
 
-**Open: A11, A15, A23, A25, A28, A31 to A34, A36 to A39, A41 to A44, A47, A48, A51 to A54, A57, A59 to A70, A72, A73, A76 to A78.** Sorted
+**Open: A11, A15, A23, A25, A28, A31 to A34, A36 to A39, A41 to A44, A47, A48, A51 to A54, A59 to A70, A72, A73, A76 to A78.** Sorted
 2026-11-23, the third entry of 2026-11-23 (the scenario test of group 2's build,
 `build-20261123-103915`): A46, A58, A45, A26, A27, A71, A56 and A75 held and closed, A55
 closed as usage; A77 and A78, new, taken into group 3; A61, met again; A34 and A52,
@@ -451,7 +451,9 @@ is written down before it.
     alone (`c1385bb`), sorted 2026-11-23: A46, A58, A45, A26, A27, A71, A56, A75 held
     (closed), A55 closed as usage; A77 and A78 new, steps in group 3; A61, A34, A52 met or
     checked.
-- [ ] A57: committed
+- [x] A57: committed
+  - About 165k tokens, 13 minutes; 4 failures and 1 error of 6 live before, 7/7 after, 596 offline.
+    Altium found closed at the session's start, started from its exe (pid 11028).
 - [ ] A66: committed
 - [ ] A41: committed
 - [ ] A70: committed
@@ -903,26 +905,6 @@ calls. Missing: the script that walks `DM_Nets` and `DM_Pins` (pin number and na
 to a file), with how it brings a stale compile up to date first: a script's own
 `DM_Compile` reads stale after a script's edit (A48). `test_live_multipart`'s compile
 script lists designators only.
-
-### A57 - Library reads return too much, or one symbol per call - OPEN 2026-11-22
-
-2026-11-18 (first), point 1: `get_symbol_primitives` in inventory mode on a 418-symbol
-`.SchLib` returned 91k characters, over the result limit, where name and description were
-all that was needed. 2026-11-19 (seventh), its closing line: `get_footprint_primitives`
-without a name on a whole footprint library overflowed at about 60 KB. 2026-11-18 (first),
-point 2: a layout needs several symbols' pins (designator, name, location, orientation,
-length), one call per symbol with all its graphics; one `run_altium_script` did 27 symbols.
-2026-11-19 (first), point 6: a footprint's pad names only through the full dump.
-
-Proposed: local; a `name` or `term` filter and a names-and-descriptions inventory on both
-tools, a list of symbol names with a pins-only mode, and a pads-only mode for footprints.
-Not decided.
-
-Met again 2026-11-22 (findings 2026-11-22, point 1), build `0.7.0-20261115-172812`, measured
-from seventeen sessions' transcripts: `get_symbol_primitives` and `get_footprint_primitives`
-20k to 44k characters of results in a session each. The same point names
-`get_project_components`, 63k in one session (7 calls), filed here as the entry did: it is a
-project read, not a library one, and no item yet covers its size.
 
 ### A59 - No tool places sheet symbols, ports, harness connectors or signal harnesses - OPEN 2026-11-22
 
@@ -1563,3 +1545,63 @@ Scenario test of that build held (2026-11-12, third entry, 2): 38 rules, the sco
 9 %): what is left is mostly the key names and indentation repeated on every rule.
 Waits for the upstream PR.
 
+### A57 - Library reads return too much, or one symbol per call - BUILT 2026-11-23, proof: the scenario test
+
+2026-11-18 (first), point 1: `get_symbol_primitives` in inventory mode on a 418-symbol
+`.SchLib` returned 91k characters, over the result limit, where name and description were
+all that was needed. 2026-11-19 (seventh), its closing line: `get_footprint_primitives`
+without a name on a whole footprint library overflowed at about 60 KB. 2026-11-18 (first),
+point 2: a layout needs several symbols' pins (designator, name, location, orientation,
+length), one call per symbol with all its graphics; one `run_altium_script` did 27 symbols.
+2026-11-19 (first), point 6: a footprint's pad names only through the full dump.
+
+Proposed: local; a `name` or `term` filter and a names-and-descriptions inventory on both
+tools, a list of symbol names with a pins-only mode, and a pads-only mode for footprints.
+Not decided.
+
+Met again 2026-11-22 (findings 2026-11-22, point 1), build `0.7.0-20261115-172812`, measured
+from seventeen sessions' transcripts: `get_symbol_primitives` and `get_footprint_primitives`
+20k to 44k characters of results in a session each. The same point names
+`get_project_components`, 63k in one session (7 calls), filed here as the entry did: it is a
+project read, not a library one, and no item yet covers its size.
+
+Cause: the inventory mode of both tools gave every primitive type's count on each entry
+(and `part_count` on a symbol's), and the server printed the result indented, a line per
+key: the keys and indentation of some hundreds of entries outweighed their names and
+descriptions. A name was compared whole, so one call read one symbol or footprint, or all
+of them with `"*"`.
+
+Fixed: the inventory gives each symbol's `name`, `description` and `pins`, each
+footprint's `name`, `description` and `pads` (the scripts count only pins or pads), and the
+server prints it one entry a line, compact (`library_inventory_json` in `server/main.py`);
+a dump is printed as before. The name argument takes several names, comma-separated
+(`SplitNameList`, `LibNameWanted`, `NotFoundJSON` in `other_utils.pas`): each one found is
+dumped into `symbols` (or `footprints`), as `"*"` does, with `symbol_count` (or
+`footprint_count`) and `not_found` for those missing; none found is the error one name
+gives. One name is as before. No new argument; the tool listing 159,660 to 159,602
+characters.
+Decided 2026-11-23 by the run, not the owner: a string with a comma that is itself a name
+in the library is read as that one name, split only when no symbol or footprint is named
+so, because Altium's own example library holds `Jumper, 2-Pin`, and splitting it would
+report two names missing where the library has the symbol.
+Decided 2026-11-23 by the run, not the owner: several names give a list as `"*"` does,
+with `not_found`, and an error only when none is found, because a call for several should
+still give the ones it found, and say which it did not.
+Decided 2026-11-23 by the run, not the owner: the inventory printed compact, one entry a
+line, because the indentation and the spaces of a few hundred entries were a large part of
+the result and the plan left the form open; the dumps are printed as before, being out of
+the item's decision.
+Test before (`tests/test_live_library_reads.py`, a copy of an example `.SchLib` with 450
+symbols added, 489 in all, and a copy of an example `.PcbLib` with 300 footprints added, 333
+in all): 4 failed, 1 error of 6: "93587 not less than 60000 : the inventory of 489 symbols
+is 93587 characters"; the footprint inventory gave `tracks` beside `pads`; "Symbol not
+found in library: INV_001, inv_002,INV_007" and "Footprint not found in library:
+INVFP_004,invfp_005, NONE_SUCH"; the call with a missing name gave no `symbols`.
+Test after: 7/7 live (a name with a comma read whole added), the symbol inventory 53,793
+characters for 489 symbols, the footprint inventory 36,270 for 333 footprints; the live
+tests of the tools touched, `test_live_symbol_footprint` and `test_live_pcblib_from_board`,
+13/13 together; offline 8 new (`tests/test_library_reads.py`, added to `tests.yml`),
+596/596 offline in all. `get_project_components`' size (the line of 2026-11-22) is not in
+this fix: it is left for an item of its own, filed with the run's other leftovers at its
+end.
+Fixed in the commit that moves it here.

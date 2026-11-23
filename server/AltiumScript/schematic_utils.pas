@@ -1184,8 +1184,10 @@ begin
 end;
 
 // Get the graphic primitives of symbols in a schematic library.
-// SymbolName = '' -> inventory mode: every symbol with per-type primitive
-// counts. SymbolName given -> full geometry dump of that symbol (mils).
+// SymbolName = '' -> inventory mode: every symbol's name, description and pin
+// count (A57). SymbolName given -> full geometry dump of that symbol (mils);
+// several names, comma-separated, dump each into the symbols array, and a
+// name with a comma that the library holds is read whole.
 function GetSymbolPrimitives(ROOT_DIR: String; LibraryPath: String; SymbolName: String): String;
 var
     CurrentLib   : ISch_Lib;
@@ -1200,11 +1202,13 @@ var
     PrimsArray   : TStringList;
     PrimProps    : TStringList;
     OutputLines  : TStringList;
-    Counts       : TStringList;
-    TypeName     : String;
     i            : Integer;
     Found        : Boolean;
     PinObj       : ISch_Pin;
+    PinCount     : Integer;
+    Multi        : Boolean;
+    Wanted       : TStringList;
+    FoundNames   : TStringList;
 begin
     Result := '';
 
@@ -1236,9 +1240,20 @@ begin
 
     ResultProps := TStringList.Create;
     SymbolsArray := TStringList.Create;
+    Wanted := TStringList.Create;
+    FoundNames := TStringList.Create;
     Found := False;
 
     try
+        // Several names, unless the whole string is one symbol's name
+        Multi := False;
+        if (SymbolName <> '*') and (Pos(',', SymbolName) > 0) then
+            if (FindLibSymbol(CurrentLib, SymbolName) = nil) then
+            begin
+                Multi := True;
+                SplitNameList(SymbolName, Wanted);
+            end;
+
         AddJSONProperty(ResultProps, 'library_name', ExtractFileName(CurrentLib.DocumentName));
 
         LibIterator := CurrentLib.SchLibIterator_Create;
@@ -1249,63 +1264,35 @@ begin
         begin
             if (SymbolName = '') then
             begin
-                // Inventory mode: count primitives by type
-                Counts := TStringList.Create;
+                // Inventory mode: name, description and pin count only (A57),
+                // so a library of some hundreds of symbols fits in a result
                 SymProps := TStringList.Create;
                 try
+                    PinCount := 0;
                     PrimIterator := LibComp.SchIterator_Create;
+                    PrimIterator.AddFilter_ObjectSet(MkSet(ePin));
                     Prim := PrimIterator.FirstSchObject;
                     while (Prim <> Nil) do
                     begin
-                        case Prim.ObjectId of
-                            ePin:            TypeName := 'pins';
-                            eRectangle:      TypeName := 'rectangles';
-                            eLine:           TypeName := 'lines';
-                            ePolyline:       TypeName := 'polylines';
-                            ePolygon:        TypeName := 'polygons';
-                            eArc:            TypeName := 'arcs';
-                            eEllipticalArc:  TypeName := 'elliptical_arcs';
-                            eEllipse:        TypeName := 'ellipses';
-                            eBezier:         TypeName := 'beziers';
-                            ePie:            TypeName := 'pies';
-                            eRoundRectangle: TypeName := 'round_rectangles';
-                            eLabel:          TypeName := 'labels';
-                            eParameter:      TypeName := '';
-                            eDesignator:     TypeName := '';
-                        else
-                            TypeName := 'other';
-                        end;
-
-                        if (TypeName <> '') then
-                        begin
-                            i := Counts.IndexOfName(TypeName);
-                            if (i < 0) then
-                                Counts.Add(TypeName + '=1')
-                            else
-                                Counts[i] := TypeName + '=' + IntToStr(StrToInt(Counts.ValueFromIndex[i]) + 1);
-                        end;
-
+                        PinCount := PinCount + 1;
                         Prim := PrimIterator.NextSchObject;
                     end;
                     LibComp.SchIterator_Destroy(PrimIterator);
 
                     AddJSONProperty(SymProps, 'name', LibComp.LibReference);
                     AddJSONProperty(SymProps, 'description', LibComp.ComponentDescription);
-                    AddJSONInteger(SymProps, 'part_count', LibComp.PartCount);
-                    for i := 0 to Counts.Count - 1 do
-                        AddJSONInteger(SymProps, Counts.Names[i], StrToInt(Counts.ValueFromIndex[i]));
-
+                    AddJSONInteger(SymProps, 'pins', PinCount);
                     SymbolsArray.Add(BuildJSONObject(SymProps, 1));
                 finally
-                    Counts.Free;
                     SymProps.Free;
                 end;
             end
-            else if (SymbolName = '*') or (UpperCase(LibComp.LibReference) = UpperCase(SymbolName)) then
+            else if LibNameWanted(LibComp.LibReference, SymbolName, Multi, Wanted) then
             begin
                 // Dump mode: full geometry of every primitive.
-                // SymbolName '*' dumps every symbol into the symbols array.
+                // SymbolName '*' or several names dump into the symbols array.
                 Found := True;
+                FoundNames.Add(UpperCase(LibComp.LibReference));
                 SymProps := TStringList.Create;
                 PrimsArray := TStringList.Create;
                 try
@@ -1493,7 +1480,7 @@ begin
 
                     SymProps.Add(BuildJSONArray(PrimsArray, 'primitives', 1));
 
-                    if (SymbolName = '*') then
+                    if (SymbolName = '*') or Multi then
                         SymbolsArray.Add(BuildJSONObject(SymProps, 1))
                     else
                         for i := 0 to SymProps.Count - 1 do
@@ -1509,16 +1496,18 @@ begin
 
         CurrentLib.SchIterator_Destroy(LibIterator);
 
-        if (SymbolName = '') or (SymbolName = '*') then
-        begin
-            AddJSONInteger(ResultProps, 'symbol_count', SymbolsArray.Count);
-            ResultProps.Add(BuildJSONArray(SymbolsArray, 'symbols', 1));
-        end
-        else if not Found then
+        if not Found and (SymbolName <> '') and (SymbolName <> '*') then
         begin
             Result := 'ERROR: Symbol not found in library: ' + SymbolName;
             Exit;
         end;
+        if (SymbolName = '') or (SymbolName = '*') or Multi then
+        begin
+            AddJSONInteger(ResultProps, 'symbol_count', SymbolsArray.Count);
+            ResultProps.Add(BuildJSONArray(SymbolsArray, 'symbols', 1));
+        end;
+        if Multi then
+            ResultProps.Add(NotFoundJSON(Wanted, FoundNames));
 
         OutputLines := TStringList.Create;
         try
@@ -1530,6 +1519,8 @@ begin
     finally
         ResultProps.Free;
         SymbolsArray.Free;
+        Wanted.Free;
+        FoundNames.Free;
     end;
 end;
 

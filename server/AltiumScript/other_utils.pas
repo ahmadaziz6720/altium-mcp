@@ -211,6 +211,74 @@ begin
         Result := Copy(S, FieldStart, Length(S) - FieldStart + 1);
 end;
 
+// The names a library read asks for, comma-separated (A57): S split at its
+// commas, each trimmed, empty ones dropped. The caller first checks that S
+// is not a name itself, as a symbol's or footprint's name may hold a comma.
+procedure SplitNameList(S: String; Names: TStringList);
+var
+    P : Integer;
+begin
+    Names.Clear;
+    while (S <> '') do
+    begin
+        P := Pos(',', S);
+        if (P = 0) then
+        begin
+            if (Trim(S) <> '') then
+                Names.Add(Trim(S));
+            S := '';
+        end
+        else
+        begin
+            if (Trim(Copy(S, 1, P - 1)) <> '') then
+                Names.Add(Trim(Copy(S, 1, P - 1)));
+            S := Copy(S, P + 1, Length(S));
+        end;
+    end;
+end;
+
+// Whether a library read dumps the symbol or footprint Name: one of Wanted
+// when several were asked for, else every one for '*' or the one Asked,
+// case-insensitive.
+function LibNameWanted(Name: String; Asked: String; Multi: Boolean; Wanted: TStringList): Boolean;
+var
+    i : Integer;
+begin
+    Result := False;
+    if Multi then
+    begin
+        for i := 0 to Wanted.Count - 1 do
+            if (UpperCase(Wanted[i]) = UpperCase(Name)) then
+            begin
+                Result := True;
+                Exit;
+            end;
+    end
+    else
+        Result := (Asked = '*') or (UpperCase(Name) = UpperCase(Asked));
+end;
+
+// The "not_found" property of a read of several names: those of Wanted, as
+// given, that Found (the names dumped, upper case) does not hold.
+function NotFoundJSON(Wanted: TStringList; Found: TStringList): String;
+var
+    Items : TStringList;
+    i     : Integer;
+begin
+    Items := TStringList.Create;
+    try
+        for i := 0 to Wanted.Count - 1 do
+            if (Found.IndexOf(UpperCase(Wanted[i])) < 0) then
+                Items.Add('"' + JSONEscapeString(Wanted[i]) + '"');
+        if (Items.Count > 0) then
+            Result := BuildJSONArray(Items, 'not_found', 1)
+        else
+            Result := '"not_found": []';
+    finally
+        Items.Free;
+    end;
+end;
+
 // The focused PCB document when it is a board. A focused PCB library also
 // has a board, which the PCB server reports as current; it does not count.
 function FocusedBoard(Dummy: Integer): IPCB_Board;

@@ -395,8 +395,10 @@ begin
 end;
 
 // Get the graphic/copper primitives of footprints in a PCB library.
-// FootprintName = '' -> inventory (per-footprint primitive counts);
-// '*' -> full dump of every footprint; name -> dump that footprint.
+// FootprintName = '' -> inventory (each footprint's name, description and pad
+// count, A57); '*' -> full dump of every footprint; name -> dump that
+// footprint; several names, comma-separated, dump each into the footprints
+// array, and a name with a comma that the library holds is read whole.
 // Coordinates in mils, layers as names, shapes/hole types as raw enum ints
 // (pass-through symmetric with create_footprints_batch).
 function GetFootprintPrimitives(ROOT_DIR: String; LibraryPath: String; FootprintName: String): String;
@@ -413,11 +415,13 @@ var
     PrimProps   : TStringList;
     PointsArray : TStringList;
     PProps      : TStringList;
-    Counts      : TStringList;
     OutputLines : TStringList;
-    TypeName    : String;
     i, C, V     : Integer;
     Found       : Boolean;
+    PadCount    : Integer;
+    Multi       : Boolean;
+    Wanted      : TStringList;
+    FoundNames  : TStringList;
     BodiesArray : TStringList;
     BodyProps   : TStringList;
     Model       : IPCB_Model;
@@ -450,9 +454,23 @@ begin
 
     ResultProps := TStringList.Create;
     FPArray := TStringList.Create;
+    Wanted := TStringList.Create;
+    FoundNames := TStringList.Create;
     Found := False;
 
     try
+        // Several names, unless the whole string is one footprint's name
+        Multi := False;
+        if (FootprintName <> '*') and (Pos(',', FootprintName) > 0) then
+        begin
+            Multi := True;
+            for C := 0 to PcbLib.ComponentCount - 1 do
+                if (UpperCase(PcbLib.GetComponent(C).Name) = UpperCase(FootprintName)) then
+                    Multi := False;
+            if Multi then
+                SplitNameList(FootprintName, Wanted);
+        end;
+
         AddJSONProperty(ResultProps, 'library_name', ExtractFileName(PcbLib.Board.FileName));
         AddJSONProperty(ResultProps, 'library_path', PcbLib.Board.FileName);
 
@@ -462,49 +480,34 @@ begin
 
             if (FootprintName = '') then
             begin
-                // Inventory mode
-                Counts := TStringList.Create;
+                // Inventory mode: name, description and pad count only (A57),
+                // so a library of some hundreds of footprints fits in a result
                 FPProps := TStringList.Create;
                 try
+                    PadCount := 0;
                     GrpIter := LibComp.GroupIterator_Create;
                     Prim := GrpIter.FirstPCBObject;
                     while (Prim <> nil) do
                     begin
-                        case Prim.ObjectId of
-                            ePadObject:           TypeName := 'pads';
-                            eTrackObject:         TypeName := 'tracks';
-                            eArcObject:           TypeName := 'arcs';
-                            eFillObject:          TypeName := 'fills';
-                            eTextObject:          TypeName := 'texts';
-                            eRegionObject:        TypeName := 'regions';
-                            eViaObject:           TypeName := 'vias';
-                            eComponentBodyObject: TypeName := 'component_bodies';
-                        else
-                            TypeName := 'other';
-                        end;
-                        i := Counts.IndexOfName(TypeName);
-                        if (i < 0) then
-                            Counts.Add(TypeName + '=1')
-                        else
-                            Counts[i] := TypeName + '=' + IntToStr(StrToInt(Counts.ValueFromIndex[i]) + 1);
+                        if (Prim.ObjectId = ePadObject) then
+                            PadCount := PadCount + 1;
                         Prim := GrpIter.NextPCBObject;
                     end;
                     LibComp.GroupIterator_Destroy(GrpIter);
 
                     AddJSONProperty(FPProps, 'name', LibComp.Name);
                     AddJSONProperty(FPProps, 'description', LibComp.Description);
-                    for i := 0 to Counts.Count - 1 do
-                        AddJSONInteger(FPProps, Counts.Names[i], StrToInt(Counts.ValueFromIndex[i]));
+                    AddJSONInteger(FPProps, 'pads', PadCount);
                     FPArray.Add(BuildJSONObject(FPProps, 1));
                 finally
-                    Counts.Free;
                     FPProps.Free;
                 end;
             end
-            else if (FootprintName = '*') or (UpperCase(LibComp.Name) = UpperCase(FootprintName)) then
+            else if LibNameWanted(LibComp.Name, FootprintName, Multi, Wanted) then
             begin
                 // Dump mode
                 Found := True;
+                FoundNames.Add(UpperCase(LibComp.Name));
                 FPProps := TStringList.Create;
                 PrimsArray := TStringList.Create;
                 BodiesArray := TStringList.Create;
@@ -706,7 +709,7 @@ begin
                     else
                         FPProps.Add('"bodies_3d": []');
 
-                    if (FootprintName = '*') then
+                    if (FootprintName = '*') or Multi then
                         FPArray.Add(BuildJSONObject(FPProps, 1))
                     else
                         for i := 0 to FPProps.Count - 1 do
@@ -719,16 +722,18 @@ begin
             end;
         end;
 
-        if (FootprintName = '') or (FootprintName = '*') then
-        begin
-            AddJSONInteger(ResultProps, 'footprint_count', FPArray.Count);
-            ResultProps.Add(BuildJSONArray(FPArray, 'footprints', 1));
-        end
-        else if not Found then
+        if not Found and (FootprintName <> '') and (FootprintName <> '*') then
         begin
             Result := 'ERROR: Footprint not found in library: ' + FootprintName;
             Exit;
         end;
+        if (FootprintName = '') or (FootprintName = '*') or Multi then
+        begin
+            AddJSONInteger(ResultProps, 'footprint_count', FPArray.Count);
+            ResultProps.Add(BuildJSONArray(FPArray, 'footprints', 1));
+        end;
+        if Multi then
+            ResultProps.Add(NotFoundJSON(Wanted, FoundNames));
 
         OutputLines := TStringList.Create;
         try
@@ -740,6 +745,8 @@ begin
     finally
         ResultProps.Free;
         FPArray.Free;
+        Wanted.Free;
+        FoundNames.Free;
     end;
 end;
 

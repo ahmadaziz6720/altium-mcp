@@ -275,6 +275,22 @@ end;""")
         self.assertEqual(len([e for e in out.get("errors", []) if "has no part" in e]), 2, out)
         self.assertEqual([c for c in saved(self.sheet) if c[0] == "U7"], got, "a refused part was left on the sheet")
 
+    def test_parts_by_the_build_and_by_place_component_compile_as_one(self):
+        # A77: the two tools filled a placed part's library fields differently
+        out = self.build([{"x": 2000, "y": 5000, "part": "B"}])
+        self.assertTrue(out.get("success"), out)
+        out = self.edit([{"op": "place_component", "library": str(self.lib), "symbol": SYMBOL,
+                          "designator": "U1", "x": 4000, "y": 5000, "part": "C"}])
+        self.assertEqual(out.get("applied"), 1, out)
+        fields = sorted((r.get("CURRENTPARTID"), r.get("DESIGNITEMID"), r.get("SOURCELIBRARYNAME"),
+                         r.get("LIBRARYPATH"), r.get("LIBREFERENCE"))
+                        for r in read_schdoc(self.sheet) if r and r.get("RECORD") == "1")
+        self.assertEqual(len(fields), 2, fields)
+        self.assertEqual(compiled_components(self.project), ["U1"],
+                         f"the parts are not one component; their library fields "
+                         f"(part, DESIGNITEMID, SOURCELIBRARYNAME, LIBRARYPATH, LIBREFERENCE): {fields}")
+        self.assertEqual(fields[0][1:], fields[1][1:], "the two tools fill the library fields differently")
+
     def test_an_edit_with_a_refused_part_is_one_undo_step(self):
         self.assertTrue(self.build([{"designator": "R1", "symbol": "RES", "x": 1000, "y": 1000}]).get("success"))
         place = {"op": "place_component", "library": str(self.intlib), "symbol": SYMBOL, "designator": "U7",

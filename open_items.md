@@ -12,7 +12,7 @@ upstream, run and held, or decided against moves with its record to
 [`closed_items.md`](closed_items.md), and so does a run's section once every step of it is
 ticked. The layout is the `backlog` plugin's `format.md` (v0.1, since 2026-11-15).
 
-**Open: A11, A15, A23, A25, A31 to A34, A36 to A39, A42 to A44, A47, A48, A51 to A54, A59 to A65, A67 to A69, A72, A73, A76 to A78.** Sorted
+**Open: A11, A15, A23, A25, A31 to A34, A36 to A39, A42 to A44, A47, A48, A51 to A54, A59 to A65, A67 to A69, A72, A73, A76, A78.** Sorted
 2026-11-23, the third entry of 2026-11-23 (the scenario test of group 2's build,
 `build-20261123-103915`): A46, A58, A45, A26, A27, A71, A56 and A75 held and closed, A55
 closed as usage; A77 and A78, new, taken into group 3; A61, met again; A34 and A52,
@@ -466,7 +466,7 @@ is written down before it.
     600 MB free, held alone and in sequence: watched at group 3's full pass.
 - [x] A28: committed (ad9e9da)
   - About 130k tokens, 40 minutes; refused before, 14/14 live after, 608 offline.
-- [x] A60 (a): committed
+- [x] A60 (a): committed (4eef324)
   - About 120k tokens, 30 minutes; 2 of 2 live failed before, 2/2 after (twice), 608 offline.
     The capture was cut by DPI scaling as well as by the zoom: images now 2418x1308 here.
 - [x] The recipes (A47, A51, A52, A54, A55, A59, A62 to A65, A67, A69, A34 (f), A56 (b)): committed (ba17162)
@@ -488,7 +488,10 @@ is written down before it.
     release; A26's fix is in its stash; the subagents' brief and the helper scripts are in
     the session's scratchpad. Not written yet: the run's `learned.md` entry, and as items at
     the run's end what A46, A45, A58 and A55 list as seen and left.
-- [ ] A77: committed
+- [x] A77: committed
+  - About 115k tokens, 40 minutes; failed before, 31/31 live after in eight modules, 608 offline.
+    `test_live_symbol_footprint` and `test_live_project_setup` cut by Claude Code for low memory
+    (about 0.8 GB free), left to group 3's full pass.
 - [ ] A78: committed
 - [ ] Group 3: tests and release (build: )
 - [ ] Group 3: scenario test (session id: ), its outcome sorted
@@ -1443,28 +1446,6 @@ Usage: compare two compiles by `errors` and their groups, not by `total`.
 Decided 2026-11-23 by the run, not the owner: not taken into this run, because its cause is
 unknown and looks to be Altium's, not a small fix in group 1's files.
 
-### A77 - The parts of one component placed by `build_schematic` and by `place_component` do not compile as one - OPEN 2026-11-23
-
-Sorted out of the group 2 entry of 2026-11-23, point 4, the scenario test of build
-`0.7.0-20261123-103915`. Part B of a multi-part symbol placed by `build_schematic` and part
-C, same designator and library, by `edit_schematic` `place_component` on the same sheet:
-ERC "Duplicate Component Designators" for it and "unused sub-part(s) (1) and (2)" and "(1)
-and (3)", and `get_project_components` lists the designator twice. Parts B and C both
-placed by `place_component` compile as one. In the saved file the build's part has
-`DESIGNITEMID` set, `SOURCELIBRARYNAME` `*` and no `LIBRARYPATH`; `place_component`'s has
-`LIBRARYPATH` and `SOURCELIBRARYNAME` the library's file name and no `DESIGNITEMID`: the two
-tools fill a placed part's library fields differently. `edit_schematic`'s `warnings`
-treated them as one component ("part A not placed on this sheet"). Reported success. The
-entry filed it under A45 as failed.
-
-Local: one way of filling the library fields in both tools.
-
-Decided 2026-11-23 by the run, not the owner: a new item in group 3, not A45 fixed again
-with group 2 checked again, because A45's own promise held (point 3) and the fault is in how
-the two tools fill a part's library fields, older than A45.
-
-Taken into `## Run 2026-11-22`, group 3 (a step of its own).
-
 ### A78 - A52's recipe says its script does not mark the sheet modified, but it does - OPEN 2026-11-23
 
 Sorted out of the group 2 entry of 2026-11-23, point 10, the scenario test of build
@@ -1783,4 +1764,61 @@ one footprint by `create_footprints_batch`, and after a save each file holds onl
 a second `create` refused, the file unchanged); `test_live_project_setup` and
 `test_live_build_focus` 14/14 live; offline 1 new (`tests/test_project_setup.py`, the kind
 sent for each of the four extensions), 608/608 in all.
+Fixed in the commit that moves it here.
+
+### A77 - The parts of one component placed by `build_schematic` and by `place_component` do not compile as one - BUILT 2026-11-23, proof: the scenario test
+
+Sorted out of the group 2 entry of 2026-11-23, point 4, the scenario test of build
+`0.7.0-20261123-103915`. Part B of a multi-part symbol placed by `build_schematic` and part
+C, same designator and library, by `edit_schematic` `place_component` on the same sheet:
+ERC "Duplicate Component Designators" for it and "unused sub-part(s) (1) and (2)" and "(1)
+and (3)", and `get_project_components` lists the designator twice. Parts B and C both
+placed by `place_component` compile as one. In the saved file the build's part has
+`DESIGNITEMID` set, `SOURCELIBRARYNAME` `*` and no `LIBRARYPATH`; `place_component`'s has
+`LIBRARYPATH` and `SOURCELIBRARYNAME` the library's file name and no `DESIGNITEMID`: the two
+tools fill a placed part's library fields differently. `edit_schematic`'s `warnings`
+treated them as one component ("part A not placed on this sheet"). Reported success. The
+entry filed it under A45 as failed.
+
+Local: one way of filling the library fields in both tools.
+
+Decided 2026-11-23 by the run, not the owner: a new item in group 3, not A45 fixed again
+with group 2 checked again, because A45's own promise held (point 3) and the fault is in how
+the two tools fill a part's library fields, older than A45.
+
+Taken into `## Run 2026-11-22`, group 3 (a step of its own).
+
+Cause: the two tools set different library fields on a part from a `.SchLib`.
+`build_schematic` set only `DesignItemID` (empty when no `design_item_id` is given, saved as
+the library reference), so `SOURCELIBRARYNAME` and `LIBRARYPATH` were saved as `*`.
+`place_component` set `LibraryPath` and `SourceLibraryName` and never set `DesignItemID`, so
+it was saved with none. Altium compiled the two parts as two components. A part from an
+`.IntLib` is placed by Altium itself (`PlaceIntLibComponent`) in both tools, and was not
+affected.
+
+Fixed: one procedure, `SetPartLibrary` in `schematic_utils.pas`, used by both tools for a
+part from a `.SchLib`. It sets `LibraryPath` to the library's path, `SourceLibraryName` to its
+file name, and `DesignItemID` to the given one or else the library reference. No tool,
+argument or description changed.
+Decided 2026-11-23 by the run, not the owner: `place_component`'s fields kept, plus a Design
+Item ID in both, rather than the build's `*`, because they name the library a part came from,
+as Altium's own sheets do (`SOURCELIBRARYNAME` is the library's file name in the examples'
+sheets), so the result stays true. A sheet built before this fix still holds `*` on its
+parts, so a part added to it now by `place_component` is likely still compiled apart (not
+tested); the fix reaches parts placed from this build on.
+
+Test before (`tests/test_live_multipart.py`,
+`test_parts_by_the_build_and_by_place_component_compile_as_one`, new: part B by the build,
+part C by `place_component`, one designator, the project compiled): "AssertionError: Lists
+differ: ['U1', 'U1'] != ['U1'] : the parts are not one component; their library fields
+(part, DESIGNITEMID, SOURCELIBRARYNAME, LIBRARYPATH, LIBREFERENCE): [('2', 'MULTIPART_TEST',
+'*', '*', 'MULTIPART_TEST'), ('3', None, 'Multi.SchLib', '<tmp>\Multi.SchLib',
+'MULTIPART_TEST')]".
+Test after, 2026-11-23, live in AD25: `test_live_multipart` 9/9 (that test included, the
+saved fields of both parts equal), `test_live_pin_map` 2/2, `test_live_body_lock` 2/2,
+`test_live_spec_file` 1/1, `test_live_build_focus` 4/4, `test_live_build_footprint` 5/5,
+`test_live_libraries` 5/5, `test_live_set_footprint` 3/3. `test_live_symbol_footprint` and
+`test_live_project_setup` did not run to the end: Claude Code stopped the run for low memory
+(about 0.8 GB free), so they are left to the group's run of every `test_live_*`. Offline:
+the whole list of `tests.yml`, 608/608.
 Fixed in the commit that moves it here.

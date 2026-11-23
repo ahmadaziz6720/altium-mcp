@@ -2122,6 +2122,22 @@ begin
     SchServer.RobotManager.SendMessage(Result.I_ObjectAddress, c_BroadCast, SCHM_EndModify, c_NoEventData);
 end;
 
+// The library fields of a part placed from a .SchLib, the same in
+// build_schematic and place_component. The two tools filled them
+// differently, and the parts of one symbol and designator placed by both
+// compiled as two components (A77). The Design Item ID is the library
+// reference unless one is given.
+procedure SetPartLibrary(Comp: ISch_Component; LibPath, DesignItemID: String);
+var
+    ItemID : String;
+begin
+    Comp.LibraryPath := LibPath;
+    Comp.SourceLibraryName := ExtractFileName(LibPath);
+    ItemID := DesignItemID;
+    if ItemID = '' then ItemID := Comp.LibReference;
+    Comp.DesignItemID := ItemID;
+end;
+
 function BuildCircuitFromSpec(SpecPath: String; PlacementPath: String): String;
 var
     Spec, Placement, PinMap, Warnings : TStringList;
@@ -2287,7 +2303,7 @@ begin
                 // A symbol comes with the part its library shows, not always A
                 Replica.CurrentPartID   := Part;
                 Replica.Designator.Text := GetFieldFromPipeString(Rec, 1);
-                Replica.DesignItemID    := GetFieldFromPipeString(Rec, 4);
+                SetPartLibrary(Replica, CurLib, GetFieldFromPipeString(Rec, 4));
                 Replica.Orientation     := StrToInt(GetFieldFromPipeString(Rec, 7));
 
                 TargetDoc.RegisterSchObjectInContainer(Replica);
@@ -3721,8 +3737,7 @@ begin
     Replica := ReplicateLibSymbol(Found);
     Replica.CurrentPartID := Part;
     Replica.Designator.Text := GetFieldFromPipeString(Rec, 1);
-    Replica.LibraryPath := LibPath;
-    Replica.SourceLibraryName := ExtractFileName(LibPath);
+    SetPartLibrary(Replica, LibPath, '');
     Replica.Orientation := StrToInt(GetFieldFromPipeString(Rec, 6));
     SchRegister(Doc, Replica);
     if GetFieldFromPipeString(Rec, 7) = '1' then

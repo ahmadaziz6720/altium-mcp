@@ -12,7 +12,10 @@ upstream, run and held, or decided against moves with its record to
 [`closed_items.md`](closed_items.md), and so does a run's section once every step of it is
 ticked. The layout is the `backlog` plugin's `format.md` (v0.1, since 2026-11-15).
 
-**Open: A11, A15, A23, A25, A31 to A34, A36 to A39, A42 to A44, A47, A48, A51 to A54, A59 to A65, A67 to A69, A72, A73, A76.** Sorted
+**Open: A11, A15, A23, A25, A31 to A34, A36 to A39, A42 to A44, A47, A48, A51 to A54, A59 to A65, A67 to A69, A72, A73, A76, A79 to A81.** Sorted
+2026-11-23, the fourth entry of 2026-11-23 (the scenario test of group 3's build,
+`build-20261123-140004`): A57, A66, A41, A70, A28, A77 and A78 held and closed; A60 (a)
+held, A60 open for (b); A79, A80 and A81, new, out of the run, for the owner. Sorted
 2026-11-23, the third entry of 2026-11-23 (the scenario test of group 2's build,
 `build-20261123-103915`): A46, A58, A45, A26, A27, A71, A56 and A75 held and closed, A55
 closed as usage; A77 and A78, new, taken into group 3; A61, met again; A34 and A52,
@@ -500,7 +503,16 @@ is written down before it.
     unmodified, the 242 files of the test project hashed before and after, none changed;
     free memory 918 MB after, 766 MB lowest. The listing 159,660 to 159,813 characters
     (+0.10%), by the subagents' measure of group 2's method. `ad25` pushed at 049670b.
-- [ ] Group 3: scenario test (session id: 9b50c01a-2013-453c-be37-d4a6e543e2bc), its outcome sorted
+- [x] Group 3: scenario test (session id: 9b50c01a-2013-453c-be37-d4a6e543e2bc), its outcome sorted
+  - Started 14:01 by its launcher (pid 16560), free memory 1198 MB, Altium pid 20088 from its
+    exe; output and launcher in the session's scratchpad (`check_140004.*`). Stopped 14:09 by
+    the usage limit of the account it ran on (`EXIT 1`, 72 turns, no entry); resumed once at
+    14:19 after the owner's new login (pid 14760, free memory 1347 MB, Altium pid 1812, which
+    the check had started from its exe at 14:06 after the memory guard refused every call).
+    `EXIT 0` at 14:23, 30 turns more, about $9.61 in all; its entry committed alone
+    (`0c08ac0`), sorted by a subagent (about 75k tokens, 9 minutes): A57, A66, A41, A70, A28,
+    A77, A78 held (closed), A60 (a) held, A60 open for (b); A79, A80, A81 new, out of this
+    run. The release page's line updated.
 - [ ] The report
 
 ## Open
@@ -967,6 +979,8 @@ offline 608/608. (a) fixed in the commit that writes this paragraph. A60 stays O
 out of the run.
 
 (a) built in build `0.7.0-20261123-140004` (tag `build-20261123-140004`), commit `4eef324`.
+
+Held 2026-11-23: the scenario test of build 0.7.0-20261123-140004 (findings 2026-11-23, the group 3 entry, point 6): (a) held: a sheet zoomed in three times by `SCH:Zoom` `Action=ZoomIn`, then `get_screenshot(view_type="sch", zoom_to=[<a part>])`, gave the whole A4 sheet, its border and title block, in a 2418 x 1308 image of the whole window, the panels on the right not cut, and `warnings: ["zoom_to is for PCB only; the sheet was fitted whole"]`. A60 stays Open for (b).
 
 ### A61 - `edit_schematic` leaves Altium's focus or selection changed - OPEN 2026-11-22
 
@@ -1454,6 +1468,56 @@ Usage: compare two compiles by `errors` and their groups, not by `total`.
 Decided 2026-11-23 by the run, not the owner: not taken into this run, because its cause is
 unknown and looks to be Altium's, not a small fix in group 1's files.
 
+### A79 - A footprint linked by name keeps the case it was typed in, not the library's - OPEN 2026-11-23
+
+Sorted out of the group 3 entry of 2026-11-23, point 3, the scenario test of build
+`0.7.0-20261123-140004`, the point that held A66. `create_schematic_symbol` given a footprint
+name in lower case that the project's saved `.PcbLib` holds in another case linked it to
+that library and made it current, as A66 promises, but stored the model name as typed, not
+as the library has it; the saved library holds the same, and the compile lists the part's
+footprint in that case. Reported success, `problems` []. Whether a board update resolves
+the footprint in the other case was not tried.
+
+Proposed: local; the lookup that fills the library (A66's, `server/symbol_footprint.py`)
+writes the name as the library holds it too. Not decided.
+
+Decided 2026-11-23 by the run, not the owner: left out of the run, because it came from group 3's scenario test and the run ends with that group.
+
+### A80 - `build_schematic` into the focused project names that project in `detached_from` - OPEN 2026-11-23
+
+Sorted out of the group 3 entry of 2026-11-23, point 9, the scenario test of build
+`0.7.0-20261123-140004`. `build_schematic(project_path=P, sheet_path=...)` while P itself is
+the focused project returns `detached_from: P`, the project the sheet was added to, as if
+the sheet had been taken out of another one. The sheet is in P and in its saved project
+file; only the field is wrong. Reported success. Bears on A26 (closed, held in group 2's
+scenario test), whose fix gives `detached_from`: the case of a target that is itself the
+focused project.
+
+Proposed: local; no `detached_from` when the project the sheet would be detached from is
+the target. Not decided.
+
+Decided 2026-11-23 by the run, not the owner: left out of the run, because it came from group 3's scenario test and the run ends with that group.
+
+### A81 - The memory guard refuses a read of the unsaved flags, so a restart cannot be checked first - OPEN 2026-11-23
+
+Sorted out of the group 3 entry of 2026-11-23, point 10, the scenario test of build
+`0.7.0-20261123-140004`, given there as a lesson. At the session's start Altium held 3.7 GB
+(running since the release's live tests), and the server's memory guard
+(`altium_limit_problem` in `server/main.py`, half the machine's RAM) refused every bridge
+call ("Altium is using 3.7 GB of memory ... restart it"), and `run_altium_script` with a
+script that only lists each open document's unsaved flag as well. The refusal asks the user
+to save their work and restart, but what was unsaved could not be read before the restart.
+Done instead: `get_project_info` on the focused project (clean), the files of the open
+projects hashed, Altium's main window closed (no save prompt, 6 s), Altium started from its
+exe, the hashes equal after.
+
+Usage: a session that starts on an Altium of a long live run restarts it first.
+
+Proposed: local; the guard lets a small read of the open documents' modified flags through,
+or its refusal says how to check what is unsaved without Altium. Not decided.
+
+Decided 2026-11-23 by the run, not the owner: left out of the run, because it came from group 3's scenario test and the run ends with that group.
+
 ## Waiting
 
 ### A1 - `get_server_status` reports no version or commit - BUILT 2026-11-12, proof: the upstream PR for the version part, not sent yet
@@ -1506,354 +1570,3 @@ Scenario test of that build held (2026-11-12, third entry, 2): 38 rules, the sco
 `filter2` only on binary rules. The reply went from 9.3k to 8.5k characters only (about
 9 %): what is left is mostly the key names and indentation repeated on every rule.
 Waits for the upstream PR.
-
-### A57 - Library reads return too much, or one symbol per call - BUILT 2026-11-23, proof: the scenario test
-
-2026-11-18 (first), point 1: `get_symbol_primitives` in inventory mode on a 418-symbol
-`.SchLib` returned 91k characters, over the result limit, where name and description were
-all that was needed. 2026-11-19 (seventh), its closing line: `get_footprint_primitives`
-without a name on a whole footprint library overflowed at about 60 KB. 2026-11-18 (first),
-point 2: a layout needs several symbols' pins (designator, name, location, orientation,
-length), one call per symbol with all its graphics; one `run_altium_script` did 27 symbols.
-2026-11-19 (first), point 6: a footprint's pad names only through the full dump.
-
-Proposed: local; a `name` or `term` filter and a names-and-descriptions inventory on both
-tools, a list of symbol names with a pins-only mode, and a pads-only mode for footprints.
-Not decided.
-
-Met again 2026-11-22 (findings 2026-11-22, point 1), build `0.7.0-20261115-172812`, measured
-from seventeen sessions' transcripts: `get_symbol_primitives` and `get_footprint_primitives`
-20k to 44k characters of results in a session each. The same point names
-`get_project_components`, 63k in one session (7 calls), filed here as the entry did: it is a
-project read, not a library one, and no item yet covers its size.
-
-Cause: the inventory mode of both tools gave every primitive type's count on each entry
-(and `part_count` on a symbol's), and the server printed the result indented, a line per
-key: the keys and indentation of some hundreds of entries outweighed their names and
-descriptions. A name was compared whole, so one call read one symbol or footprint, or all
-of them with `"*"`.
-
-Fixed: the inventory gives each symbol's `name`, `description` and `pins`, each
-footprint's `name`, `description` and `pads` (the scripts count only pins or pads), and the
-server prints it one entry a line, compact (`library_inventory_json` in `server/main.py`);
-a dump is printed as before. The name argument takes several names, comma-separated
-(`SplitNameList`, `LibNameWanted`, `NotFoundJSON` in `other_utils.pas`): each one found is
-dumped into `symbols` (or `footprints`), as `"*"` does, with `symbol_count` (or
-`footprint_count`) and `not_found` for those missing; none found is the error one name
-gives. One name is as before. No new argument; the tool listing 159,660 to 159,602
-characters.
-Decided 2026-11-23 by the run, not the owner: a string with a comma that is itself a name
-in the library is read as that one name, split only when no symbol or footprint is named
-so, because Altium's own example library holds `Jumper, 2-Pin`, and splitting it would
-report two names missing where the library has the symbol.
-Decided 2026-11-23 by the run, not the owner: several names give a list as `"*"` does,
-with `not_found`, and an error only when none is found, because a call for several should
-still give the ones it found, and say which it did not.
-Decided 2026-11-23 by the run, not the owner: the inventory printed compact, one entry a
-line, because the indentation and the spaces of a few hundred entries were a large part of
-the result and the plan left the form open; the dumps are printed as before, being out of
-the item's decision.
-Test before (`tests/test_live_library_reads.py`, a copy of an example `.SchLib` with 450
-symbols added, 489 in all, and a copy of an example `.PcbLib` with 300 footprints added, 333
-in all): 4 failed, 1 error of 6: "93587 not less than 60000 : the inventory of 489 symbols
-is 93587 characters"; the footprint inventory gave `tracks` beside `pads`; "Symbol not
-found in library: INV_001, inv_002,INV_007" and "Footprint not found in library:
-INVFP_004,invfp_005, NONE_SUCH"; the call with a missing name gave no `symbols`.
-Test after: 7/7 live (a name with a comma read whole added), the symbol inventory 53,793
-characters for 489 symbols, the footprint inventory 36,270 for 333 footprints; the live
-tests of the tools touched, `test_live_symbol_footprint` and `test_live_pcblib_from_board`,
-13/13 together; offline 8 new (`tests/test_library_reads.py`, added to `tests.yml`),
-596/596 offline in all. `get_project_components`' size (the line of 2026-11-22) is not in
-this fix: it is left for an item of its own, filed with the run's other leftovers at its
-end.
-Fixed in the commit that moves it here.
-
-Built in build `0.7.0-20261123-140004` (tag `build-20261123-140004`), commit `c7aac0a`.
-
-### A66 - `create_schematic_symbol` reports a footprint linked by name that no library of the project holds - BUILT 2026-11-23, proof: the scenario test
-
-Sorted out of the entry of 2026-11-20, point 5: `footprints: ["<name>"]` reported the
-footprint linked, `problems` empty, but the parts placed from the symbol had no footprint in
-Altium: it was in an installed vendor `.PcbLib`, not in the project's libraries, and the link
-held no location. Found by the owner. Fixed by setting `DatafileLink(0).Location` on the
-symbol and the placed parts by script. Reported success with a wrong result (the caller
-should also have given the library).
-
-Proposed: local; a name-only footprint resolved at creation: the location filled from the
-library that holds it, else a line in `problems`. Not decided.
-
-Cause: a footprint given by name only went to Altium with an empty library, and the
-script stored the link as it was asked (`ApplyFootprint`, `AddDataFileLink(Model, '',
-'PCBLib')`) and read back the same empty library, so the read-back matched the request and
-`problems` stayed empty; nothing looked for the library that holds the name. The same holds
-for a `FOOTPRINT|<name>` record of `create_symbols_batch`, which goes through the same code.
-
-Fixed: before Altium is asked to make the symbol, a name with no library is looked up in
-the saved `.PcbLib` files of the projects that hold the symbol library (the focused one for
-`create_schematic_symbol`, the spec's `LIBRARY|` for `create_symbols_batch`), then of the
-installed libraries in Altium's order, and the first that holds it is written into the
-record; none does, the link is by name as before and `problems` gets a line naming the
-symbol and the footprint ("... is in no saved .PcbLib of the project or installed in
-Altium; linked by name only (give its library)"). The bridge command behind
-`get_installed_libraries` also gives `project_libraries` for a `library_path`
-(`GetInstalledLibraries` in `other_utils.pas`; the tool's own result is as before); the
-lookup is `search_order`, `fill_records` and `fill_spec` in `server/symbol_footprint.py`, a
-file read by `held_footprints` in `server/pcblib_file.py`. One more call to Altium only when
-a name has no library. No new tool or argument; the two `footprints` descriptions say where
-a name is looked for; the tool listing 159,606 to 159,605 characters.
-Decided 2026-11-23 by the run, not the owner: only saved `.PcbLib` files are looked in, an
-installed `.IntLib` not, because a footprint's library is a `.PcbLib` path (the tool refuses
-any other) and the file on disk is what the link points Altium to; a footprint made in an
-open library and not saved yet is reported, not guessed.
-Decided 2026-11-23 by the run, not the owner: `create_symbols_batch`'s `FOOTPRINT` records
-are fixed with it, because they share the code and its live test asserted the same fault
-(a name-only link, `problems` empty).
-Decided 2026-11-23 by the run, not the owner: "the project" is every open project whose
-documents include the symbol library, `Free Documents` among them, in workspace order,
-because a library can be in several projects and a free one has no other.
-Test before (`tests/test_live_symbol_footprint.py`, copies of an example's `.SchLib` and
-`.PcbLib`, the `.PcbLib` installed for the test and the installed list put back as found):
-3 failed of 3: a name held only by the installed copy, "Lists differ: [('HDR1X2', '',
-True)] != [('HDR1X2', '<the installed copy>', True)]"; a name held by the project's
-`.PcbLib` (and a second copy installed), "{'HDR1X2': ('', True), 'NT': ('', False)} !=
-..."; a name no library holds, "0 != 1" problems.
-Test after: 11/11 of `tests/test_live_symbol_footprint.py` live (the three above among them;
-the test of a name-only link now asserts its problem line), and with the live tests of the
-tools touched (`test_live_libraries`, `test_live_build_footprint`, `test_live_body_lock`,
-`test_live_library_reads`, `test_live_multipart`, `test_live_pin_map`) 40/40; offline 7 new
-(`tests/test_symbol_footprint.py`, `tests/test_pcblib_file.py`), 603/603 in all.
-Fixed in the commit that moves it here.
-
-Built in build `0.7.0-20261123-140004` (tag `build-20261123-140004`), commit `3ab04ad`.
-
-### A41 - `make_pcblib_from_board` loses the footprints' descriptions - BUILT 2026-11-23, proof: the scenario test
-
-Six of the twelve
-components of a 2-layer board carry a footprint description
-(`IPCB_Component.FootprintDescription`), and the library Altium's menu makes from that board
-keeps them; in every library the tool made, read back with `get_footprint_primitives`, every
-description is empty, and `problems` stays [] because the comparison checks patterns and pads
-only. Reported success with less than the board has. Local: find where they are lost (the
-hidden run, the filter or the save), give each footprint the board's description before the
-save, and compare descriptions too; a live test that fails today. (2026-11-15, third entry,
-5.) For the next run.
-
-Cause, found by a probe: Altium's own `PCB:BuildPCBLibrary`, run hidden as the bridge runs
-it, makes every footprint with an empty description; read in memory straight after the run,
-before the filter and the save, all twelve footprints of a board whose components carry
-eleven descriptions had none. The save and the filter lose nothing; the comparison checked
-patterns and pads only, so nothing saw it.
-
-Fixed: the bridge (`MakePcbLibFromBoard` in `other_utils.pas`) reads each component's
-`FootprintDescription` with its pattern, and gives each footprint it keeps, Altium's
-`_<n>` variants too, its pattern's description before the save, where Altium left it
-empty (`FootprintPatternIndex`, shared with the filter's `FootprintWanted`). It returns the
-board's descriptions per pattern and the saved file's per footprint, and
-`server/board_library.py` puts a line in `problems` for a footprint whose description read
-back is not one its pattern's components carry (success false). No new tool or argument;
-the result is as before but for that line; the tool's description names the check, the
-tool listing 159,605 to 159,622 characters.
-Decided 2026-11-23 by the run, not the owner: the description given is the first one met on
-the board for the pattern, to every footprint of it, and the check accepts any its
-components carry, because Altium's library records no component a `_<n>` variant comes
-from, and the components of one pattern carry one description on the boards seen.
-Decided 2026-11-23 by the run, not the owner: the descriptions are not added to each
-footprint of the result, only a problem line when one differs, because the token rule
-asks that a result not grow.
-Test before (`tests/test_live_pcblib_from_board.py`, `LivePcbLibDescriptionsTest`, a copy
-of an Altium example board whose components carry footprint descriptions, read back with
-`get_footprint_primitives`): failed, "AssertionError: {'STM-LQFP64_L': ('', ['Thin QFP,
-64-Leads[1039 chars]n'])} != {} : footprints whose description is not the board's", every
-footprint of the twelve empty.
-Test after: 5/5 of `tests/test_live_pcblib_from_board.py` live (the one above among them);
-offline 1 new (`tests/test_board_library.py`), 604/604 in all.
-Fixed in the commit that moves it here.
-
-Built in build `0.7.0-20261123-140004` (tag `build-20261123-140004`), commit `e4a6669`.
-
-### A70 - `run_altium_script`'s `OpenSchDoc` opens a `.SchLib` as a sheet - BUILT 2026-11-23, proof: the scenario test
-
-Sorted out of the entries of 2026-11-19 (fifth), point 1, and (twelfth), point 1. Given a
-`.SchLib`, the helper opens it as a schematic (kind `SCH`, `ObjectId` 32; opened as a
-library it reads 33). Until it is closed every call that needs the library fails:
-`SchLibIterator_Create` and `AddSchComponent` "Undeclared identifier", `create_symbols_batch`
-"Could not open and focus ... - nothing was created or edited", a script's
-`Client.OpenDocument('SCHLIB', ...)` returning the same sheet, one run hanging 120 s. Seven
-calls to find the cause in one session; saved, the library would have been overwritten as a
-sheet. Workaround: close it unsaved and open it as `SchLib`.
-
-Proposed: local; `OpenSchDoc` opens by the file's extension or refuses a `.SchLib`, and the
-batch tool's "could not open and focus" names the kind it found. Not decided.
-
-Cause: the helper (`Sandbox.pas`) called `Client.OpenDocument('SCH', Path)` for every path, and
-Altium opens the file as the kind it is told: a `.SchLib` told `SCH` is a sheet (kind SCH,
-ObjectId 32) until closed. `create_symbols_batch` then found the file open (it only
-focuses an open library), `SchLibIsFocused` was false (not ObjectId 33), and its error gave
-no reason.
-
-Fixed: `OpenSchDoc` opens by the file's extension, `SCHLIB` for `.SchLib` (any case), `SCH`
-otherwise; when the file is already open as a sheet it returns that sheet and logs
-"is open as a schematic sheet, not a library; close it unsaved and call again", in the
-script's steps. `create_symbols_batch`'s "Could not open and focus <path>" gains
-`OpenKindNote`: " - it is open as kind SCH (a schematic sheet, not a library; close it unsaved
-and call again)", or " - it is open as kind <K>" for another kind, nothing when the file is
-not open. No new tool or argument; `run_altium_script`'s description gains "(a .SchLib as a
-library; ...)" in the helpers line, the tool listing 159,622 to 159,646 characters.
-Decided 2026-11-23 by the run, not the owner: a `.SchLib` already open as a sheet is
-returned as that sheet with a logged line, not closed or reopened by the helper, because
-closing a document the caller may have changed is not the helper's call, and the log keeps
-the result true.
-Test before (`tests/test_live_open_schlib.py`, a copy of an Altium example library):
-failed twice, "AssertionError: Tuples differ: ('32', 'SCH|32') != ('33', 'SCHLIB|33') :
-OpenSchDoc did not open the .SchLib as a library (ObjectId 33, kind SCHLIB)", and the batch
-tool's error "Failed batch creation: Could not open and focus <path> - nothing was created or
-edited" without the kind ("'open as kind SCH (a schematic sheet' not found").
-Test after: 4/4 of `tests/test_live_open_schlib.py` live (a new module: the library opened
-as a library, a sheet still as a sheet, the logged line for a library open as a sheet, the
-batch error naming the kind); the live tests of the tools touched, `test_live_symbol_footprint`,
-`test_live_multipart`, `test_live_body_lock`, `test_live_compile_refresh`, 32 in one run with
-the new ones, 31 passing; `test_live_multipart`'s `test_parts_from_an_intlib` failed once in
-that run (the message was not kept, Altium had about 600 MB free) and passed alone and in two
-reruns (`test_live_multipart` 8/8, the first three modules in sequence 23/23): not
-reproduced, not from this change; offline 3 new (`tests/test_sandbox.py`), 607/607 in all.
-Fixed in the commit that moves it here.
-
-Built in build `0.7.0-20261123-140004` (tag `build-20261123-140004`), commit `f4ae3d3`.
-
-### A28 - No tool makes an empty library - BUILT 2026-11-23, proof: the scenario test
-
-`create_symbols_batch`'s `LIBRARY` needs an
-existing `.SchLib` and `add_project_document`'s `create` makes sheets and boards only, so
-a new `.SchLib` or `.PcbLib` is made by script (`CreateNewDocumentFromDocumentKind`,
-`DoSafeChangeFileNameAndSave`, then `SetModified(True)` and `DoFileSave('')`), and it went
-into the project in focus, as A10's probe found for a sheet. Local: `create` for `.SchLib`
-and `.PcbLib` in `add_project_document`, or a library made by the symbol and footprint
-tools when missing. (2026-11-14, fifth entry, 7.) For the next run.
-Met again 2026-11-18 (findings 2026-11-18, second entry, point 4), build
-`0.7.0-20261115-172812`: the project's `.SchLib` made by script
-(`Client.OpenNewDocument('SCHLIB', ...)`, `SetFileName`, `DoFileSave`).
-Met again 2026-11-19 (findings 2026-11-19, third entry, point 1), same build: a new `.PcbLib`
-made by script with no project in focus joined none, and `add_project_document(create=False)`
-then added it cleanly; it holds Altium's empty default footprint `PCBComponent_1` beside the
-one made, and no tool deletes a footprint (A63), so a `create` should make it empty.
-
-Decided 2026-11-22 by the owner (the opening answer of `## Run 2026-11-22`): taken, `add_project_document(create=True)` makes an empty `.SchLib` or `.PcbLib` too, no new argument.
-
-Cause: `add_project_document`'s `create` knew two kinds only (`NEW_KINDS` in
-`server/project_setup.py`, `.schdoc` and `.pcbdoc`), so a `.SchLib` or `.PcbLib` path was
-refused before Altium was called. And a library Altium makes by script is not empty: a new
-`.SchLib` holds `Component_1`, a new `.PcbLib` `PCBComponent_1` (probed live, one each).
-
-Fixed: `NEW_KINDS` gains `.schlib` (`SCHLIB`) and `.pcblib` (`PCBLIB`), so `create=True` makes
-either through the same path as a sheet or a board: saved at `document_path`, added to the
-project named, taken out again of a project that had focus (`detached_from`), the project
-file saved. In `AddProjectDocument` (`other_utils.pas`) a new library is emptied before its
-first save by `LibraryItemCount` (`RemoveSchComponent` or `RemoveComponent` on each item,
-then counted again); one left, the call fails, the library open unsaved and not added. No
-new tool or argument; the description names the four kinds and that Altium shows a
-`Component_1` in a `.SchLib` that has none when it opens it again (probed: the saved file
-holds no symbol, the reopened library one, unmodified). The tool listing 159,646 to 159,770
-characters.
-Decided 2026-11-23 by the run, not the owner: the `.SchLib` emptied too, not only the
-`.PcbLib`, because the decision asks for an empty library of either kind and the file on
-disk is then empty, while the `Component_1` Altium shows on reopening is said in the
-description rather than hidden, so the result stays true.
-Test before (`tests/test_live_project_setup.py`, `test_create_libraries`, new): "AssertionError:
-False is not true : {'success': False, 'error': '...\\Parts.SchLib must end in .schdoc or
-.pcbdoc (create makes a .SchDoc or a .PcbDoc)'}", and the same for `New.SchLib` in
-`test_new_document_stays_out_of_the_focused_project`, extended to the two library kinds.
-Test after: `test_create_libraries` live (each library on disk, in the project as Altium
-and the saved `.PrjPcb` list it, kind `SCHLIB` or `PCBLIB`, no symbol or footprint in the
-saved file nor in the open library, unmodified; then one symbol by `create_symbols_batch` and
-one footprint by `create_footprints_batch`, and after a save each file holds only that one;
-a second `create` refused, the file unchanged); `test_live_project_setup` and
-`test_live_build_focus` 14/14 live; offline 1 new (`tests/test_project_setup.py`, the kind
-sent for each of the four extensions), 608/608 in all.
-Fixed in the commit that moves it here.
-
-Built in build `0.7.0-20261123-140004` (tag `build-20261123-140004`), commit `ad9e9da`.
-
-### A77 - The parts of one component placed by `build_schematic` and by `place_component` do not compile as one - BUILT 2026-11-23, proof: the scenario test
-
-Sorted out of the group 2 entry of 2026-11-23, point 4, the scenario test of build
-`0.7.0-20261123-103915`. Part B of a multi-part symbol placed by `build_schematic` and part
-C, same designator and library, by `edit_schematic` `place_component` on the same sheet:
-ERC "Duplicate Component Designators" for it and "unused sub-part(s) (1) and (2)" and "(1)
-and (3)", and `get_project_components` lists the designator twice. Parts B and C both
-placed by `place_component` compile as one. In the saved file the build's part has
-`DESIGNITEMID` set, `SOURCELIBRARYNAME` `*` and no `LIBRARYPATH`; `place_component`'s has
-`LIBRARYPATH` and `SOURCELIBRARYNAME` the library's file name and no `DESIGNITEMID`: the two
-tools fill a placed part's library fields differently. `edit_schematic`'s `warnings`
-treated them as one component ("part A not placed on this sheet"). Reported success. The
-entry filed it under A45 as failed.
-
-Local: one way of filling the library fields in both tools.
-
-Decided 2026-11-23 by the run, not the owner: a new item in group 3, not A45 fixed again
-with group 2 checked again, because A45's own promise held (point 3) and the fault is in how
-the two tools fill a part's library fields, older than A45.
-
-Taken into `## Run 2026-11-22`, group 3 (a step of its own).
-
-Cause: the two tools set different library fields on a part from a `.SchLib`.
-`build_schematic` set only `DesignItemID` (empty when no `design_item_id` is given, saved as
-the library reference), so `SOURCELIBRARYNAME` and `LIBRARYPATH` were saved as `*`.
-`place_component` set `LibraryPath` and `SourceLibraryName` and never set `DesignItemID`, so
-it was saved with none. Altium compiled the two parts as two components. A part from an
-`.IntLib` is placed by Altium itself (`PlaceIntLibComponent`) in both tools, and was not
-affected.
-
-Fixed: one procedure, `SetPartLibrary` in `schematic_utils.pas`, used by both tools for a
-part from a `.SchLib`. It sets `LibraryPath` to the library's path, `SourceLibraryName` to its
-file name, and `DesignItemID` to the given one or else the library reference. No tool,
-argument or description changed.
-Decided 2026-11-23 by the run, not the owner: `place_component`'s fields kept, plus a Design
-Item ID in both, rather than the build's `*`, because they name the library a part came from,
-as Altium's own sheets do (`SOURCELIBRARYNAME` is the library's file name in the examples'
-sheets), so the result stays true. A sheet built before this fix still holds `*` on its
-parts, so a part added to it now by `place_component` is likely still compiled apart (not
-tested); the fix reaches parts placed from this build on.
-
-Test before (`tests/test_live_multipart.py`,
-`test_parts_by_the_build_and_by_place_component_compile_as_one`, new: part B by the build,
-part C by `place_component`, one designator, the project compiled): "AssertionError: Lists
-differ: ['U1', 'U1'] != ['U1'] : the parts are not one component; their library fields
-(part, DESIGNITEMID, SOURCELIBRARYNAME, LIBRARYPATH, LIBREFERENCE): [('2', 'MULTIPART_TEST',
-'*', '*', 'MULTIPART_TEST'), ('3', None, 'Multi.SchLib', '<tmp>\Multi.SchLib',
-'MULTIPART_TEST')]".
-Test after, 2026-11-23, live in AD25: `test_live_multipart` 9/9 (that test included, the
-saved fields of both parts equal), `test_live_pin_map` 2/2, `test_live_body_lock` 2/2,
-`test_live_spec_file` 1/1, `test_live_build_focus` 4/4, `test_live_build_footprint` 5/5,
-`test_live_libraries` 5/5, `test_live_set_footprint` 3/3. `test_live_symbol_footprint` and
-`test_live_project_setup` did not run to the end: Claude Code stopped the run for low memory
-(about 0.8 GB free), so they are left to the group's run of every `test_live_*`. Offline:
-the whole list of `tests.yml`, 608/608.
-Fixed in the commit that moves it here.
-
-Built in build `0.7.0-20261123-140004` (tag `build-20261123-140004`), commit `afc0fad`.
-
-### A78 - A52's recipe says its script does not mark the sheet modified, but it does - BUILT 2026-11-23, proof: the scenario test
-
-Sorted out of the group 2 entry of 2026-11-23, point 10, the scenario test of build
-`0.7.0-20261123-103915`, small: A52's section of `docs/recipes.md` says its removal script
-"does not mark the sheet modified", but after it the sheet was modified (its flag set,
-listed in `unsaved_in_altium`), as the notice it sends does.
-
-Local: that sentence corrected, offline.
-
-Taken into `## Run 2026-11-22`, group 3 (a step of its own).
-
-Cause: the recipe's sentence was written from the script's lines, which save nothing, and
-was never checked on a sheet. The script removes the object through the schematic server
-(`RemoveSchObject` between `PreProcess` and `PostProcess`) and sends the registration
-notice, and a removal made so is an edit of the document: the sheet is left modified.
-Which of the calls sets the flag was not isolated.
-
-Fixed: the sentence in A52's section of `docs/recipes.md`, from "It saves nothing and does
-not mark the sheet modified" to "It saves nothing, but it marks the sheet modified (its
-flag is set, and `unsaved_in_altium` lists it): save it, or leave it unsaved on purpose."
-No script, tool or description changed. Offline: `tests.test_recipes` 5/5 and the whole list
-of `tests.yml`, 608/608.
-Fixed in the commit that moves it here.
-
-Built in build `0.7.0-20261123-140004` (tag `build-20261123-140004`), commit `049670b`.

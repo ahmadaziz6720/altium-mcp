@@ -1661,3 +1661,4 @@ close, flags, A70's and A52's scripts; the largest 8.7k, a dump of two footprint
     Altium's main window closed (no save prompt, 6 s), started from its exe; hashes equal
     after. A session starting on an Altium of a long live run should restart it first.
 
+Sorted into A79 (3), new; A80 (9), new, bears on A26; A81 (10), new. Held: A57 (1); A41 (2); A66 (3); A70 (4); A28 (5); A60 (6), (a) only; A77 (7); A78 (8).

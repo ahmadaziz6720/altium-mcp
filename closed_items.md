@@ -2843,3 +2843,457 @@ unasked, and ending and restarting `X2.EXE` when Altium hangs.
   its descriptions, A41); left Open A11 (the ECO's RCW error, code in a named stash) and A15 (b)
   (an outside service, the owner's call); new from the scenario tests A23, A25 to A28, A36 to
   A39, A41 to A44, for the next run. The record commits after group 5's push are not pushed.
+
+## Run 2026-11-22
+
+Planned 2026-11-22 under the owner's token rule above. Sixteen items in three groups (the
+items that report success with a wrong result, those whose results are largest, and the
+four missing tools met most, as small changes to existing tools), and a recipes file for
+thirteen more, then phase 2 unattended across as many sessions as it needs, from the first
+step not ticked below. The opening question was asked in two sessions of 2026-11-22
+(*Opening answer*).
+
+### How it runs
+
+- **Unattended.** After the opening answer nothing is asked. A decision met mid-run is
+  the run's: the option that keeps the server's checks honest and its results true, the
+  smaller change when two are equal, written into its item as "Decided <date> by the run,
+  not the owner: ..., because ..." and listed in the report.
+- **The token rule.** No new tool. No new argument but A58's `spec_file`, which the
+  opening answer took; A56's op is one more kind of entry in an existing list. A result
+  made smaller is made so by default, not behind a flag.
+  Each group's release measures the tool listing (names, descriptions and schemas, as
+  `main.mcp.list_tools()` gives them) before and after: 80 tools, 164,529 characters at
+  `f120b3f` (2026-11-22). A group that grows it by more than 1% says why in its release
+  notes. Decided 2026-11-22 in the plan, not the owner: the measure and the 1%, because
+  the owner's word of 2026-11-22 (above) asks that features not keep growing token use.
+- **Never stop on one item.** A fix that does not hold after a fair try, or a probe that
+  finds no way, stays Open with what was tried written into it, its partial code in a
+  stash named for it (`git stash push -m "<code> ..." -- <files>`), and the run goes on. A
+  permission prompt or a dialog nobody answers is the one thing it cannot pass: it writes
+  where it stood below, and stops.
+- **One subagent per item**, the main session thin; serial (`serial: true`, one Altium):
+  one at a time in the main tree on `ad25`, never beside a live test or a scenario test.
+  Models: Sonnet for A27, A70, each group's tests and release; the default model for the
+  other items (probes or diagnosis) and for the scenario test.
+- **A subagent's brief**: its item as written below and in the item, the decision, the
+  files likely touched, and these rules: read `CLAUDE.md`, `README.md`, `dev/README.md`;
+  never switch branches, commit, push, tag or reset; a stash only by name and file;
+  `findings.md` is not its to edit. First a live test that fails on the current code
+  (`server/tests/live_altium.py`'s helpers, `ALTIUM_LIVE=1`, copies of Altium examples
+  closed unsaved; read back through Altium or the saved file); an item whose test does not
+  fail is closed instead. Then the fix, that test and the live tests of the tools it
+  touched, the offline tests (`.github/workflows/tests.yml`'s list, a new module added to
+  it). Then in `open_items.md` the item moved to the end of Waiting, `BUILT <date>, proof:
+  the scenario test`, with its cause, fix, the test before (its message) and after (with
+  counts), "Fixed in the commit that moves it here"; the Open paragraph from `board.py
+  --open-line`, `board.py --check` clean. Report in ten lines: outcome, test before, tests
+  after with counts, files changed, its "Decided" lines, a commit subject and body.
+  Nothing that names where a finding came from (`findings.md`'s top).
+- **Per group**: the offline tests and every `test_live_*` once (Altium restarted first);
+  the release, `CLAUDE.md` *Release and run* steps 1 to 5 (push `ad25`, copy, venv,
+  re-register `altium-mcp` from `C:\Users\Ahmad Aziz\Data\Project\claude_altium`, tag,
+  release page); the scenario test (below), its entry committed unasked and sorted, the
+  release page's line updated (step 7). The main session puts each Waiting item's SHA and
+  build in after the release.
+- **Commits**: one per item, its fix with its note, as `git-workflow:pr` gives a commit on
+  `ad25` (no trailer); pushed at the group's release.
+
+### The scenario test of a group
+
+A headless session in `C:\Users\Ahmad Aziz\Data\Project\claude_altium`, which loads the
+release just registered, by the procedure in its `reports/uji-skenario.md`.
+
+1. **Memory**: read free memory (`(Get-CimInstance Win32_OperatingSystem).FreePhysicalMemory`);
+   at least 1.5 GB, else close what this run left open (scratch documents in Altium) or
+   restart Altium; 1.07 GB free when this plan was written, and a test was stopped at
+   about 600 MB on 2026-11-14.
+2. **Altium** started from its exe, `C:\Program Files\Altium\AD25\X2.EXE`, never by the
+   server's launch, and left to finish loading.
+3. **The id first**: a new UUID, written into the group's check line below and committed,
+   before the start.
+4. **Started detached** by `Start-Process` on a launcher (a `.ps1` in the run's scratchpad)
+   that runs, from the test project's folder,
+   `claude -p "<sentence>" --session-id <uuid> --permission-mode auto --allowedTools mcp__altium-mcp --add-dir "C:\Users\Ahmad Aziz\Data\Project\altium-mcp" --output-format json`,
+   writes stdout and stderr to files beside it and an `EXIT <code>` line at its end. The
+   sentence: `Uji skenario release <v>-<stamp> (<items>), menurut reports/uji-skenario.md.
+   Tanpa nanya apa-apa. Cek singkat dulu (get_server_status, get_project_info,
+   get_board_summary). Skenario baru untuk fitur baru ditulis ke prosedur dengan
+   baseline-nya. Finding ke findings.md fork, baris hasil dan pemetaan di prosedur; jangan
+   commit. Akhiri dengan laporan sepuluh baris: tiap item lolos atau gagal, finding baru.`
+5. **Watched** by its process and the last write of its transcript
+   (`~\.claude\projects\C--Users-Ahmad-Aziz-Data-Project-claude-altium\<uuid>.jsonl`), by
+   no background task. It should take 60 to 90 minutes. Changed 2026-11-23 by the owner:
+   "harusnya run itu tetep bisa jalan tanpa gw": the run never waits on the owner's
+   "cek". It watches by a background `Bash` until-loop of its own (the `EXIT` line,
+   `tasklist` on the pid, the transcript unwritten over 1800 s, `sleep 60`), re-armed if
+   it is ended, and goes on in the same session past 150k tokens (Claude Code compacts
+   it; this checklist carries the state). Changed again 2026-11-23 by the owner ("altium udah beres
+   kenapa ada nganggur lama? itu harus lo benerin"): the loop polls every 10 s, and the
+   next step that uses Altium (a fix again, the next group's first item) starts as soon as
+   a check ends, beside the sort; its subagent does not edit `open_items.md` but gives the
+   item's text in its report, written in by the main session after the sort.
+6. **Stopped with no entry**, or the transcript unwritten 30 minutes with the process
+   alive (stopped first by `Stop-Process`): resumed unasked from the same folder,
+   `claude -p --resume <uuid> "lanjutkan uji skenario"`, same flags, up to three times;
+   then the line below reads Blocked, with why.
+7. **What it finds goes four ways**: held (the item to `closed_items.md`, `CLOSED <date>`,
+   a `Held` line: the scenario test is its proof); a fix of this group not holding (back
+   under `## Open`, fixed and checked again before the next group); a new point, small and
+   in the group's files (a later step of the run, a new code); a new point needing the
+   owner (a new Open item, for the owner).
+
+### Items
+
+- **Group 1, ERC and the compile** (`get_erc_violations`, `get_project_components`,
+  `other_utils.pas`): A49, A50, A48.
+  - A49: the result by default grouped by violation type and level, each with its count
+    and its first three violations in full; the full list in the file the tool already
+    writes, its path given; no new argument. Test first: a live test on a project with
+    some hundreds of violations of a few kinds, the result over 30k characters today;
+    after, under 10k, the counts summing to the total. Files: `server/main.py`, tests.
+  - A50, a probe first: what tells a suppressed violation (a property of the violation,
+    else a match of its location against active no-ERC markers with `SuppressAll`). Found:
+    left out of the list and counted as `suppressed: n`. Test first: a sheet with a
+    floating input pin under a no-ERC marker, its violation listed today. Not found: stays
+    Open, what was tried written. Files: `server/AltiumScript/other_utils.pas`,
+    `server/main.py`.
+  - A48, a probe first: a call that brings the compile up to date after a script edited a
+    sheet without marking it modified, short of closing the project. Found: made inside
+    `get_erc_violations` and `get_project_components`, no new argument. Test first: a
+    script sets a placed part's footprint without `SetModified`, and the compile reads it
+    empty today. Not found: stays Open, its usage note (in the item) put where the
+    opening answer puts usage notes.
+  - A48 (b), taken again: A48's fix did not hold for objects a script removed (point 5 of
+    the scenario test of build 0.7.0-20261123-001227). A probe first for a sheet-level
+    re-read that also drops removed objects; not found, a short `stale_sheets` in both
+    tools' result (or the compile's object count checked against the sheet's) and one line
+    in `run_altium_script`'s description on `SCHM_PrimitiveRegistration` after a removal.
+  - A74, joining group 1 again (point 2 of the same test): `first` holds the group's first
+    three distinct details. Files: `server/erc_summary.py`, tests.
+- **Group 2, `build_schematic` and placing parts** (`server/main.py`'s schematic tools,
+  their `.pas`): A46, A58, A45, A26, A27, A71.
+  - A46: `pin_map` keyed by pin number, the name a field; returned in full only on a call
+    with no wires (the pin read the description advises); with wires, a count per part
+    and the map written to a JSON file in the server's own folder, its path given.
+    Decided 2026-11-22 in the plan, not the owner: the map returned only on a call with
+    no wires, because it is the smaller change with no new argument and keeps the read the
+    description advises. Test: offline on the keying (pins sharing a name kept), live on
+    the result's size with wires.
+  - A58, taken by the opening answer: a `spec_file` (the path of a JSON file holding the
+    call's other arguments, as the call would give them inline) on `build_schematic` and
+    `edit_schematic`; an argument given inline as well as in the file is refused, not
+    merged. Decided 2026-11-22 in the plan, not the owner: refused, not merged, because a
+    merge rule is one more thing the description must explain. Test first: offline, the
+    argument unknown today; then a live build from a file, read back from the saved sheet.
+    Files: `server/main.py`, tests.
+  - A45: a part entry may carry `part` (letter or number), in `build_schematic`'s parts
+    and in `place_component`; an entry with none on a multi-part symbol places part A,
+    and the result lists the parts not placed under `warnings`, no longer silent;
+    `pin_map` gives only placed parts' pins, each at its own place. Decided 2026-11-22 in
+    the plan, not the owner: a key inside an existing list, not an argument, because the
+    other parts need places only the caller can give. Test first: a six-part symbol, the
+    result silent on parts B to F today.
+  - A26: the focused project's modified flag left as found; without `project_path` the
+    sheet stays a free document; after a failure the unsaved sheet is taken out again; one
+    `detached_from`, and `sheet` the saved name. Test first: a focused project unmodified
+    before, modified and holding `Sheet1.SchDoc` after a call with no `project_path`.
+  - A27: the footprint given becomes the only current one, the library's mark moved. Test
+    first: `IsCurrent` true on two models today.
+  - A71: after placing, `PinsMoveable` set True then False inside the modify, in
+    `place_component` and `build_schematic`, saved. Test first: ten placements each of an
+    8-pin symbol (rectangle and line) and a 2-pin one (four arcs), the saved file read for
+    `IsNotAccesible=T` on every child; the fault was intermittent (3 of 6), so a test that
+    does not fail leaves the item Open with the count, not Closed.
+  - A56 (a), taken by the opening answer: an `edit_schematic` op `set_footprint`
+    (designator, footprint name, library path), which replaces the part's current PCB
+    implementation (`RemoveSchImplementation`, then `AddSchImplementation`, `ModelType
+    'PCBLIB'`, `AddDataFileLink`, `IsCurrent`, inside `SCHM_BeginModify`/`EndModify`, saved),
+    the way five sessions did it by script. Test first: a placed part, its footprint
+    unchanged by any call today (the op refused as unknown); after, the saved sheet read
+    back for the new footprint and its library, one implementation current. (b), which
+    library a placed part links to: a recipe (group 3) if a session's script is in the
+    record, else stays Open. Decided 2026-11-22 in the plan, not the owner: no
+    `footprint_library` field in `get_project_components`, because the token rule asks for
+    the smaller change. Files: `server/main.py`, the schematic `.pas`.
+- **Group 3, the library tools and the recipes** (`get_symbol_primitives`,
+  `get_footprint_primitives`, `create_schematic_symbol`, `make_pcblib_from_board`,
+  `add_project_document`, `get_screenshot`, `run_altium_script`'s helpers and description):
+  A57, A66, A41, A70, A28, A60 (a), the recipes.
+  - A57: the inventory mode (no name given) returns each symbol's or footprint's name,
+    description and pin or pad count only; the name argument takes several names
+    (comma-separated) for details of several in one call; no new argument. Test first: the
+    inventory of a library of some hundreds of symbols, over 60k characters today.
+    `get_project_components`' size (A57's line of 2026-11-22) is not in this run.
+  - A66: a footprint given by name only gets its library's location from the project's
+    libraries, then the installed ones; none found, a line in `problems`. Test first: a
+    name held only by an installed library, reported linked with no location today.
+  - A41, a probe first: where the descriptions are lost (the hidden run, the filter, the
+    save); each footprint given the board's description before the save, and descriptions
+    compared. Test first: a board whose components carry descriptions, the library's
+    empty today.
+  - A70: `OpenSchDoc` opens a `.SchLib` as a library (by extension), and
+    `create_symbols_batch`'s "could not open and focus" names the kind it found. Offline
+    test, and a live one opening a `.SchLib` through the helper.
+  - A28, taken by the opening answer: `add_project_document(create=True)` also makes an
+    empty `.SchLib` or `.PcbLib` (by `document_path`'s extension) and adds it to the
+    project named, not the one in focus; the `.PcbLib` holds no default `PCBComponent_1`.
+    No new argument. Test first: `create=True` on a `.SchLib` path refused today; after,
+    the file on disk, in the project, and for a `.PcbLib` no footprint in it. Files:
+    `server/main.py`, the project `.pas`.
+  - A60 (a), taken by the opening answer: a `sch` capture fits the whole sheet first
+    (`Client.SendMessage('SCH:Zoom', 'Action=Document', ...)`, the way that held), by
+    default; `zoom_to` on `sch` answered with a warning that it is for PCB only. Decided
+    2026-11-22 in the plan, not the owner: fit by default, not `zoom_to="fit"`, because
+    `zoom_to` is a list of designators and the token rule asks that a result be right by
+    default. Test first: an A3 sheet zoomed in, its capture cut today; after, the whole
+    sheet's border in the image. (b), a `.PcbLib` footprint's view, out of the run (a new
+    argument). Files: `server/main.py`, the screenshot `.pas`.
+  - The recipes, taken by the opening answer: `docs/recipes.md`, one section per item, each
+    a DelphiScript a session proved (from the item's record and the `findings.md` entries
+    it cites) with the `run_altium_script` call it needs, in English, naming no design of
+    the owner's (`findings.md`'s top); one line in `run_altium_script`'s description naming
+    the file by its path, computed from `main.py`'s folder at import. The items: A47, A51,
+    A52, A54, A55, A59, A62 to A65, A67, A69, A34 (f), A56 (b), and A48's note if its probe
+    finds no call. An item whose record holds no script a session proved stays Open, what
+    is missing written into it. Each item written goes to Waiting, `BUILT <date>, proof: the
+    scenario test`, and to `closed_items.md` as usage (`CLOSED <date>, usage`) when the
+    scenario test held for the file: the description line read, the file opened, and three
+    recipes run, the run's choice of the most met. Decided 2026-11-22 in the plan, not the
+    owner: three recipes run and not all, because a scenario test of thirteen scripts would
+    double its time, and the path computed, because a release's folder differs each time.
+    Model: the default. Files: `docs/recipes.md`, `server/main.py`'s description.
+  - A75 (point 6 of the scenario test of build 0.7.0-20261123-001227): a line in
+    `run_altium_script`'s description beside the recipes, that `List1..3` keep strings,
+    not objects. Files: `server/main.py`'s description.
+  - A77 (point 4 of the scenario test of build 0.7.0-20261123-103915), new: one way of
+    filling a placed part's library fields in `build_schematic` and `place_component`, so a
+    component's parts placed by both compile as one. Test first: part B by the build and
+    part C by place_component, one designator, compiled as two today. Files:
+    `server/AltiumScript/schematic_utils.pas`, tests. Decided 2026-11-23 by the run, not the
+    owner: a new item in group 3, not A45 fixed again with group 2 checked again, because
+    A45's own promise held (point 3) and the fault is in how the two tools fill a part's
+    library fields, older than A45.
+  - A78 (point 10 of the same test), new: A52's recipe says its script leaves the sheet
+    unmodified; it does not. The sentence corrected, offline. Model: Sonnet.
+- **For the owner, prepared**: A11, whether the ECO done by hand (Import Changes,
+  Validate, Execute, Close), then new projects made, brings Altium's RCW error too; if it
+  does, it is Altium's and the stashed tool may go in with a usage note (the item, its
+  last lines). Updating `ad25` onto `upstream/main`, 116 commits behind on 2026-11-22
+  (upstream's own foreground guard, #100, against A22's; new tools such as
+  `dismiss_dialog` and `list_open_documents`, which grow the listing): the owner's call,
+  its own session, not in this run.
+- **Out of this run**: A23, A25, A31 to A34 (but A34 (f)), A36 to A39, A42 to A44, A53,
+  A61, A68, A72 (faults of the bridge, the board and the schematic's smaller points: the
+  owner chose three groups); A60 (b) (a new argument); A73, the tool descriptions' size
+  (written 2026-11-22 by the opening answer, for a later run); A15 (b), not taken by the
+  opening answer, stays Open as it was; A1, A2, A7 (waiting on upstream; A2's following of
+  upstream PR #113 not taken by the opening answer).
+
+### Opening answer
+
+The owner, 2026-11-22, two of four:
+
+- Grants: "all, tapi kita pindah sesi dulu", to the option "All": commit the sort now;
+  per group: push `ad25`, release folder and venv, re-register `altium-mcp` (scope local,
+  `claude_altium`), tag, release page; scenario test headless (`claude -p` via
+  `Start-Process`, `--resume` when stuck, `Stop-Process` when hung); commit the scenario
+  test's entry unasked; restart `X2.EXE` when it hangs.
+- Scope: "Token-first, 3 groups".
+
+The other two, asked again 2026-11-22 in a new session, in Indonesian with each term
+explained (the first asking left "op", "recipe" and "usage file" unexplained):
+
+- Small changes to existing tools (multiSelect): "A28 empty library, A60 fit schematic,
+  A56 set footprint op, A58 spec_file", all four.
+- Extras (multiSelect): "Recipes file, Item: trim descriptions". Not taken: A2 to follow
+  upstream PR #113; A15 (b) to Closed as DECIDED AGAINST.
+
+Added by the owner 2026-11-23 02:18, going to sleep while the run works on A48 (b): "gw
+tinggal tidur ya, jangan stop krn alasan sepele. semua yang dibutuhkan saya izinkan,
+jangan sampe terhambat karena izin. kalau perlu restart altium silakan restart". So what
+this plan's steps need is granted without asking, and Altium may be restarted when a step
+needs it, not only when it hangs. The plan's scope stands (*Out of this run*, the choices
+left to the owner). A restart does not save the owner's documents: what was open modified
+is written down before it.
+
+### Where the run stands
+
+- [x] Phase 1: the opening question asked and answered (2026-11-22, in two sessions)
+- [x] A49: committed (69f2cf9)
+- [x] A50: committed (49ecf2f)
+- [x] A48: committed (891ee59)
+- [x] Group 1: tests and release (build: 0.7.0-20261123-001227, tag build-20261123-001227)
+- [x] Group 1: scenario test (session id: af570230-bb0a-49b3-aac8-e3f16361ede9, started 2026-11-23, free memory 1237 MB after the restart), its outcome sorted
+  - Ran 00:14 to 00:22, `EXIT 0`, its entry committed alone (`eeaacd2`), sorted 2026-11-23 (`613fa9a`):
+    A49 and A50 held (closed), A48 back to Open as A48 (b), new A74 and A75, A26, A34 and
+    A44 met again.
+- [x] A48 (b) again: committed (71514df)
+  - Ended 2026-11-23 02:29 still Open, partly built (the description's line, the tests): no
+    safe re-read found, no `stale_sheets` (the item). About 154k tokens, 14 minutes.
+  - **Stopped here 2026-11-23 about 02:11 on the owner's word, to move to a new session**
+    ("mending pindah sesi sekarang"): in the probe stage, no test written, no fix, no file
+    of the repo changed. Goes on with a fresh subagent from A48's last part, *Probed
+    2026-11-23*, its probes not run again. Its cost so far: about 163k tokens, cut once by
+    the usage limit and resumed. (The sort's: 116k, 2.5 minutes.)
+  - Altium was found closed at 02:14 (pid 20600 gone, not by this session), started again
+    from its exe at 02:15 (pid 21380). The owner's documents came back open and read
+    unmodified at 02:29 (the subagent's report). `ad25` is pushed at group 1 again's
+    release, not before.
+- [x] A74: committed (12ce1ca)
+- [x] Group 1 again: tests and release (build: 0.7.0-20261123-031122, tag build-20261123-031122)
+  - 559 offline and 82 live tests OK (A48 (b)'s two expected failures), Altium restarted
+    first with nothing modified. The listing 157,905 to 157,962 characters (+0.04%).
+    Decided 2026-11-23 by the run, not the owner: the tests by a Sonnet subagent, the push,
+    registration, tag and page by the main session, because what leaves the machine is
+    read first where the grant is known.
+- [x] Group 1 again: scenario test (session id: ade4c3bd-0444-4d86-b3fc-9aacd600eb5c,
+  free memory 1123 MB after a restart of Altium, pid 17308; output and launcher in the
+  run's scratchpad, `check_031122.*`), its outcome sorted
+  - Ran 03:14 to 03:21, `EXIT 0`, no resume, its entry committed alone (`f6eedbc`): A74
+    held (closed); A48 (b)'s built part held, the item still Open as written, so no fix
+    again; A76 new, out of this run; A34 met again. A46 began beside the sort.
+- [x] A46: committed (a441051)
+- [x] A58: committed (cc27c73)
+- [x] A45: committed (007672a)
+- [x] A26: committed (153c546)
+  - Done 2026-11-23 after the owner ended Altium by hand: Altium started again from its exe
+    (pid 12520), the stash applied and dropped, the fix held live (4/4, 34/34, 585/585
+    offline). About 129k tokens, 19 minutes.
+  - **Blocked 2026-11-23 04:17, every step that needs Altium** (A26, A27, A71, A56 (a), A57,
+    A66, A41, A70, A28, A60 (a), each group's tests, release and scenario test). A probe's
+    clean-up of A26 left Altium (pid 17308) behind a crash message, and its subagent's
+    `Stop-Process` on it was denied by the auto mode classifier ("[Destructive or Unwanted
+    Actions]"). Not retried, and not done another way by the main session (no kill, no
+    close of the window, no press of the message, whose button sends a crash report): the
+    owner's word of 02:18 grants a restart, and a denial by the permission system is still
+    the owner's to lift.
+  - For the owner: end Altium by hand (the message's button, or Task Manager). The 28 open
+    documents read unmodified at 04:21. Then, if the session is gone, the sentence
+    `backlog:run open_items.md "## Run 2026-11-22", dari langkah pertama yang belum dicentang. Tanpa nanya apa-apa.`
+    A26's fix is in the stash `run 2026-11-22 A26`, never run in Altium: its item says what
+    to run.
+  - Found at the block, by hashes of the owner's 399 files: the run's restart of 03:12 (the
+    main session closing Altium's window before the scenario test, nothing modified) was not
+    free of writes. Altium wrote one generated `.PrjPcbStructure` again (1401 to 1298 bytes,
+    now with no diff against that repo's last commit; the 1401 bytes were not committed and
+    no copy was looked for or restored), and touched 12 other generated files, same content.
+    No change of content since 04:14. So "nothing modified" does not mean that closing
+    Altium writes nothing: hash before a restart and compare after it, and tell the owner.
+  - Decided 2026-11-23 by the run, not the owner: the two steps that need no Altium (the
+    recipes, A75) taken now, out of their order, offline, because the owner asked at 02:18
+    that the run not stop and neither reaches Altium; their proof stays the scenario test.
+    Nothing is pushed or released until the live tests can run.
+- [x] A27: committed (71f8054)
+  - Sonnet, about 116k tokens, 15 minutes; 3 of 5 failed before, 5/5 after.
+- [x] A71: committed (9ae6937)
+  - About 153k tokens, 22 minutes; 10 of 20 failed before for each tool, 0 of 40 after. Its
+    `check_schematic` part is a leftover, to be filed as an item at the run end.
+- [x] A56 (a): committed (8f57314)
+  - About 161k tokens, 19 minutes; 3/3 live failed before, then held.
+- [x] Group 2: tests and release (build: 0.7.0-20261123-103915, tag build-20261123-103915)
+  - 588 offline and 107 live tests OK (2 expected failures, A48 (b)), Altium restarted
+    first (pid 12520 to 6756), every document unmodified, the 223 files of the test
+    project hashed before and after the restart, none changed. The listing 157,962 to
+    159,660 characters (+1.07%), why in the release notes. A56 (a) is commit 8f57314.
+- [x] Group 2: scenario test (session id: 06cf5507-82ca-4d5d-86ae-310e8c0c0ddd), its outcome sorted
+  - Started 10:42 by its launcher (pid 21664), output and launcher in the session's
+    scratchpad (`check_103915.*`); Altium restarted for memory first (pid 6756 to 17088,
+    the 223 files hashed before and after, none changed); free memory 845 MB.
+  - Decided 2026-11-23 by the run, not the owner: started under the plan's 1.5 GB, because
+    what holds the rest is the owner's other Claude sessions, not this run's to end, and
+    the two checks before ran at 1.1 to 1.2 GB.
+  - The owner, 2026-11-23: "beres grup 2, kita pindah sesi ya": once this step is ticked
+    and committed, the session hands over, and group 3 starts in a new session.
+  - Handed over 2026-11-23 about 11:00, everything committed and pushed (`ad25` at the
+    sort's commit). Altium left running (pid 17088), started from its exe. Not in a file:
+    the session's scratchpad helpers (an item mover, the check's launcher), rebuilt as
+    needed; the run's `learned.md` entry, written at the run's end. Costs this session:
+    an item 116k to 161k tokens and 15 to 22 minutes, the test pass 72k and 29 minutes,
+    the check 12 minutes, its sort 116k and 3 minutes.
+  - Ran 10:42 to 10:54, `EXIT 0`, no resume, 89 turns, about $5.41; its entry committed
+    alone (`c1385bb`), sorted 2026-11-23: A46, A58, A45, A26, A27, A71, A56, A75 held
+    (closed), A55 closed as usage; A77 and A78 new, steps in group 3; A61, A34, A52 met or
+    checked.
+- [x] A57: committed (c7aac0a)
+  - About 165k tokens, 13 minutes; 4 failures and 1 error of 6 live before, 7/7 after, 596 offline.
+    Altium found closed at the session's start, started from its exe (pid 11028).
+- [x] A66: committed (3ab04ad)
+  - About 172k tokens, 16 minutes; 3 of 3 live failed before, 11/11 after (40/40 with the
+    touched tools' live tests), 603 offline.
+- [x] A41: committed (e4a6669)
+  - About 90k tokens, 20 minutes; the probe found Altium's hidden Make PCB Library empties every
+    description; 12 of 12 empty before, 5/5 live after, 604 offline.
+- [x] A70: committed (f4ae3d3)
+  - Sonnet, about 150k tokens, 25 minutes; 2 live failures before, 4/4 after, 607 offline. One
+    run of the touched tools' 32 live tests failed `test_parts_from_an_intlib` once at about
+    600 MB free, held alone and in sequence: watched at group 3's full pass.
+- [x] A28: committed (ad9e9da)
+  - About 130k tokens, 40 minutes; refused before, 14/14 live after, 608 offline.
+- [x] A60 (a): committed (4eef324)
+  - About 120k tokens, 30 minutes; 2 of 2 live failed before, 2/2 after (twice), 608 offline.
+    The capture was cut by DPI scaling as well as by the zoom: images now 2418x1308 here.
+- [x] The recipes (A47, A51, A52, A54, A55, A59, A62 to A65, A67, A69, A34 (f), A56 (b)): committed (ba17162)
+  - Of fourteen items only A55 had a script proved in full: it waits, the others stay Open,
+    each saying what is missing. Built offline: 574 of the 583 offline tests run, OK; the 9
+    that start processes or call the real status tool are to run before the release (the
+    subagent's report; two of its first runs did call `get_server_status`'s test by mistake).
+    The scenario test runs first A55, A34 (f) and A52's removal.
+- [x] A75: committed (b764b10)
+  - Stopped 2026-11-23 about 04:55 at the usage limit, taken up by the session's hourly
+    self-check at 05:54 (Altium still blocked): A75 done offline, its tests in its item.
+  - **Blocked since 06:00: every step left needs Altium** (A26's line). The self-check cron
+    was deleted with this line, as its own prompt says for a run written down Blocked.
+  - The watcher for Altium's end and the subagents' watchdog were stopped by Claude Code
+    for low memory (546 MB free, Altium 2.4 GB private) and not started again, so closing
+    Altium no longer wakes the run: the owner says "lanjut", or opens a session with the
+    sentence in A26's line.
+  - Does not travel by file: the commits since `6aa0661` are local, pushed at group 2's
+    release; A26's fix is in its stash; the subagents' brief and the helper scripts are in
+    the session's scratchpad. Not written yet: the run's `learned.md` entry, and as items at
+    the run's end what A46, A45, A58 and A55 list as seen and left.
+- [x] A77: committed (afc0fad)
+  - About 115k tokens, 40 minutes; failed before, 31/31 live after in eight modules, 608 offline.
+    `test_live_symbol_footprint` and `test_live_project_setup` cut by Claude Code for low memory
+    (about 0.8 GB free), left to group 3's full pass.
+- [x] A78: committed (049670b)
+  - Sonnet, offline, about 40k tokens, 6 minutes; 608 offline, `test_recipes` 5/5.
+- [x] Group 3: tests and release (build: 0.7.0-20261123-140004, tag build-20261123-140004)
+  - Sonnet, about 115k tokens, 33 minutes: 608 offline and 125 live tests OK in 26 modules (2
+    expected failures, A48 (b)), Altium restarted first (pid 11028 to 20088), every document
+    unmodified, the 242 files of the test project hashed before and after, none changed;
+    free memory 918 MB after, 766 MB lowest. The listing 159,660 to 159,813 characters
+    (+0.10%), by the subagents' measure of group 2's method. `ad25` pushed at 049670b.
+- [x] Group 3: scenario test (session id: 9b50c01a-2013-453c-be37-d4a6e543e2bc), its outcome sorted
+  - Started 14:01 by its launcher (pid 16560), free memory 1198 MB, Altium pid 20088 from its
+    exe; output and launcher in the session's scratchpad (`check_140004.*`). Stopped 14:09 by
+    the usage limit of the account it ran on (`EXIT 1`, 72 turns, no entry); resumed once at
+    14:19 after the owner's new login (pid 14760, free memory 1347 MB, Altium pid 1812, which
+    the check had started from its exe at 14:06 after the memory guard refused every call).
+    `EXIT 0` at 14:23, 30 turns more, about $9.61 in all; its entry committed alone
+    (`0c08ac0`), sorted by a subagent (about 75k tokens, 9 minutes): A57, A66, A41, A70, A28,
+    A77, A78 held (closed), A60 (a) held, A60 open for (b); A79, A80, A81 new, out of this
+    run. The release page's line updated.
+- [x] The report
+  - Run 2026-11-22 selesai 2026-11-23: tiga grup, 25 item diambil, empat sesi setelah plan.
+  - Per item: Closed (lolos uji skenario): A49, A50, A74 (grup 1); A46, A58, A45, A26, A27,
+    A71, A56 (a), A75, A55 sebagai usage (grup 2); A57, A66, A41, A70, A28, A77, A78 (grup
+    3). A60: (a) lolos, item tetap Open untuk (b), argumen baru di luar run. A48 (b): Open,
+    tidak ada re-read aman; yang dibangun (baris deskripsi, tes) lolos. Resep tanpa skrip
+    yang terbukti, tetap Open dengan apa yang kurang: A47, A51, A52, A54, A59, A62 sampai
+    A65, A67, A69, A34 (f); A56 (b) ditutup bersama A56 di grup 2. Baru, di luar run: A76,
+    A79, A80, A81, A82 sampai A87.
+  - Release: grup 1 build 0.7.0-20261123-001227, lalu 0.7.0-20261123-031122 (A48 (b), A74
+    lagi); grup 2 0.7.0-20261123-103915; grup 3 0.7.0-20261123-140004 (608 offline, 125 live
+    OK, listing +0.10%). Uji skenario grup 3 lolos semua, sekali terhenti oleh batas
+    pemakaian akun, dilanjutkan dengan --resume.
+  - Keputusan run (bukan owner) ada di tiap item sebagai baris "Decided ... by the run";
+    yang di luar item: tes per grup oleh subagen Sonnet, push/registrasi/tag/page oleh sesi
+    utama; resep dan A75 dikerjakan lebih dulu saat Altium terblokir; uji skenario grup 2
+    dan 3 dimulai di bawah 1,5 GB memori bebas karena sisanya dipakai sesi Claude lain milik
+    owner; A77 jadi item baru di grup 3, bukan A45 diulang.
+  - Untuk owner: A1, A2, A7 menunggu PR upstream (belum dikirim); A11, cek ECO manual di
+    bench (lihat itemnya); update ad25 ke upstream/main, keputusan owner di sesi sendiri;
+    A73 (ukuran deskripsi tool) dan A60 (b) untuk run berikutnya.
+  - Pertanyaan hook yang tidak ditanyakan: catatan `core` soal pindah sesi (pertanyaan owner
+    soal pekerjaan yang sedang jalan); tidak ada pertanyaan timer, commit atau PR.

@@ -1929,6 +1929,23 @@ begin
     Comp.SchIterator_Destroy(Iter);
 end;
 
+// In a saved sheet each body graphic of a placed part (line, rectangle, arc...)
+// carries IsNotAccesible=T, so a click on the body selects the part. The
+// graphics ReplicateLibSymbol copies from the library document come without
+// it, and a script can neither read nor set it (A71). Altium sets it on every
+// child when PinsMoveable is set: toggle it and set it back to what the
+// symbol has. Call it once the part is on the sheet.
+procedure LockPartBody(Comp: ISch_Component);
+var
+    Moveable : Boolean;
+begin
+    Moveable := Comp.PinsMoveable;
+    SchServer.RobotManager.SendMessage(Comp.I_ObjectAddress, c_BroadCast, SCHM_BeginModify, c_NoEventData);
+    Comp.PinsMoveable := not Moveable;
+    Comp.PinsMoveable := Moveable;
+    SchServer.RobotManager.SendMessage(Comp.I_ObjectAddress, c_BroadCast, SCHM_EndModify, c_NoEventData);
+end;
+
 // The letter Altium shows for a part of a multi-part component: A to Z, AA...
 function PartLetter(Part: Integer): String;
 begin
@@ -2276,6 +2293,7 @@ begin
                 Replica.MoveByXY(
                     StrToInt(GetFieldFromPipeString(Rec, 5)) - Replica.Location.X,
                     StrToInt(GetFieldFromPipeString(Rec, 6)) - Replica.Location.Y);
+                LockPartBody(Replica);
 
                 Comp := Replica;
                 PartCount := PartCount + 1;
@@ -3701,6 +3719,7 @@ begin
         Replica.Mirror(Replica.Location);
     Replica.MoveByXY(StrToInt(GetFieldFromPipeString(Rec, 4)) - Replica.Location.X,
                      StrToInt(GetFieldFromPipeString(Rec, 5)) - Replica.Location.Y);
+    LockPartBody(Replica);
     if GetFieldFromPipeString(Rec, 8) <> '' then Replica.Comment.Text := GetFieldFromPipeString(Rec, 8);
     Result := True;
 end;

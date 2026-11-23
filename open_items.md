@@ -12,7 +12,7 @@ upstream, run and held, or decided against moves with its record to
 [`closed_items.md`](closed_items.md), and so does a run's section once every step of it is
 ticked. The layout is the `backlog` plugin's `format.md` (v0.1, since 2026-11-15).
 
-**Open: A11, A15, A23, A25, A28, A31 to A34, A36 to A39, A41 to A44, A47, A48, A51 to A54, A56, A57, A59 to A73, A76.** Sorted
+**Open: A11, A15, A23, A25, A28, A31 to A34, A36 to A39, A41 to A44, A47, A48, A51 to A54, A56, A57, A59 to A70, A72, A73, A76.** Sorted
 2026-11-23, the second entry of 2026-11-23 (the scenario test of group 1's second build,
 `build-20261123-031122`): A74 held and closed; A48 (b) checked, the part built held and the
 rest still open; A76, new, not taken into the run; A34, met again. Sorted
@@ -406,9 +406,11 @@ is written down before it.
     recipes, A75) taken now, out of their order, offline, because the owner asked at 02:18
     that the run not stop and neither reaches Altium; their proof stays the scenario test.
     Nothing is pushed or released until the live tests can run.
-- [x] A27: committed
+- [x] A27: committed (71f8054)
   - Sonnet, about 116k tokens, 15 minutes; 3 of 5 failed before, 5/5 after.
-- [ ] A71: committed
+- [x] A71: committed
+  - About 153k tokens, 22 minutes; 10 of 20 failed before for each tool, 0 of 40 after. Its
+    `check_schematic` part is a leftover, to be filed as an item at the run end.
 - [ ] A56 (a): committed
 - [ ] Group 2: tests and release (build: )
 - [ ] Group 2: scenario test (session id: ), its outcome sorted
@@ -1145,23 +1147,6 @@ sheet. Workaround: close it unsaved and open it as `SchLib`.
 Proposed: local; `OpenSchDoc` opens by the file's extension or refuses a `.SchLib`, and the
 batch tool's "could not open and focus" names the kind it found. Not decided.
 
-### A71 - Parts placed by the tools sometimes lack the flag that locks their body - OPEN 2026-11-22
-
-2026-11-19 (eleventh), point 1: a click on a placed part's body selected its rectangle. In
-the saved sheet a placed part's child primitives carry `IsNotAccesible=T`; on 24 parts
-placed by script or by the server's tools the body did not, while parts placed in Altium's
-own UI all had it. Not reproduced that day. 2026-11-20, points 1 and 6: reproduced; of six
-parts placed by `edit_schematic` `place_component` that day three came in without it (an
-8-pin symbol's rectangle and line, a 2-pin symbol's four arcs), and 19 more were found on
-sheets drawn earlier by `build_schematic` and `edit_schematic`. Reported success. Not
-readable from DelphiScript ("Undeclared identifier: IsNotAccesible"); found only in the saved
-file. Workaround held: `Comp.PinsMoveable := True`, then `False`, inside
-`PreProcess`/`PostProcess` and `SCHM_BeginModify`/`EndModify`, saved.
-
-Proposed: local; the toggle after placing in `place_component` and `build_schematic`, and
-`check_schematic` reporting a part with a child lacking the flag; a live test with the
-symbols that lost it. Not decided.
-
 ### A72 - `check_schematic` misses overlaps a screenshot shows - OPEN 2026-11-22
 
 2026-11-19 (thirteenth), point 1: a sheet reported clean while a placed symbol's own pin
@@ -1885,3 +1870,49 @@ True)] ... a second model was added, or both are current". After:
 a `read_model_list` that shows a duplicate), `test_live_project_setup`, `test_live_pin_map`
 and `test_live_build_focus` 29 OK; the offline list 585 OK. The tool listing 159,305 to
 159,429 characters. Not tested live: a part from an `.IntLib`, the same code path.
+
+### A71 - Parts placed by the tools sometimes lack the flag that locks their body - BUILT 2026-11-23, proof: the scenario test
+
+2026-11-19 (eleventh), point 1: a click on a placed part's body selected its rectangle. In
+the saved sheet a placed part's child primitives carry `IsNotAccesible=T`; on 24 parts
+placed by script or by the server's tools the body did not, while parts placed in Altium's
+own UI all had it. Not reproduced that day. 2026-11-20, points 1 and 6: reproduced; of six
+parts placed by `edit_schematic` `place_component` that day three came in without it (an
+8-pin symbol's rectangle and line, a 2-pin symbol's four arcs), and 19 more were found on
+sheets drawn earlier by `build_schematic` and `edit_schematic`. Reported success. Not
+readable from DelphiScript ("Undeclared identifier: IsNotAccesible"); found only in the
+saved file. Workaround held: `Comp.PinsMoveable := True`, then `False`, inside
+`PreProcess`/`PostProcess` and `SCHM_BeginModify`/`EndModify`, saved.
+
+Proposed: local; the toggle after placing in `place_component` and `build_schematic`, and
+`check_schematic` reporting a part with a child lacking the flag; a live test with the
+symbols that lost it. Decided by the run's plan: the toggle; the `check_schematic` part not
+in this run, left for an item of its own at the run's end.
+
+Cause (2026-11-23, backlog run): a part lacks the flag exactly when its symbol is the one
+shown in the library editor while it is placed. Altium then hands that symbol's body to the
+library document, `Replicate` leaves it out, and `ReplicateLibSymbol`'s second pass (issue
+#22) adds copies of the graphics without the flag. A symbol not shown is copied whole and
+keeps the flag. Which symbol the editor showed is what made the fault look intermittent.
+Pins, designators and parameters do not carry the flag, even on parts placed in Altium's UI.
+
+Fixed in the commit that moves it here: `LockPartBody` in `schematic_utils.pas`. Once a part
+copied from a `.SchLib` is on the sheet, inside the modify, it flips `PinsMoveable` to the
+opposite value and sets it back to the symbol's own; Altium then sets the flag on every body
+graphic. It runs in `build_schematic` and in `edit_schematic`'s `place_component`. `.IntLib`
+parts, placed by Altium's `PlaceLibraryComponent`, are left as they were. The tool listing
+unchanged (159,429 characters).
+
+Decided 2026-11-23 by the run, not the owner: the value set back rather than forced to
+False, because a symbol saved with movable pins keeps that setting (only the False case,
+every placed part, tested); the `.IntLib` path not touched, because the fault is in the copy
+path (the `.IntLib` path untested); each symbol placed five times while shown and five while
+not, because the item named no cause and the split shows which condition fails.
+
+Test: `tests/test_live_body_lock.py` makes an 8-pin symbol drawn with a rectangle and a line
+and a 2-pin one drawn with four arcs in a copy of an example library; each tool places each
+symbol ten times, five while it is the shown symbol, and the test reads `IsNotAccesible` on
+every body graphic from the saved sheet. Before: "10 of 20 placed parts have a body graphic
+without IsNotAccesible=T" for each tool, the 10 every placement made while its own symbol
+was shown. After: 0 of 40, 2/2. The live tests of the tools touched 46 OK (2 expected
+failures, already marked); the offline list 585 OK.

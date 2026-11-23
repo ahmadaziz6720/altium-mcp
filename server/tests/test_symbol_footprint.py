@@ -108,6 +108,26 @@ class NormalizeSpecTest(unittest.TestCase):
         self.assertEqual(errors, [])
 
 
+NO_LIBRARIES = {"success": True, "result": {"installed": [], "project_libraries": []}}
+
+
+class LookupTest(unittest.TestCase):
+    def test_search_order_project_first_pcblibs_once(self):
+        self.assertEqual(sf.search_order([r"C:\p\A.PcbLib"], [r"c:\p\a.pcblib", r"C:\i\B.IntLib",
+                                                                  r"C:\i\C.PCBLIB", r"C:\i\D.SchLib"]),
+                         [r"C:\p\A.PcbLib", r"C:\i\C.PCBLIB"])
+
+    def test_locate_takes_the_first_library_and_skips_unreadable(self):
+        held = {"L1": None, "L2": {"X"}, "L3": {"X", "Y"}}
+        self.assertEqual(sf.locate(["x", "y", "z"], ["L1", "L2", "L3"], lambda p, n: held[p]),
+                         {"X": "L2", "Y": "L3"})
+
+    def test_fill_records_keeps_given_libraries(self):
+        records, problems = sf.fill_records([("A", "", "1"), ("B", "lib", "")], ["L"],
+                                            lambda p, n: {"A"}, "S")
+        self.assertEqual((records, problems), ([("A", "L", "1"), ("B", "lib", "")], []))
+
+
 def run(coro, replies=None):
     """A tool's JSON result with the bridge faked: replies by command."""
     calls = []
@@ -145,14 +165,39 @@ class ToolChecksTest(unittest.TestCase):
         self.assertEqual(calls, [])
 
     def test_the_footprints_go_to_altium_in_full(self):
-        reply = {"success": True, "result": {"success": True, "component_name": "S"}}
+        reply = {"success": True, "result": {"success": True, "component_name": "S", "problems": []}}
         out, calls = run(main.create_schematic_symbol(None, "S", "d", PINS,
                                                       footprints=["A", f"B|{self.lib}|1"]),
-                         {"create_schematic_symbol": reply})
-        self.assertEqual(len(calls), 1)
-        records = calls[0][1]["footprints"]
+                         {"get_installed_libraries": NO_LIBRARIES, "create_schematic_symbol": reply})
+        self.assertEqual([c[0] for c in calls], ["get_installed_libraries", "create_schematic_symbol"])
+        records = calls[1][1]["footprints"]
         self.assertEqual(records[0], "A||")
         self.assertTrue(records[1].startswith("B|") and records[1].endswith("|1"), records)
+        # A66: a name no library holds is linked by name, and said so
+        self.assertEqual(out["problems"], [sf.not_found_problem("S", "A")], out)
+
+    def test_a_name_only_footprint_gets_the_library_that_holds_it(self):
+        # A66: the project's library first, then the installed ones
+        project = os.path.join(self.dir.name, "Project.PcbLib")
+        installed = os.path.join(self.dir.name, "Installed.PcbLib")
+        libs = {"success": True, "result": {"installed": [installed, r"C:\x\Parts.IntLib"],
+                                            "project_libraries": [project]}}
+        holds = {project.upper(): {"A"}, installed.upper(): {"A", "B"}}
+        reply = {"success": True, "result": {"success": True, "component_name": "S", "problems": []}}
+        with mock.patch.object(main.pcblib_file, "held_footprints",
+                               lambda path, names: {n.upper() for n in names} & holds.get(path.upper(), set())):
+            out, calls = run(main.create_schematic_symbol(None, "S", "d", PINS, footprints=["a", "B|", "C||0"]),
+                             {"get_installed_libraries": libs, "create_schematic_symbol": reply})
+        self.assertEqual(calls[0][1], {"library_path": ""})
+        self.assertEqual(calls[1][1]["footprints"], [f"a|{project}|", f"B|{installed}|", "C||0"])
+        self.assertEqual(out["problems"], [sf.not_found_problem("S", "C")], out)
+
+    def test_a_footprint_with_its_library_asks_altium_nothing_more(self):
+        reply = {"success": True, "result": {"success": True, "component_name": "S", "problems": []}}
+        out, calls = run(main.create_schematic_symbol(None, "S", "d", PINS, footprints=[f"B|{self.lib}|1"]),
+                         {"create_schematic_symbol": reply})
+        self.assertEqual([c[0] for c in calls], ["create_schematic_symbol"])
+        self.assertEqual(out["problems"], [])
 
     def test_no_footprints_sends_none(self):
         reply = {"success": True, "result": {"success": True, "component_name": "S"}}
@@ -175,13 +220,33 @@ class ToolChecksTest(unittest.TestCase):
         with open(spec, "w") as f:
             f.write(f"SYMBOL|S1|d|1\nFOOTPRINT|A\nFOOTPRINT|B|{self.lib}\n")
         reply = {"success": True, "result": {"created": 1, "edited": 0, "failed": [], "problems": []}}
-        out, calls = run(main.create_symbols_batch(None, spec), {"create_symbols_batch": reply})
-        sent = calls[0][1]["spec"].split("\n")
+        out, calls = run(main.create_symbols_batch(None, spec),
+                         {"get_installed_libraries": NO_LIBRARIES, "create_symbols_batch": reply})
+        sent = calls[1][1]["spec"].split("\n")
         self.assertEqual(sent[1], "FOOTPRINT|A||")
+        self.assertEqual(out["problems"], [sf.not_found_problem("S1", "A")], out)
         self.assertEqual(sent[2].lower(), f"footprint|b|{long_path(self.lib)}|".lower())
         # the caller's own file is as it was
         with open(spec) as f:
             self.assertEqual(f.read(), f"SYMBOL|S1|d|1\nFOOTPRINT|A\nFOOTPRINT|B|{self.lib}\n")
+
+    def test_a_batch_name_only_footprint_gets_its_library(self):
+        # A66: looked up for the spec's LIBRARY, written into the spec sent
+        spec = os.path.join(self.dir.name, "spec.txt")
+        schlib = os.path.join(self.dir.name, "Parts.SchLib")
+        with open(spec, "w") as f:
+            f.write(f"LIBRARY|{schlib}\nSYMBOL|S1|d|1\nFOOTPRINT|A||1\nEDITSYMBOL|S2\nFOOTPRINT|Z\n")
+        libs = {"success": True, "result": {"installed": [self.lib], "project_libraries": []}}
+        reply = {"success": True, "result": {"created": 1, "edited": 1, "failed": [], "problems": ["old"]}}
+        with mock.patch.object(main.pcblib_file, "held_footprints",
+                               lambda path, names: {n.upper() for n in names} & {"A"}):
+            out, calls = run(main.create_symbols_batch(None, spec),
+                             {"get_installed_libraries": libs, "create_symbols_batch": reply})
+        self.assertEqual(calls[0][1]["library_path"].lower(), long_path(schlib).lower())
+        sent = calls[1][1]["spec"].split("\n")
+        self.assertEqual(sent[2], f"FOOTPRINT|A|{self.lib}|1")
+        self.assertEqual(sent[4], "FOOTPRINT|Z||")
+        self.assertEqual(out["problems"], ["old", sf.not_found_problem("S2", "Z")], out)
 
 
 if __name__ == "__main__":

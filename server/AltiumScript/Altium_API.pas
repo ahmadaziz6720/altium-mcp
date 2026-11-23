@@ -1548,7 +1548,7 @@ begin
         'get_project_info':
             Result := GetProjectInfo(ROOT_DIR);
         'get_installed_libraries':
-            Result := GetInstalledLibraries(0);
+            Result := GetInstalledLibraries(RequestText(RequestData, 'library_path', ''));
         'get_project_components':
             Result := ExecuteGetProjectComponents(RequestData);
         'get_erc_violations':

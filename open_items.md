@@ -12,7 +12,7 @@ upstream, run and held, or decided against moves with its record to
 [`closed_items.md`](closed_items.md), and so does a run's section once every step of it is
 ticked. The layout is the `backlog` plugin's `format.md` (v0.1, since 2026-11-15).
 
-**Open: A11, A15, A23, A25, A28, A31 to A34, A36 to A39, A41 to A44, A47, A48, A51 to A54, A59 to A70, A72, A73, A76 to A78.** Sorted
+**Open: A11, A15, A23, A25, A28, A31 to A34, A36 to A39, A41 to A44, A47, A48, A51 to A54, A59 to A65, A67 to A70, A72, A73, A76 to A78.** Sorted
 2026-11-23, the third entry of 2026-11-23 (the scenario test of group 2's build,
 `build-20261123-103915`): A46, A58, A45, A26, A27, A71, A56 and A75 held and closed, A55
 closed as usage; A77 and A78, new, taken into group 3; A61, met again; A34 and A52,
@@ -451,10 +451,12 @@ is written down before it.
     alone (`c1385bb`), sorted 2026-11-23: A46, A58, A45, A26, A27, A71, A56, A75 held
     (closed), A55 closed as usage; A77 and A78 new, steps in group 3; A61, A34, A52 met or
     checked.
-- [x] A57: committed
+- [x] A57: committed (c7aac0a)
   - About 165k tokens, 13 minutes; 4 failures and 1 error of 6 live before, 7/7 after, 596 offline.
     Altium found closed at the session's start, started from its exe (pid 11028).
-- [ ] A66: committed
+- [x] A66: committed
+  - About 172k tokens, 16 minutes; 3 of 3 live failed before, 11/11 after (40/40 with the
+    touched tools' live tests), 603 offline.
 - [ ] A41: committed
 - [ ] A70: committed
 - [ ] A28: committed
@@ -1070,18 +1072,6 @@ positions, the Comment, and a pin's move with the body's corner, each saved and 
 from the library; a parameter added to a library symbol was never done by script (the
 description says never to register objects into a library).
 
-### A66 - `create_schematic_symbol` reports a footprint linked by name that no library of the project holds - OPEN 2026-11-22
-
-Sorted out of the entry of 2026-11-20, point 5: `footprints: ["<name>"]` reported the
-footprint linked, `problems` empty, but the parts placed from the symbol had no footprint in
-Altium: it was in an installed vendor `.PcbLib`, not in the project's libraries, and the link
-held no location. Found by the owner. Fixed by setting `DatafileLink(0).Location` on the
-symbol and the placed parts by script. Reported success with a wrong result (the caller
-should also have given the library).
-
-Proposed: local; a name-only footprint resolved at creation: the location filled from the
-library that holds it, else a line in `problems`. Not decided.
-
 ### A67 - Tool descriptions leave out what a caller needs - OPEN 2026-11-22
 
 (a) `get_component_data` reads the board only ("No component data found" for schematic
@@ -1604,4 +1594,58 @@ tests of the tools touched, `test_live_symbol_footprint` and `test_live_pcblib_f
 596/596 offline in all. `get_project_components`' size (the line of 2026-11-22) is not in
 this fix: it is left for an item of its own, filed with the run's other leftovers at its
 end.
+Fixed in the commit that moves it here.
+
+### A66 - `create_schematic_symbol` reports a footprint linked by name that no library of the project holds - BUILT 2026-11-23, proof: the scenario test
+
+Sorted out of the entry of 2026-11-20, point 5: `footprints: ["<name>"]` reported the
+footprint linked, `problems` empty, but the parts placed from the symbol had no footprint in
+Altium: it was in an installed vendor `.PcbLib`, not in the project's libraries, and the link
+held no location. Found by the owner. Fixed by setting `DatafileLink(0).Location` on the
+symbol and the placed parts by script. Reported success with a wrong result (the caller
+should also have given the library).
+
+Proposed: local; a name-only footprint resolved at creation: the location filled from the
+library that holds it, else a line in `problems`. Not decided.
+
+Cause: a footprint given by name only went to Altium with an empty library, and the
+script stored the link as it was asked (`ApplyFootprint`, `AddDataFileLink(Model, '',
+'PCBLib')`) and read back the same empty library, so the read-back matched the request and
+`problems` stayed empty; nothing looked for the library that holds the name. The same holds
+for a `FOOTPRINT|<name>` record of `create_symbols_batch`, which goes through the same code.
+
+Fixed: before Altium is asked to make the symbol, a name with no library is looked up in
+the saved `.PcbLib` files of the projects that hold the symbol library (the focused one for
+`create_schematic_symbol`, the spec's `LIBRARY|` for `create_symbols_batch`), then of the
+installed libraries in Altium's order, and the first that holds it is written into the
+record; none does, the link is by name as before and `problems` gets a line naming the
+symbol and the footprint ("... is in no saved .PcbLib of the project or installed in
+Altium; linked by name only (give its library)"). The bridge command behind
+`get_installed_libraries` also gives `project_libraries` for a `library_path`
+(`GetInstalledLibraries` in `other_utils.pas`; the tool's own result is as before); the
+lookup is `search_order`, `fill_records` and `fill_spec` in `server/symbol_footprint.py`, a
+file read by `held_footprints` in `server/pcblib_file.py`. One more call to Altium only when
+a name has no library. No new tool or argument; the two `footprints` descriptions say where
+a name is looked for; the tool listing 159,606 to 159,605 characters.
+Decided 2026-11-23 by the run, not the owner: only saved `.PcbLib` files are looked in, an
+installed `.IntLib` not, because a footprint's library is a `.PcbLib` path (the tool refuses
+any other) and the file on disk is what the link points Altium to; a footprint made in an
+open library and not saved yet is reported, not guessed.
+Decided 2026-11-23 by the run, not the owner: `create_symbols_batch`'s `FOOTPRINT` records
+are fixed with it, because they share the code and its live test asserted the same fault
+(a name-only link, `problems` empty).
+Decided 2026-11-23 by the run, not the owner: "the project" is every open project whose
+documents include the symbol library, `Free Documents` among them, in workspace order,
+because a library can be in several projects and a free one has no other.
+Test before (`tests/test_live_symbol_footprint.py`, copies of an example's `.SchLib` and
+`.PcbLib`, the `.PcbLib` installed for the test and the installed list put back as found):
+3 failed of 3: a name held only by the installed copy, "Lists differ: [('HDR1X2', '',
+True)] != [('HDR1X2', '<the installed copy>', True)]"; a name held by the project's
+`.PcbLib` (and a second copy installed), "{'HDR1X2': ('', True), 'NT': ('', False)} !=
+..."; a name no library holds, "0 != 1" problems.
+Test after: 11/11 of `tests/test_live_symbol_footprint.py` live (the three above among them;
+the test of a name-only link now asserts its problem line), and with the live tests of the
+tools touched (`test_live_libraries`, `test_live_build_footprint`, `test_live_body_lock`,
+`test_live_library_reads`, `test_live_multipart`, `test_live_pin_map`) 40/40; offline 7 new
+(`tests/test_symbol_footprint.py`, `tests/test_pcblib_file.py`), 603/603 in all.
 Fixed in the commit that moves it here.

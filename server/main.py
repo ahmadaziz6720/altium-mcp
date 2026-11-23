@@ -1436,8 +1436,9 @@ async def create_schematic_symbol(ctx: Context, symbol_name: str, description: s
                     to, so a part placed from it carries its footprint. Each
                     entry "model name[|library[|current]]": library is the
                     full path of the .PcbLib that holds the footprint (left
-                    out, the model is linked by name and Altium looks for it
-                    in the libraries of the project); current is 1 or 0. A
+                    out, it is the first saved .PcbLib of the project, then
+                    of the installed ones, holding it; none does, the link
+                    is by name and problems says so); current is 1 or 0. A
                     symbol can carry several footprints; one is the current
                     one: the one given 1, else the first when none says so.
                     Two entries asking for 1, a library that is not an
@@ -1453,12 +1454,23 @@ async def create_schematic_symbol(ctx: Context, symbol_name: str, description: s
     logger.info(f"Creating schematic symbol: {symbol_name} with {len(pins)} pins, {part_count} part(s)")
 
     footprint_records = []
+    lookup_problems = []
     if footprints:
         try:
-            footprint_records = [symbol_footprint.format_record(*r)
-                                 for r in symbol_footprint.check_records(footprints)]
+            records = symbol_footprint.check_records(footprints)
         except ValueError as e:
             return json.dumps({"success": False, "error": f"Failed to create symbol: {e}"})
+        # A name with no library gets the location of the library that holds
+        # it, or a problem line (A66)
+        if any(not lib for _, lib, _ in records):
+            libraries, error = await _footprint_search_order("")
+            if error:
+                lookup_problems.append(f"could not list the footprint libraries ({error}); "
+                                       "footprints without a library are linked by name only")
+            else:
+                records, lookup_problems = symbol_footprint.fill_records(
+                    records, libraries, pcblib_file.held_footprints, symbol_name)
+        footprint_records = [symbol_footprint.format_record(*r) for r in records]
 
     params = {
         "symbol_name": symbol_name,
@@ -1485,7 +1497,9 @@ async def create_schematic_symbol(ctx: Context, symbol_name: str, description: s
     
     # Get the result data
     result = response.get("result", {})
-    
+    if lookup_problems and isinstance(result, dict):
+        result["problems"] = list(result.get("problems") or []) + lookup_problems
+
     logger.info(f"Symbol {symbol_name} created successfully with {len(pins)} pins")
     return json.dumps(result, indent=2)
 
@@ -3034,9 +3048,8 @@ async def create_symbols_batch(ctx: Context, spec_file: str) -> str:
                                 symbol to a PCB footprint, so a part placed
                                 from it carries it. library: the full path
                                 of the .PcbLib that holds the footprint
-                                (left out, the model is linked by name and
-                                Altium looks for it in the project's
-                                libraries). A symbol can carry several
+                                (left out, as create_schematic_symbol's
+                                footprints). A symbol can carry several
                                 footprints, one record each; one is the
                                 current one: the one given 1, else the first
                                 when none says so (an existing symbol keeps
@@ -3070,6 +3083,7 @@ async def create_symbols_batch(ctx: Context, spec_file: str) -> str:
     # is open. Altium gets a copy with the long path; the caller's file is
     # left as it is.
     copy = None
+    text = None
     try:
         text = read_altium_text(spec_file)
         fixed = spec_with_long_library(text)
@@ -3085,6 +3099,21 @@ async def create_symbols_batch(ctx: Context, spec_file: str) -> str:
             fixed = with_footprints
     except OSError:
         fixed = None  # missing or unreadable: the script reports it
+        text = None
+    # A FOOTPRINT record with no library gets the location of the library
+    # that holds it, or a problem line (A66)
+    lookup_problems = []
+    spec_text = fixed if fixed is not None else text
+    if spec_text is not None and symbol_footprint.name_only_models(spec_text):
+        libraries, error = await _footprint_search_order(symbol_footprint.spec_library(spec_text))
+        if error:
+            lookup_problems.append(f"could not list the footprint libraries ({error}); "
+                                   "footprints without a library are linked by name only")
+        else:
+            filled, lookup_problems = symbol_footprint.fill_spec(spec_text, libraries,
+                                                                 pcblib_file.held_footprints)
+            if filled != spec_text:
+                fixed = filled
     if fixed is not None:
         fd, copy = tempfile.mkstemp(prefix="symbols_spec_", suffix=".txt", dir=EXCHANGE_DIR)
         os.close(fd)
@@ -3107,6 +3136,14 @@ async def create_symbols_batch(ctx: Context, spec_file: str) -> str:
         return json.dumps({"success": False, "error": f"Failed batch creation: {error_msg}"})
 
     result = response.get("result", {})
+    if lookup_problems:
+        if isinstance(result, str):
+            try:
+                result = json.loads(result, strict=False)
+            except ValueError:
+                pass
+        if isinstance(result, dict):
+            result["problems"] = list(result.get("problems") or []) + lookup_problems
     return json.dumps(result, indent=2) if not isinstance(result, str) else result
 
 @_tool(read_only=True)
@@ -7187,6 +7224,16 @@ async def _installed_libraries() -> Tuple[Optional[list], str]:
         ext = os.path.splitext(path)[1].lstrip(".")
         libs.append({"path": path, "kind": ext or "unknown", "exists": os.path.isfile(path)})
     return libs, ""
+
+
+async def _footprint_search_order(library_path: str = "") -> Tuple[list, str]:
+    """(the .PcbLib files a footprint linked by name is looked for in, "") or
+    ([], error): the libraries of the projects holding the symbol library at
+    library_path (empty: the focused one), then the installed ones (A66)."""
+    result, error = await _bridge_json("get_installed_libraries", {"library_path": library_path})
+    if error:
+        return [], error
+    return symbol_footprint.search_order(result.get("project_libraries"), result.get("installed")), ""
 
 
 @_tool(read_only=True)

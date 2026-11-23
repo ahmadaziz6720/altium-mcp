@@ -145,6 +145,15 @@ def holds_footprint(path, name):
         return None
 
 
+def held_footprints(path, names):
+    """The names (upper case) of names that the saved file holds; None when
+    the file cannot be read."""
+    try:
+        return set(_read_footprints(path, names))
+    except (pythoncom.com_error, OSError):
+        return None
+
+
 _PLACEMENT = ("rotation_x", "rotation_y", "rotation_z", "model_z_offset")
 
 

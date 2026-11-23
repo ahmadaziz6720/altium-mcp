@@ -84,6 +84,11 @@ class PcbLibFileTests(unittest.TestCase):
         # a file that cannot be read is neither
         self.assertIsNone(pf.holds_footprint(Path(self.dir.name) / "none.PcbLib", "OSC"))
 
+    def test_held_footprints(self):
+        # several names in one read of the file (A66), upper case
+        self.assertEqual(pf.held_footprints(self.path, ["osc", "MISSING"]), {"OSC"})
+        self.assertIsNone(pf.held_footprints(Path(self.dir.name) / "none.PcbLib", ["OSC"]))
+
     def test_merge_matches_by_model_name_in_order(self):
         bodies = [{"model_file": "a.STEP"}, {"model_file": "new.step"}, {"model_file": "A.step"}]
         saved = [{"model_name": "A.step", "rotation_x": 1.0, "rotation_y": 0.0, "rotation_z": 0.0, "model_z_offset": 0.0},

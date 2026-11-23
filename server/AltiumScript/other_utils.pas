@@ -1543,24 +1543,60 @@ begin
 end;
 
 // The libraries installed in Altium (Components panel, Libraries, Installed),
-// in Altium's order: {"installed": [path, ...]}
-function GetInstalledLibraries(Dummy: Integer): String;
+// in Altium's order: {"installed": [path, ...], "project_libraries": [...]}.
+// project_libraries are the .PcbLib documents of the projects that hold the
+// document at DocPath (empty: the focused schematic library), in project
+// order; a symbol's footprint linked by name is looked for there first (A66).
+function GetInstalledLibraries(DocPath: String): String;
 var
     IntMan : IIntegratedLibraryManager;
-    Items, Props : TStringList;
-    i : Integer;
+    Items, Props, ProjLibs : TStringList;
+    SchDoc : ISch_Document;
+    Project : IProject;
+    Doc : IDocument;
+    i, P, D : Integer;
+    Holds : Boolean;
 begin
     IntMan := IntegratedLibraryManager;
     Items := TStringList.Create;
     Props := TStringList.Create;
+    ProjLibs := TStringList.Create;
     try
         for i := 0 to IntMan.InstalledLibraryCount - 1 do
             Items.Add('"' + JSONEscapeString(IntMan.InstalledLibraryPath(i)) + '"');
         Props.Add(BuildJSONArray(Items, 'installed'));
+
+        if (DocPath = '') then
+        begin
+            SchDoc := SchServer.GetCurrentSchDocument;
+            if (SchDoc <> nil) then
+                if (SchDoc.ObjectID = eSchLib) then
+                    DocPath := SchDoc.DocumentName;
+        end;
+        if (DocPath <> '') then
+            for P := 0 to GetWorkspace.DM_ProjectCount - 1 do
+            begin
+                Project := GetWorkspace.DM_Projects(P);
+                if (Project = nil) then Continue;
+                if (UpperCase(ExtractFileExt(Project.DM_ProjectFullPath)) = '.PRJSCR') then Continue;
+                Holds := False;
+                for D := 0 to Project.DM_LogicalDocumentCount - 1 do
+                    if (NormalizedPath(Project.DM_LogicalDocuments(D).DM_FullPath) = NormalizedPath(DocPath)) then
+                        Holds := True;
+                if Holds then
+                    for D := 0 to Project.DM_LogicalDocumentCount - 1 do
+                    begin
+                        Doc := Project.DM_LogicalDocuments(D);
+                        if (UpperCase(ExtractFileExt(Doc.DM_FullPath)) = '.PCBLIB') then
+                            ProjLibs.Add('"' + JSONEscapeString(Doc.DM_FullPath) + '"');
+                    end;
+            end;
+        Props.Add(BuildJSONArray(ProjLibs, 'project_libraries'));
         Result := BuildJSONObject(Props);
     finally
         Items.Free;
         Props.Free;
+        ProjLibs.Free;
     end;
 end;
 

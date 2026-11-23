@@ -96,3 +96,109 @@ def normalize_spec(text, exists=os.path.isfile):
             group.append((i, "|".join(fields[1:])))
     finish()
     return "\n".join(lines), errors
+
+
+def search_order(project_libraries, installed):
+    """The .PcbLib files a footprint linked by name is looked for in (A66):
+    the project's libraries, then the installed ones in Altium's order, each
+    once. Other kinds (an .IntLib, a .SchLib) cannot be linked to as a
+    footprint's library and are left out."""
+    order, seen = [], set()
+    for path in list(project_libraries or []) + list(installed or []):
+        path = str(path).strip()
+        if path.lower().endswith(".pcblib") and path.lower() not in seen:
+            seen.add(path.lower())
+            order.append(path)
+    return order
+
+
+def not_found_problem(symbol, model):
+    who = f"{symbol}: " if symbol else ""
+    return (f"{who}footprint {model} is in no saved .PcbLib of the project or installed in "
+            "Altium; linked by name only (give its library)")
+
+
+def locate(models, libraries, held):
+    """{model (upper case): library} for each model name the libraries hold,
+    the first library in order that holds it. held(path, names) gives the
+    upper-case names of names the saved file holds (None or an empty set
+    when it holds none or cannot be read)."""
+    found = {}
+    wanted = {m.upper() for m in models}
+    for path in libraries:
+        left = [m for m in wanted if m not in found]
+        if not left:
+            break
+        for name in held(path, left) or ():
+            found.setdefault(name.upper(), path)
+    return found
+
+
+def fill_records(records, libraries, held, symbol=""):
+    """create_schematic_symbol's records (model, library, current) with each
+    name-only model given the library that holds it, and a problem line for
+    each one no library holds: (records, [problem])."""
+    names = [m for m, lib, _ in records if not lib]
+    if not names:
+        return list(records), []
+    found = locate(names, libraries, held)
+    out, problems = [], []
+    for model, lib, current in records:
+        if not lib:
+            lib = found.get(model.upper(), "")
+            if not lib:
+                problems.append(not_found_problem(symbol, model))
+        out.append((model, lib, current))
+    return out, problems
+
+
+def name_only_models(text):
+    """The model names of a normalised spec's FOOTPRINT lines that give no
+    library."""
+    names = []
+    for line in text.split("\n"):
+        fields = line.split("|")
+        if fields[0].strip().upper() == "FOOTPRINT" and len(fields) > 1 and fields[1].strip():
+            if len(fields) < 3 or not fields[2].strip():
+                names.append(fields[1].strip())
+    return names
+
+
+def spec_library(text):
+    """The LIBRARY| path of a batch spec ('' when it has none: the focused
+    library)."""
+    for line in text.split("\n"):
+        fields = line.split("|")
+        if fields[0].strip().upper() == "LIBRARY" and len(fields) > 1:
+            return fields[1].strip()
+    return ""
+
+
+def fill_spec(text, libraries, held):
+    """A normalised spec with each name-only FOOTPRINT line given the library
+    that holds it, and a problem line for each one no library holds:
+    (text, [problem])."""
+    names = name_only_models(text)
+    if not names:
+        return text, []
+    found = locate(names, libraries, held)
+    lines = text.split("\n")
+    problems = []
+    symbol = ""
+    for i, line in enumerate(lines):
+        fields = line.split("|")
+        kind = fields[0].strip().upper()
+        if kind in ("SYMBOL", "EDITSYMBOL"):
+            symbol = fields[1].strip() if len(fields) > 1 else ""
+        elif kind == "FOOTPRINT" and len(fields) > 1 and fields[1].strip():
+            fields += [""] * (4 - len(fields))
+            if fields[2].strip():
+                continue
+            model = fields[1].strip()
+            lib = found.get(model.upper(), "")
+            if lib:
+                fields[2] = lib
+                lines[i] = "|".join(fields)
+            else:
+                problems.append(not_found_problem(symbol, model))
+    return "\n".join(lines), problems

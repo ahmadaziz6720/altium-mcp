@@ -33,6 +33,16 @@ PCBLIB = LIBS / "Spirit_Level_Project.PcbLib"
 JUMPER = "Jumper, 2-Pin"
 
 PINS = ["1|A|eElectricPassive|eRotate180|0|0", "2|B|eElectricPassive|eRotate0|600|0"]
+# A footprint name no library holds
+NOWHERE = "FPTEST_NO_SUCH_FOOTPRINT"
+
+
+def installed_libraries():
+    """The libraries Altium has installed, read through Altium, in its order."""
+    out = script("IntMan := IntegratedLibraryManager;\nS1 := '';\n"
+                 "for I1 := 0 to IntMan.InstalledLibraryCount - 1 do\n"
+                 "    S1 := S1 + IntMan.InstalledLibraryPath(I1) + '|';\nResultText := S1;")
+    return [p for p in out.strip().split("|") if p]
 
 
 def open_library(path):
@@ -129,6 +139,24 @@ class _Temp(unittest.TestCase):
         shutil.copyfile(SCHLIB, self.lib)
         shutil.copyfile(PCBLIB, self.fp)
 
+    def install(self, path):
+        """Install a library for the test; the installed list is put back as
+        it was found. Skips when an installed .PcbLib holds the footprints
+        the tests look for, which would come before the test's own."""
+        before = installed_libraries()
+        import pcblib_file
+        for lib in before:
+            if lib.lower().endswith(".pcblib") and Path(lib).is_file():
+                if pcblib_file.holds_footprint(lib, "HDR1X2") or pcblib_file.holds_footprint(lib, NOWHERE):
+                    self.skipTest("an installed library holds the test's footprint name")
+        script(f"IntMan := IntegratedLibraryManager;\nIntMan.InstallLibrary('{path}');\nResultText := 'done';")
+
+        def put_back():
+            script(f"IntMan := IntegratedLibraryManager;\nIntMan.UninstallLibrary('{path}');\nResultText := 'done';")
+            self.assertEqual(installed_libraries(), before, "the installed libraries were not put back")
+        self.addCleanup(put_back)
+        self.assertIn(str(path).lower(), [p.lower() for p in installed_libraries()], "could not install the library")
+
     def pcb_models(self, models):
         """Only the footprints (PCBLIB models) of a models dict, by name."""
         return {name: v for (kind, name), v in models.items() if kind == "PCBLIB"}
@@ -177,13 +205,50 @@ class LiveSymbolFootprintTest(_Temp):
         self.assertEqual({m["model"]: m["current"] for m in out["footprints"][0]["models"]},
                          {"NT": True, "HDR1X2": False}, out)
 
-    def test_footprint_without_a_library_is_a_link_by_name(self):
-        out = self.batch(["SYMBOL|FPTEST_C|By name|1"] + ["PIN|" + p for p in PINS] + ["FOOTPRINT|HDR1X2"])
-        self.assertEqual(out["problems"], [], out)
-        self.assertEqual(out["footprints"][0]["models"], [{"model": "HDR1X2", "library": "", "current": True}], out)
+    def test_footprint_no_library_holds_is_a_link_by_name_and_a_problem(self):
+        # A66: a name no library of the project and no installed one holds
+        # is still linked by name, and the result says so
+        out = self.batch(["SYMBOL|FPTEST_C|By name|1"] + ["PIN|" + p for p in PINS] + [f"FOOTPRINT|{NOWHERE}"])
+        self.assertEqual(out["footprints"][0]["models"], [{"model": NOWHERE, "library": "", "current": True}], out)
+        self.assertEqual(len(out["problems"]), 1, out)
+        self.assertIn(NOWHERE, out["problems"][0])
+        self.assertIn("linked by name only", out["problems"][0])
         self.reopen()
         read = self.pcb_models(read_models(self.lib, "FPTEST_C"))
-        self.assertEqual(read, {"HDR1X2": ("", True)})
+        self.assertEqual(read, {NOWHERE: ("", True)})
+
+    def test_name_held_only_by_an_installed_library_gets_its_location(self):
+        # A66: the footprint is in an installed .PcbLib and nowhere in the
+        # project; the link takes that library's location
+        self.install(self.fp)
+        open_library(self.lib)
+        out = tool(main.create_schematic_symbol(None, "FPTEST_J", "Installed", PINS, footprints=["HDR1X2"]))
+        self.assertEqual(out.get("component_name"), "FPTEST_J", out)
+        self.assertEqual(out.get("problems"), [], out)
+        self.assertEqual([(m["model"], m["library"].lower(), m["current"]) for m in out["footprints"]],
+                         [("HDR1X2", str(self.fp).lower(), True)], out)
+        self.reopen()
+        read = self.pcb_models(read_models(self.lib, "FPTEST_J"))
+        self.assertEqual({n: (v[0].lower(), v[1]) for n, v in read.items()},
+                         {"HDR1X2": (str(self.fp).lower(), True)}, "the saved library lost the location")
+
+    def test_name_held_by_the_project_library_comes_before_an_installed_one(self):
+        # A66: the project's libraries are looked in first, then the installed
+        project = self.tmp / "Parts.PrjPcb"
+        made = tool(main.create_project(None, str(project)))
+        self.assertTrue(made.get("success", True) and made.get("created"), made)
+        for doc in (self.lib, self.fp):
+            added = tool(main.add_project_document(None, str(project), str(doc)))
+            self.assertTrue(added.get("success"), added)
+        other = self.tmp / "Other" / "Installed.PcbLib"
+        other.parent.mkdir()
+        shutil.copyfile(PCBLIB, other)
+        self.install(other)
+        out = self.batch(["SYMBOL|FPTEST_K|Project first|1"] + ["PIN|" + p for p in PINS] +
+                         ["FOOTPRINT|HDR1X2", "FOOTPRINT|NT||0"])
+        self.assertEqual(out["problems"], [], out)
+        self.assertEqual({m["model"]: (m["library"].lower(), m["current"]) for m in out["footprints"][0]["models"]},
+                         {"HDR1X2": (str(self.fp).lower(), True), "NT": (str(self.fp).lower(), False)}, out)
 
     def test_editsymbol_adds_and_replaces_without_touching_other_models(self):
         before = read_models(self.lib, JUMPER)

@@ -441,6 +441,12 @@ is written down before it.
     the two checks before ran at 1.1 to 1.2 GB.
   - The owner, 2026-11-23: "beres grup 2, kita pindah sesi ya": once this step is ticked
     and committed, the session hands over, and group 3 starts in a new session.
+  - Handed over 2026-11-23 about 11:00, everything committed and pushed (`ad25` at the
+    sort's commit). Altium left running (pid 17088), started from its exe. Not in a file:
+    the session's scratchpad helpers (an item mover, the check's launcher), rebuilt as
+    needed; the run's `learned.md` entry, written at the run's end. Costs this session:
+    an item 116k to 161k tokens and 15 to 22 minutes, the test pass 72k and 29 minutes,
+    the check 12 minutes, its sort 116k and 3 minutes.
   - Ran 10:42 to 10:54, `EXIT 0`, no resume, 89 turns, about $5.41; its entry committed
     alone (`c1385bb`), sorted 2026-11-23: A46, A58, A45, A26, A27, A71, A56, A75 held
     (closed), A55 closed as usage; A77 and A78 new, steps in group 3; A61, A34, A52 met or

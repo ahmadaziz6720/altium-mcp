@@ -411,10 +411,14 @@ is written down before it.
 - [x] A71: committed (9ae6937)
   - About 153k tokens, 22 minutes; 10 of 20 failed before for each tool, 0 of 40 after. Its
     `check_schematic` part is a leftover, to be filed as an item at the run end.
-- [x] A56 (a): committed
+- [x] A56 (a): committed (8f57314)
   - About 161k tokens, 19 minutes; 3/3 live failed before, then held.
-- [ ] Group 2: tests and release (build: )
-- [ ] Group 2: scenario test (session id: ), its outcome sorted
+- [x] Group 2: tests and release (build: 0.7.0-20261123-103915, tag build-20261123-103915)
+  - 588 offline and 107 live tests OK (2 expected failures, A48 (b)), Altium restarted
+    first (pid 12520 to 6756), every document unmodified, the 223 files of the test
+    project hashed before and after the restart, none changed. The listing 157,962 to
+    159,660 characters (+1.07%), why in the release notes. A56 (a) is commit 8f57314.
+- [ ] Group 2: scenario test (session id: 06cf5507-82ca-4d5d-86ae-310e8c0c0ddd), its outcome sorted
   - The owner, 2026-11-23: "beres grup 2, kita pindah sesi ya": once this step is ticked
     and committed, the session hands over, and group 3 starts in a new session.
 - [ ] A57: committed
@@ -1539,6 +1543,8 @@ Seen and left: a build with a missing part comes back as the error text, with no
 sessions building at once could read each other's map (both by reading the code, not
 tested). A part on a multi-part symbol is A45's.
 
+Built in build `0.7.0-20261123-103915` (tag `build-20261123-103915`), commit `a441051`.
+
 ### A58 - `build_schematic` and `edit_schematic` take no spec file - BUILT 2026-11-23, proof: the scenario test
 
 Sorted out of the entry of 2026-11-18 (first), point 3, seen before drawing: a sheet of some
@@ -1591,6 +1597,8 @@ one test of `test_live_symbol_footprint` that builds a sheet. The other live tes
 
 Seen and left: on every tool the server drops an inline argument it does not know, without
 a word (the mcp package's argument model; how the test before got its false success).
+
+Built in build `0.7.0-20261123-103915` (tag `build-20261123-103915`), commit `cc27c73`.
 
 ### A45 - `build_schematic` places only part A of a multi-part symbol - BUILT 2026-11-23, proof: the scenario test
 
@@ -1655,6 +1663,8 @@ designator is placed twice, unreported; text placement by `param_placement.txt` 
 the body over all of a symbol's parts; a warning of a failed build is inside its error text,
 as the rest of that result is.
 
+Built in build `0.7.0-20261123-103915` (tag `build-20261123-103915`), commit `007672a`.
+
 ### A55 - `get_project_info` takes no `project_path` - BUILT 2026-11-23, proof: the scenario test
 
 Sorted out of the entry of 2026-11-19 (first), point 4: with no project focused it returned
@@ -1715,6 +1725,8 @@ For the scenario test, the three to run: this script (A55, its proof), the step 
 (met in five entries) and A52's removal (two entries, and A48 b's notice). Next, when there
 is room: A56 (b), whose library field on a placed part no test asserted.
 
+Built in build `0.7.0-20261123-103915` (tag `build-20261123-103915`), commit `ba17162`.
+
 ### A75 - `run_altium_script`'s `List1..3` keep strings, not objects - BUILT 2026-11-23, proof: the scenario test
 
 Sorted out of the entry of 2026-11-23, point 6, the scenario test of build `0.7.0-20261123-001227`: an
@@ -1750,6 +1762,8 @@ run, OK; 11 not run, as they start or stop processes or look for Altium's window
 (`test_start_server`'s `InUseTest` 2, `ExchangeLockTest` 4, `test_dblib`'s
 `SearchDatabaseTest` 4, `ServerStatusTest` 1). The tool listing: 80 tools, 159,000 to
 159,149 characters (+0.09%), from this checkout.
+
+Built in build `0.7.0-20261123-103915` (tag `build-20261123-103915`), commit `b764b10`.
 
 ### A26 - `build_schematic` leaves the focused project modified, and puts its sheet in it - BUILT 2026-11-23, proof: the scenario test
 
@@ -1807,6 +1821,8 @@ After: `test_live_build_focus` 4/4; the live tests that build (`test_live_projec
 The tool listing 80 tools, 159,149 to 159,305 characters (+0.1%). The clean-up met no
 dialog: sheets closed before their projects, no project opened twice.
 
+Built in build `0.7.0-20261123-103915` (tag `build-20261123-103915`), commit `153c546`.
+
 ### A27 - `build_schematic` with `footprint` on a symbol that has a current one gives two - BUILT 2026-11-23, proof: the scenario test
 
 A part whose library symbol already has a current footprint, placed with `footprint`, gets
@@ -1843,6 +1859,8 @@ True)] ... a second model was added, or both are current". After:
 a `read_model_list` that shows a duplicate), `test_live_project_setup`, `test_live_pin_map`
 and `test_live_build_focus` 29 OK; the offline list 585 OK. The tool listing 159,305 to
 159,429 characters. Not tested live: a part from an `.IntLib`, the same code path.
+
+Built in build `0.7.0-20261123-103915` (tag `build-20261123-103915`), commit `71f8054`.
 
 ### A71 - Parts placed by the tools sometimes lack the flag that locks their body - BUILT 2026-11-23, proof: the scenario test
 
@@ -1889,6 +1907,8 @@ every body graphic from the saved sheet. Before: "10 of 20 placed parts have a b
 without IsNotAccesible=T" for each tool, the 10 every placement made while its own symbol
 was shown. After: 0 of 40, 2/2. The live tests of the tools touched 46 OK (2 expected
 failures, already marked); the offline list 585 OK.
+
+Built in build `0.7.0-20261123-103915` (tag `build-20261123-103915`), commit `9ae6937`.
 
 ### A56 - No tool sets a placed part's footprint or says which library it links to - BUILT 2026-11-23, proof: the scenario test
 
@@ -1954,3 +1974,5 @@ unchanged); the live tests of the tools touched (set_footprint, build_footprint,
 symbol_footprint, body_lock, compile_refresh, erc, libraries, multipart, spec_file) 43 OK, 2
 expected failures already marked; offline 588/588. The tool listing 159,429 to 159,660
 characters (+0.14%).
+
+Built in build `0.7.0-20261123-103915` (tag `build-20261123-103915`), commit `8f57314`.

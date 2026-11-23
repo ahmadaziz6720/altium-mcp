@@ -419,6 +419,12 @@ is written down before it.
     project hashed before and after the restart, none changed. The listing 157,962 to
     159,660 characters (+1.07%), why in the release notes. A56 (a) is commit 8f57314.
 - [ ] Group 2: scenario test (session id: 06cf5507-82ca-4d5d-86ae-310e8c0c0ddd), its outcome sorted
+  - Started 10:42 by its launcher (pid 21664), output and launcher in the session's
+    scratchpad (`check_103915.*`); Altium restarted for memory first (pid 6756 to 17088,
+    the 223 files hashed before and after, none changed); free memory 845 MB.
+  - Decided 2026-11-23 by the run, not the owner: started under the plan's 1.5 GB, because
+    what holds the rest is the owner's other Claude sessions, not this run's to end, and
+    the two checks before ran at 1.1 to 1.2 GB.
   - The owner, 2026-11-23: "beres grup 2, kita pindah sesi ya": once this step is ticked
     and committed, the session hands over, and group 3 starts in a new session.
 - [ ] A57: committed

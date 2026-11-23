@@ -12,7 +12,7 @@ upstream, run and held, or decided against moves with its record to
 [`closed_items.md`](closed_items.md), and so does a run's section once every step of it is
 ticked. The layout is the `backlog` plugin's `format.md` (v0.1, since 2026-11-15).
 
-**Open: A11, A15, A23, A25, A31 to A34, A36 to A39, A42 to A44, A47, A48, A51 to A54, A59 to A65, A67 to A69, A72, A73, A76, A78.** Sorted
+**Open: A11, A15, A23, A25, A31 to A34, A36 to A39, A42 to A44, A47, A48, A51 to A54, A59 to A65, A67 to A69, A72, A73, A76.** Sorted
 2026-11-23, the third entry of 2026-11-23 (the scenario test of group 2's build,
 `build-20261123-103915`): A46, A58, A45, A26, A27, A71, A56 and A75 held and closed, A55
 closed as usage; A77 and A78, new, taken into group 3; A61, met again; A34 and A52,
@@ -488,11 +488,12 @@ is written down before it.
     release; A26's fix is in its stash; the subagents' brief and the helper scripts are in
     the session's scratchpad. Not written yet: the run's `learned.md` entry, and as items at
     the run's end what A46, A45, A58 and A55 list as seen and left.
-- [x] A77: committed
+- [x] A77: committed (afc0fad)
   - About 115k tokens, 40 minutes; failed before, 31/31 live after in eight modules, 608 offline.
     `test_live_symbol_footprint` and `test_live_project_setup` cut by Claude Code for low memory
     (about 0.8 GB free), left to group 3's full pass.
-- [ ] A78: committed
+- [x] A78: committed
+  - Sonnet, offline, about 40k tokens, 6 minutes; 608 offline, `test_recipes` 5/5.
 - [ ] Group 3: tests and release (build: )
 - [ ] Group 3: scenario test (session id: ), its outcome sorted
 - [ ] The report
@@ -1446,17 +1447,6 @@ Usage: compare two compiles by `errors` and their groups, not by `total`.
 Decided 2026-11-23 by the run, not the owner: not taken into this run, because its cause is
 unknown and looks to be Altium's, not a small fix in group 1's files.
 
-### A78 - A52's recipe says its script does not mark the sheet modified, but it does - OPEN 2026-11-23
-
-Sorted out of the group 2 entry of 2026-11-23, point 10, the scenario test of build
-`0.7.0-20261123-103915`, small: A52's section of `docs/recipes.md` says its removal script
-"does not mark the sheet modified", but after it the sheet was modified (its flag set,
-listed in `unsaved_in_altium`), as the notice it sends does.
-
-Local: that sentence corrected, offline.
-
-Taken into `## Run 2026-11-22`, group 3 (a step of its own).
-
 ## Waiting
 
 ### A1 - `get_server_status` reports no version or commit - BUILT 2026-11-12, proof: the upstream PR for the version part, not sent yet
@@ -1821,4 +1811,28 @@ saved fields of both parts equal), `test_live_pin_map` 2/2, `test_live_body_lock
 `test_live_project_setup` did not run to the end: Claude Code stopped the run for low memory
 (about 0.8 GB free), so they are left to the group's run of every `test_live_*`. Offline:
 the whole list of `tests.yml`, 608/608.
+Fixed in the commit that moves it here.
+
+### A78 - A52's recipe says its script does not mark the sheet modified, but it does - BUILT 2026-11-23, proof: the scenario test
+
+Sorted out of the group 2 entry of 2026-11-23, point 10, the scenario test of build
+`0.7.0-20261123-103915`, small: A52's section of `docs/recipes.md` says its removal script
+"does not mark the sheet modified", but after it the sheet was modified (its flag set,
+listed in `unsaved_in_altium`), as the notice it sends does.
+
+Local: that sentence corrected, offline.
+
+Taken into `## Run 2026-11-22`, group 3 (a step of its own).
+
+Cause: the recipe's sentence was written from the script's lines, which save nothing, and
+was never checked on a sheet. The script removes the object through the schematic server
+(`RemoveSchObject` between `PreProcess` and `PostProcess`) and sends the registration
+notice, and a removal made so is an edit of the document: the sheet is left modified.
+Which of the calls sets the flag was not isolated.
+
+Fixed: the sentence in A52's section of `docs/recipes.md`, from "It saves nothing and does
+not mark the sheet modified" to "It saves nothing, but it marks the sheet modified (its
+flag is set, and `unsaved_in_altium` lists it): save it, or leave it unsaved on purpose."
+No script, tool or description changed. Offline: `tests.test_recipes` 5/5 and the whole list
+of `tests.yml`, 608/608.
 Fixed in the commit that moves it here.

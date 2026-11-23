@@ -99,7 +99,8 @@ end;
 Changes the sheet. It removes the **last** object of `<kind>` in the iterator's order, not
 one you choose, and one per call. `<kind>` is `eNoERC` or `eSchComponent`, the two proved,
 and the sheet must hold one: the script was never run on a sheet with none. It
-saves nothing and does not mark the sheet modified.
+saves nothing, but it marks the sheet modified (its flag is set, and `unsaved_in_altium`
+lists it): save it, or leave it unsaved on purpose.
 
 Not covered: a whole sheet cleared, a sheet taken out of its project, its file deleted.
 

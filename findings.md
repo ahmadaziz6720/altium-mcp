@@ -1528,3 +1528,68 @@ Designer 25. 37 calls, 0 errors, 31.0k characters of results (14 `run_altium_scr
    workspace read, no tool called so. Bears on A34.
 
 Sorted into A76 (5), new; A48 (2, 3, 4), checked; A34 (6), met again. Held: A74 (1).
+
+**2026-11-23: scenario test of a release mapping pins by number, taking spec files, placing parts of multi-part symbols, leaving the focused project as found and setting a placed part's footprint (group 2)**
+
+Release `bin\0.7.0-20261123-103915` (build `0.7.0-ad25-20261123-103915 8f57314`), Altium
+Designer 25. 42 calls, 0 errors, 39.6k characters of results (14 `run_altium_script`, 8
+`build_schematic`, the largest 9.5k: a map of 162 pins with no wires).
+
+1. A46, held. A build with no wires of five parts (two 2-pin parts, a 2-pin part, a large
+   multi-part FPGA symbol as part A and another as part B) gave `pin_map` keyed by number:
+   162 pins, 32 of one part's pins sharing the name `I/O` all kept, each point equal to the
+   saved file's pin end. With wires: `pin_counts` and `pin_map_file` only (1.3k characters),
+   the file's points equal to the sheet's.
+2. A58, held. `build_schematic(spec_file=...)` built a sheet into a project from a file (two
+   parts, a parameter that is not ASCII, two wires, a net label, a power port, a note), each
+   read back from the saved file; `edit_schematic(spec_file=...)` in mm moved a part and
+   placed a no-ERC marker, saved. Refused before Altium: a relative `spec_file`; a file
+   holding `wire` ("not an argument it can give"); `wires` inline and in the file; `unit`
+   inline and in the file for `edit_schematic`.
+3. A45, held. A symbol saved showing part C was placed as part A with no `part`, and
+   `warnings` named parts B, C; `part="B"` placed part 2 only; `place_component` with
+   `part="C"` placed part 3; `part="G"` refused in both tools ("has no part G (its parts are
+   A to C)"), in the build as a missing part.
+4. A45, new, failed: the parts of one component placed by the two tools do not compile as
+   one. Part B placed by `build_schematic` and part C, same designator and library, by
+   `edit_schematic` `place_component` on the same sheet: ERC "Duplicate Component
+   Designators" for it and "unused sub-part(s) (1) and (2)" and "(1) and (3)", and
+   `get_project_components` lists the designator twice. Parts B and C both placed by
+   `place_component` compile as one. In the saved file the build's part has
+   `DESIGNITEMID` set, `SOURCELIBRARYNAME` `*` and no `LIBRARYPATH`; `place_component`'s
+   has `LIBRARYPATH` and `SOURCELIBRARYNAME` the library's file name and no
+   `DESIGNITEMID`. `edit_schematic`'s `warnings` treated them as one component ("part A
+   not placed on this sheet"). Reported success. Local: one way of filling the library
+   fields in both tools. New.
+5. A26, held. Another project focused (unmodified, its board in front): a build into a new
+   project (twice), a build with no `project_path` (the sheet a free document), and a
+   build into the new project with a missing part (the sheet left a free document, named
+   in the error, the target project unchanged) each left the focused project's flag 0,
+   its four documents, and its files' md5 as they were. `detached_from` is the full path,
+   `sheet` the path saved.
+6. A26, A61, new, small: after a `build_schematic` the focused project is Free Documents.
+   The symbol library the build used, already open, is left in front, where the other
+   project's board was before. A tool called without `project_path` next reads Free
+   Documents (`get_project_info` did). Not reported in the result. Local: the document
+   that was in front shown again at the end.
+7. A27, held. A footprint given for a symbol whose library footprint is current became
+   the only current one (added by name, no library), the library's mark gone; a name the
+   symbol already holds, given in another case, was made current, not added again.
+8. A71, held. A symbol shown in the library editor while placed, by `build_schematic` and
+   by `place_component`: every body graphic of both parts `IsNotAccesible=T` in the saved
+   file, as on every other part placed in the test.
+9. A56 (a), held. `set_footprint` made the footprint given the only current one, linked to
+   the `.PcbLib` given (`MODELDATAFILE0` in the saved file), the part's other three kept
+   not current; a footprint the part already had was linked to the new library, not added
+   twice. Refused before Altium, the whole call: a `.SchLib` as the library, a footprint
+   the saved `.PcbLib` does not hold, a library not there. An unknown designator failed
+   that operation only, the rest applied.
+10. Recipes and A75, held for the file: `run_altium_script`'s description names the recipes
+    file by a path that exists, and says `List1..3` keep strings. Three recipes run as
+    written, placeholders filled: A55 on a project not focused gave its flag and three
+    documents, as the build had them; A34 (f), the `stop` file closed the form within
+    about 7 s and the next call started it again, the file gone; A52 with `eNoERC` on a
+    sheet with one marker: the next compile dropped it (`suppressed` 1 to 0, the
+    single-pin violation it hid listed). Small: A52's section says the script "does not
+    mark the sheet modified", but the sheet was modified after it (flag set, listed in
+    `unsaved_in_altium`), as the notice does. Local: that sentence corrected.

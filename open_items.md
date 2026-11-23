@@ -12,7 +12,7 @@ upstream, run and held, or decided against moves with its record to
 [`closed_items.md`](closed_items.md), and so does a run's section once every step of it is
 ticked. The layout is the `backlog` plugin's `format.md` (v0.1, since 2026-11-15).
 
-**Open: A11, A15, A23, A25 to A28, A31 to A34, A36 to A39, A41 to A44, A47, A48, A51 to A54, A56, A57, A59 to A73, A76.** Sorted
+**Open: A11, A15, A23, A25, A27, A28, A31 to A34, A36 to A39, A41 to A44, A47, A48, A51 to A54, A56, A57, A59 to A73, A76.** Sorted
 2026-11-23, the second entry of 2026-11-23 (the scenario test of group 1's second build,
 `build-20261123-031122`): A74 held and closed; A48 (b) checked, the part built held and the
 rest still open; A76, new, not taken into the run; A34, met again. Sorted
@@ -378,7 +378,10 @@ is written down before it.
 - [x] A46: committed (a441051)
 - [x] A58: committed (cc27c73)
 - [x] A45: committed (007672a)
-- [ ] A26: committed
+- [x] A26: committed
+  - Done 2026-11-23 after the owner ended Altium by hand: Altium started again from its exe
+    (pid 12520), the stash applied and dropped, the fix held live (4/4, 34/34, 585/585
+    offline). About 129k tokens, 19 minutes.
   - **Blocked 2026-11-23 04:17, every step that needs Altium** (A26, A27, A71, A56 (a), A57,
     A66, A41, A70, A28, A60 (a), each group's tests, release and scenario test). A probe's
     clean-up of A26 left Altium (pid 17308) behind a crash message, and its subagent's
@@ -408,6 +411,8 @@ is written down before it.
 - [ ] A56 (a): committed
 - [ ] Group 2: tests and release (build: )
 - [ ] Group 2: scenario test (session id: ), its outcome sorted
+  - The owner, 2026-11-23: "beres grup 2, kita pindah sesi ya": once this step is ticked
+    and committed, the session hands over, and group 3 starts in a new session.
 - [ ] A57: committed
 - [ ] A66: committed
 - [ ] A41: committed
@@ -553,90 +558,6 @@ shape. Local: reproduce in a live test on a new board, then a fix (the region re
 the board saved and reopened by the tool), or the call refused or flagged on a board never
 saved. Usage until then: save, close and reopen a new board before setting its shape is
 relied on. (2026-11-14, fifth entry, 2.) For the next run.
-
-### A26 - `build_schematic` leaves the focused project modified, and puts its sheet in it - OPEN 2026-11-14
-
-With
-another project in focus, `build_schematic(project_path, sheet_path)` took its sheet back
-from that project (`project.detached_from` names it) but left that project's file flag set:
-unmodified before, modified after, twice in a row (its file not written);
-`add_project_document(create=True)` in the same state puts the flag back. In the same
-result the top-level `detached_from` is `""` while the nested one names the project, and
-`sheet` gives the unsaved name (`Sheet1.SchDoc`) where `sheet_path` gives the file saved.
-Local: the flag put back as `add_project_document` does, one `detached_from`, and `sheet`
-the saved name. (2026-11-14, fifth entry, 3 and 6.) For the next run.
-Possibly met again (2026-11-15, second entry, 8): at the start of a session Altium had a
-project focused with its flag set and a `Sheet1.SchDoc` in it with no path (not open, not on
-disk), the file on disk unchanged; nothing in that session made it, and the source is not
-known (a new sheet taken into the focused project by an earlier call or live test).
-Met again and widened (2026-11-15, third entry, 3): without `project_path`, where the
-description promises a new free document, the new sheet (`Sheet1.SchDoc`, no path) went into
-the focused project and set its flag, `success` true, `detached_from` `""`; with
-`project_path` and a part missing the call failed and the unsaved sheet stayed in the focused
-project with its flag set, not mentioned. That is where the `Sheet1.SchDoc` above came from.
-Local, besides the above: the sheet in no project without `project_path`, taken out again
-after a failure, and the focused project's flag as found in all three cases.
-Met again 2026-11-18 (findings 2026-11-18, second entry, point 3), build
-`0.7.0-20261115-172812`: a free sheet from a `build_schematic` call with no `project_path`
-was taken into the project by the next call with one, `detached_from` `""`; removing it by
-script (`DM_RemoveSourceDocument`, the project saved) left the project file with two
-`[DocumentN]` sections for one sheet, fixed by hand (A52).
-Met again 2026-11-19 (findings 2026-11-19, second entry, point 4), in kind only: a script's
-`CreateNewDocumentFromDocumentKind('SCH')` for a scratch sheet put it into the focused
-project and left the project modified; a copied file opened by path stays free.
-Met again 2026-11-19 (findings 2026-11-19, fourteenth entry, point 1), same build:
-`build_schematic` without `project_path`, a parts-only call to read the pin map as the
-description says, put its `Sheet1.SchDoc` into the focused project and left it modified;
-`DM_FreeDocumentsProject` did not list it. Reported success.
-Met again 2026-11-23 (findings 2026-11-23, point 7), build `0.7.0-20261123-001227`, at the
-start of its scenario test: the project Altium had in focus, not a test project, modified
-and holding a `Sheet1.SchDoc` with no path, unsaved. Left as found.
-
-Tried 2026-11-23, backlog run: the cause found, a fix written and not run in Altium, so
-still Open. Its code is in the stash `run 2026-11-22 A26` (`git stash list`), untracked
-test included.
-
-Cause, from a probe in AD25 on a temporary project that had the focus: `DM_CreateNewDocument('SCH')`
-puts the sheet into the focused project and sets its flag, and from then on
-`DM_FocusedProject` is Free Documents. `build_schematic` reads the focused project only
-after that, so it finds nothing to take out and `detached_from` is `""`; with `project_path`
-the add takes the sheet out later (by the code, not probed), when the flag is already set,
-and so leaves it set.
-Read before the sheet is made, the project is the right one: `DM_RemoveSourceDocument` by
-the sheet's bare name then left it listed under Free Documents only, and `SetModified(False)`
-left the project unmodified, both still so in the next script. Closing a sheet never saved
-takes it out of neither list, a project's or Free Documents' (the `Sheet1.SchDoc` with no
-path, not open, met above).
-
-The fix in the stash, unproven: the focused project and its flag read before the sheet is
-made, the sheet taken out and the flag put back in the same script; one `detached_from`, at
-the top; `sheet` the path saved; a build with parts missing says in its error where the
-sheet is. The tool listing with it 158,879 to 159,035 characters, 80 tools, no new argument.
-
-Decided 2026-11-23 by the run, not the owner:
-- after a failure the sheet is taken out of the project and stays open as a free document,
-  named in the error, not closed, because a close leaves its entry in the list and the
-  partial sheet is what shows what was placed;
-- `detached_from` is the project's full path, because that is what `add_project_document`
-  gives and two projects can share a file name.
-
-Tests: offline, `test_project_setup`'s new test failed before ("'Sheet1.SchDoc' != ...
-sheet is not the name the sheet was saved as"); with the stash the offline list 580, OK.
-Live, the probe met the defect (the temporary project unmodified before; after, modified
-and listing `Sheet1.SchDoc`); `tests/test_live_build_focus.py` (4 tests, in the stash) never
-ran, before or after, and the DelphiScript was never compiled.
-
-What stopped it: the probe's clean-up closed its project before the project's sheet, which
-left the project listed in the workspace with no document. Opening that project again to
-close it listed it twice, and Altium then showed "COM object that has been separated from
-its underlying RCW cannot be used", whose one button sends a crash report. It was not
-pressed, and the restart of Altium was refused by the permission system, so the bridge's
-commands are refused behind that message (a read by `run_altium_script` still ran).
-
-Left: Altium restarted by someone allowed to; `test_live_build_focus` seen failing on the
-code without the stash's `.pas` and `main.py`, then passing with them; the live tests that
-build (`test_live_project_setup`, `test_live_multipart`, `test_live_pin_map`,
-`test_live_spec_file`, `test_live_libraries`, `test_live_symbol_footprint`); then Waiting.
 
 ### A27 - `build_schematic` with `footprint` on a symbol that has a current one gives two - OPEN 2026-11-14
 
@@ -1879,3 +1800,59 @@ run, OK; 11 not run, as they start or stop processes or look for Altium's window
 (`test_start_server`'s `InUseTest` 2, `ExchangeLockTest` 4, `test_dblib`'s
 `SearchDatabaseTest` 4, `ServerStatusTest` 1). The tool listing: 80 tools, 159,000 to
 159,149 characters (+0.09%), from this checkout.
+
+### A26 - `build_schematic` leaves the focused project modified, and puts its sheet in it - BUILT 2026-11-23, proof: the scenario test
+
+With another project in focus, `build_schematic(project_path, sheet_path)` took its sheet
+back from that project (`project.detached_from` names it) but left that project's file flag
+set: unmodified before, modified after, twice in a row (its file not written).
+`add_project_document(create=True)` in the same state puts the flag back. In the same result
+the top-level `detached_from` is `""` while the nested one names the project, and `sheet`
+gives the unsaved name (`Sheet1.SchDoc`) where `sheet_path` gives the file saved.
+(2026-11-14, fifth entry, 3 and 6.)
+Met again 2026-11-15 (second entry, 8; third entry, 3), widened: without `project_path` the
+new sheet went into the focused project and set its flag, `success` true, `detached_from`
+`""`; with `project_path` and a part missing, the unsaved sheet stayed in the focused project
+with its flag set, not mentioned. Met again 2026-11-18 (second entry, point 3; A52),
+2026-11-19 (second entry, point 4, in kind; fourteenth entry, point 1) and 2026-11-23 (point
+7, build `0.7.0-20261123-001227`): a `Sheet1.SchDoc` with no path in the focused project,
+left modified.
+
+Decided (the run's plan): the focused project's modified flag left as found; without
+`project_path` the sheet stays a free document; after a failure the unsaved sheet is taken
+out again; one `detached_from`, and `sheet` the saved name.
+Decided 2026-11-23 by the run, not the owner:
+- after a failure the sheet is taken out of the project and stays open as a free document,
+  named in the error, not closed, because a close leaves its entry in the list and the
+  partial sheet is what shows what was placed;
+- `detached_from` is the project's full path, because that is what `add_project_document`
+  gives and two projects can share a file name;
+- the live test's check that Free Documents is unchanged leaves out the test's own library,
+  because the build opens it as a free document of its own and it is not the sheet the
+  check is for.
+
+Cause, from a probe in AD25: `DM_CreateNewDocument('SCH')` puts the sheet into the focused
+project and sets its flag, and from then on `DM_FocusedProject` is Free Documents.
+`build_schematic` read the focused project only after that, so it found nothing to take out
+(`detached_from` `""`); with `project_path` the add took the sheet out later, when the flag
+was already set, and so left it set. Closing a sheet never saved takes it out of neither
+list, a project's or Free Documents'.
+
+Fixed in the commit that moves it here: the focused project and its flag read before the
+sheet is made, the sheet taken out and the flag put back in the same script; one
+`detached_from`, at the top (the build's, else the add's); `sheet` the path saved; a build
+with parts missing says in its error that the sheet is open as an unsaved free document.
+`build_schematic`'s description and the README say so. No new argument.
+
+Test first, `tests/test_live_build_focus.py` (4 tests, live in AD25, on temporary projects
+and a copy of an example library): before, on the code without the fix, 4 failures of 4,
+each `AssertionError: Tuples differ: (True, [...other.schdoc, 'sheet1.schdoc']) != (False,
+[...other.schdoc]) : the focused project is not as it was found (modified, its documents)`
+(the one into a project: the sheet gone, the flag still set). Offline, `test_project_setup`'s
+`test_build_schematic_names_the_saved_sheet_and_one_detached_from` failed before:
+"'Sheet1.SchDoc' != ... sheet is not the name the sheet was saved as".
+After: `test_live_build_focus` 4/4; the live tests that build (`test_live_project_setup`,
+`test_live_multipart`, `test_live_pin_map`, `test_live_spec_file`, `test_live_libraries`,
+`test_live_symbol_footprint`) 34/34, none skipped; the offline list 585/585, none skipped.
+The tool listing 80 tools, 159,149 to 159,305 characters (+0.1%). The clean-up met no
+dialog: sheets closed before their projects, no project opened twice.

@@ -2596,14 +2596,16 @@ async def build_schematic(ctx: Context, parts: list = None, wires: list = None,
         a few microns out of level and turns diagonal when its part moves.
 
     Returns:
-        JSON with the created sheet name and counts; without wires pin_map,
+        JSON with sheet (the path saved, or the unsaved name), counts and
+        detached_from (the focused project Altium had put the new sheet in,
+        taken out again, the project left as found); without wires pin_map,
         {designator: {pin number ("#2" on a repeat): {name, x, y}}}, each
         placed pin's connection point; with wires pin_counts and
         pin_map_file. warnings lists the parts of a symbol not placed.
         With project_path also sheet_path and project: add_project_document's
         result (the project's documents read back from Altium, and whether
         the saved project file lists the sheet). A sheet with missing parts
-        is not saved into the project (project_note says so).
+        is not saved: it stays a free document, named in the error.
     """
     import sch_edit
 
@@ -2716,8 +2718,12 @@ async def build_schematic(ctx: Context, parts: list = None, wires: list = None,
             added = await _add_to_project(project_path, sheet_path, source_document=result.get("sheet", ""))
             result["sheet_path"] = sheet_path
             result["project"] = added
+            # One detached_from, whichever of the two calls took the sheet out
+            detached = added.pop("detached_from", "")
+            if detached:
+                result["detached_from"] = detached
             if added.get("success"):
-                built_sheet = sheet_path
+                built_sheet = result["sheet"] = sheet_path
             else:
                 result["success"] = False
                 result["error"] = f"The sheet was built but not saved into the project: {added.get('error')}"

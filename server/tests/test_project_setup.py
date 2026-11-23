@@ -277,6 +277,30 @@ class ToolChecksTest(unittest.TestCase):
             out, _ = run(main.build_schematic(None, parts, project_path=prj, sheet_path=os.path.join(d, "S.PcbDoc")))
             self.assertIn(".schdoc", out["error"])
 
+    def test_build_schematic_names_the_saved_sheet_and_one_detached_from(self):
+        with tempfile.TemporaryDirectory() as d:
+            prj, lib = os.path.join(d, "P.PrjPcb"), os.path.join(d, "L.SchLib")
+            for path in (prj, lib):
+                open(path, "w").close()
+            sheet = main.long_path(os.path.join(d, "S.SchDoc"))
+            parts = [{"designator": "R1", "symbol_library": lib, "symbol": "RES", "x": 0, "y": 0}]
+            other = "C:\\Temp\\Other.PrjPcb"
+            # Who took the sheet out: the build, or the add after it
+            for by_build, by_add in ((other, ""), ("", other), ("", "")):
+                added = {"success": True, "documents": [{"path": sheet, "kind": "SCH"}]}
+                if by_add:
+                    added["detached_from"] = by_add
+                replies = {"build_circuit": {"success": True, "result": {"success": True, "sheet": "Sheet1.SchDoc",
+                                                                        "detached_from": by_build}},
+                           "add_project_document": {"success": True, "result": added}}
+                with mock.patch.object(main, "write_altium_text"), \
+                        mock.patch.object(main.Path, "is_file", return_value=False):
+                    out, _ = run(main.build_schematic(None, parts, project_path=prj, sheet_path=sheet), replies)
+                self.assertTrue(out["success"], out)
+                self.assertEqual(out["sheet"], out["sheet_path"], "sheet is not the name the sheet was saved as")
+                self.assertNotIn("detached_from", out["project"], "a second detached_from")
+                self.assertEqual(out["detached_from"], by_build or by_add)
+
     def test_set_board_shape_arguments(self):
         out, _ = run(main.set_board_shape(None))
         self.assertIn("one of the two", out["error"])

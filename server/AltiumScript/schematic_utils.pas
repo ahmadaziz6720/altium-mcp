@@ -2103,11 +2103,12 @@ var
     Iter, ChildIter : ISch_Iterator;
     Prim, Param, Obj : ISch_GraphicalObject;
     Impl : ISch_Implementation;
-    Rec, Kind, CurLib, PName, PVal, Adopted, Missing, Ok, Msg : String;
+    Rec, Kind, CurLib, PName, PVal, Adopted, Missing, Ok, Msg, FocusedPath : String;
     Proj : IProject;
+    ProjDoc : IServerDocument;
     i, fld, vtx, Part, PartCount, GfxCount, PinCount : Integer;
     HotX, HotY : Integer;
-    Exists : Boolean;
+    Exists, WasModified : Boolean;
 begin
     Result := '{"success": false, "error": "build did not run"}';
 
@@ -2126,6 +2127,18 @@ begin
     // components were once registered into shared libraries on a read-only
     // share exactly that way. Create the target up front, hold it by
     // reference, and verify it is a schematic (32) not a library (33) once.
+    //
+    // The focused project is read first: Altium puts the new sheet into it,
+    // and from then on says that Free Documents has the focus.
+    FocusedPath := '';
+    WasModified := False;
+    Proj := GetWorkspace.DM_FocusedProject;
+    if (Proj <> nil) then
+        if not SameText(Proj.DM_ProjectFullPath, 'Free Documents') then
+        begin
+            FocusedPath := Proj.DM_ProjectFullPath;
+            WasModified := DocumentModified(Client.GetDocumentByPath(FocusedPath));
+        end;
     GetWorkSpace.DM_CreateNewDocument('SCH');
     TargetDoc := SchServer.GetCurrentSchDocument;
     if (TargetDoc = nil) then
@@ -2147,15 +2160,22 @@ begin
     // generated sheets were being silently adopted into the user's design -
     // they showed up as [13]/[14] in Base.PrjPcb instead of under Free
     // Documents. A generated sheet must not modify an existing project
-    // unless the caller asks for that, so detach it again.
+    // unless the caller asks for that, so detach it again (Free Documents
+    // takes it), and put back the project's modified flag, which both the
+    // attach and the detach set.
     Adopted := '';
-    Proj := GetWorkspace.DM_FocusedProject;
-    if (Proj <> nil) then
-        if (Pos('Free Documents', Proj.DM_ProjectFileName) = 0) then
-        begin
-            Adopted := Proj.DM_ProjectFileName;
-            Proj.DM_RemoveSourceDocument(TargetDoc.DocumentName);
-        end;
+    if (FocusedPath <> '') then
+    begin
+        Proj := OpenProjectByPath(FocusedPath);
+        if (Proj <> nil) then
+            if ProjectListsDocument(Proj, TargetDoc.DocumentName) then
+            begin
+                Proj.DM_RemoveSourceDocument(TargetDoc.DocumentName);
+                Adopted := FocusedPath;
+                ProjDoc := Client.GetDocumentByPath(FocusedPath);
+                if (ProjDoc <> nil) and (not WasModified) then ProjDoc.SetModified(False);
+            end;
+    end;
 
     SchServer.ProcessControl.PreProcess(TargetDoc, '');
     Comp := nil;
@@ -2462,7 +2482,11 @@ begin
     PinMap.Free;
 
     if (Missing = '') then Ok := 'true' else Ok := 'false';
-    Result := '{"success": ' + Ok + ', "detached_from": "' + Adopted + '", "sheet": "' + TargetDoc.DocumentName +
+    Result := '{"success": ' + Ok;
+    if (Missing <> '') then
+        Result := Result + ', "error": "Parts were missing: the sheet is open as an unsaved free document; ' +
+                  'fix the parts and build again."';
+    Result := Result + ', "detached_from": "' + JSONEscapeString(Adopted) + '", "sheet": "' + TargetDoc.DocumentName +
               '", "parts": ' + IntToStr(PartCount) +
               ', "graphics": ' + IntToStr(GfxCount) +
               ', "pins": ' + IntToStr(PinCount) +

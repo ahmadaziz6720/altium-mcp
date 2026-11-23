@@ -217,5 +217,82 @@ class LivePcbLibFromBoardTest(unittest.TestCase):
         self.assertFalse(library.exists())
 
 
+WIFI = Path(r"C:\Users\Public\Documents\Altium\AD25\Examples\Mini PC\Mini PC - WiFi")
+WIFI_BOARD = "WiFi.PcbDoc"
+
+
+def board_descriptions(board):
+    """{pattern (upper case): set of the footprint descriptions its
+    components carry} of an open board, read by a board iterator."""
+    out = script(f"""var
+    B : IPCB_Board;
+    It : IPCB_BoardIterator;
+    C : IPCB_Component;
+    S : String;
+begin
+B := PCBServer.GetPCBBoardByPath('{board}');
+S := '';
+It := B.BoardIterator_Create;
+It.AddFilter_ObjectSet(MkSet(eComponentObject));
+It.AddFilter_LayerSet(AllLayers);
+It.AddFilter_Method(eProcessAll);
+C := It.FirstPCBObject;
+while C <> nil do
+begin
+    S := S + C.Pattern + #9 + C.FootprintDescription + #13#10;
+    C := It.NextPCBObject;
+end;
+B.BoardIterator_Destroy(It);
+ResultText := S;
+end;""")
+    found = {}
+    for line in out.splitlines():
+        if "\t" in line:
+            name, text = line.split("\t", 1)
+            found.setdefault(name.upper(), set()).add(text)
+    return found
+
+
+@unittest.skipUnless(LIVE, SKIP_REASON)
+@unittest.skipUnless((WIFI / WIFI_BOARD).exists(), f"Altium's example board is not in {WIFI}")
+class LivePcbLibDescriptionsTest(unittest.TestCase):
+    """A41: a board whose components carry footprint descriptions; each
+    footprint of the library made from it keeps its pattern's."""
+
+    @classmethod
+    def setUpClass(cls):
+        check_scripts_are_this_checkouts()
+
+    def setUp(self):
+        self.tmp = Path(win32api.GetLongPathName(tempfile.mkdtemp(prefix="pcblib_desc_")))
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.folder = self.tmp / "WiFi"
+        shutil.copytree(WIFI, self.folder)
+        self.board = str(self.folder / WIFI_BOARD)
+        self.addCleanup(close_all_under, str(self.tmp))
+
+    def test_descriptions_kept(self):
+        open_board(self.board)
+        described = {p: d - {""} for p, d in board_descriptions(self.board).items() if d - {""}}
+        self.assertGreaterEqual(len(described), 10, described)
+        library = self.tmp / "WiFi.PcbLib"
+
+        out = tool(main.make_pcblib_from_board(None, self.board, str(library)))
+
+        self.assertTrue(out.get("success"), out)
+        self.assertEqual(out["problems"], [])
+        inv = tool(main.get_footprint_primitives(None, library_path=str(library)))
+        saved = {fp["name"]: fp.get("description", "") for fp in inv["footprints"]}
+        lost = {}
+        for name, text in saved.items():
+            pattern = name.upper()
+            if pattern not in described and "_" in pattern:
+                pattern = pattern.rsplit("_", 1)[0]
+            if pattern in described and text not in described[pattern]:
+                lost[name] = (text, sorted(described[pattern]))
+        self.assertEqual(lost, {}, "footprints whose description is not the board's")
+        self.assertEqual(sum(1 for t in saved.values() if t), len(saved), saved)
+
+
 if __name__ == "__main__":
     unittest.main()

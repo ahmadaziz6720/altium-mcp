@@ -88,6 +88,28 @@ class SummariseTest(unittest.TestCase):
         self.assertIsNone(bl.pattern_of("B_x", patterns))
         self.assertIsNone(bl.pattern_of("E_2", patterns))
 
+    def test_descriptions_compared(self):
+        # A41: each footprint, Altium's "_2" too, holds its pattern's description
+        board = [{"pattern": "R0805", "description": "Chip resistor"},
+                 {"pattern": "SOIC-8", "description": "SOIC, 8 leads"},
+                 {"pattern": "SOIC-8", "description": "SOIC 8"}]
+        kept = [{"name": "R0805", "description": "Chip resistor"},
+                {"name": "R0805_2", "description": "Chip resistor"},
+                {"name": "SOIC-8", "description": "SOIC 8"}]
+        out = bl.summarise(dict(REPLY, board_descriptions=board, written_descriptions=kept))
+        self.assertEqual(out["problems"], [])
+        # Lost in the saved file, or not the board's
+        out = bl.summarise(dict(REPLY, board_descriptions=board, written_descriptions=kept[1:]))
+        self.assertEqual(out["problems"], ['R0805: description "" in the saved library, its components '
+                                           'on the board have "Chip resistor"'])
+        other = kept[:2] + [{"name": "SOIC-8", "description": "QFN"}]
+        out = bl.summarise(dict(REPLY, board_descriptions=board, written_descriptions=other))
+        self.assertEqual(len(out["problems"]), 1)
+        self.assertIn('SOIC-8: description "QFN"', out["problems"][0])
+        # A pattern with no description on the board is not checked
+        out = bl.summarise(dict(REPLY, board_descriptions=[], written_descriptions=[]))
+        self.assertEqual(out["problems"], [])
+
     def test_names_with_a_bar_and_bad_items(self):
         patterns = bl.board_patterns(["X|Y|4", "bad", "Z|n"])
         self.assertEqual(list(patterns), ["X|Y"])

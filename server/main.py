@@ -2518,9 +2518,9 @@ async def make_pcblib_from_board(ctx: Context, board_path: str, library_path: st
              as read back from the saved file, board_patterns and
              board_components in scope, not_written (patterns in scope with
              no footprint in the file), problems (anything that does not
-             agree with the board: a pattern not written, a pad count no
-             component of the pattern has; success is false when there is
-             one, the file then kept), board_was_open, board_modified,
+             agree with the board: a pattern not written, a pad count or a
+             description no component of the pattern has; success is false
+             when there is one, the file then kept), board_was_open, board_modified,
              removed_by_filter (footprints left out by footprints).
     """
     import board_library

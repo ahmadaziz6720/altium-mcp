@@ -12,7 +12,7 @@ upstream, run and held, or decided against moves with its record to
 [`closed_items.md`](closed_items.md), and so does a run's section once every step of it is
 ticked. The layout is the `backlog` plugin's `format.md` (v0.1, since 2026-11-15).
 
-**Open: A11, A15, A23, A25, A28, A31 to A34, A36 to A39, A41 to A44, A47, A48, A51 to A54, A59 to A65, A67 to A70, A72, A73, A76 to A78.** Sorted
+**Open: A11, A15, A23, A25, A28, A31 to A34, A36 to A39, A42 to A44, A47, A48, A51 to A54, A59 to A65, A67 to A70, A72, A73, A76 to A78.** Sorted
 2026-11-23, the third entry of 2026-11-23 (the scenario test of group 2's build,
 `build-20261123-103915`): A46, A58, A45, A26, A27, A71, A56 and A75 held and closed, A55
 closed as usage; A77 and A78, new, taken into group 3; A61, met again; A34 and A52,
@@ -454,10 +454,12 @@ is written down before it.
 - [x] A57: committed (c7aac0a)
   - About 165k tokens, 13 minutes; 4 failures and 1 error of 6 live before, 7/7 after, 596 offline.
     Altium found closed at the session's start, started from its exe (pid 11028).
-- [x] A66: committed
+- [x] A66: committed (3ab04ad)
   - About 172k tokens, 16 minutes; 3 of 3 live failed before, 11/11 after (40/40 with the
     touched tools' live tests), 603 offline.
-- [ ] A41: committed
+- [x] A41: committed
+  - About 90k tokens, 20 minutes; the probe found Altium's hidden Make PCB Library empties every
+    description; 12 of 12 empty before, 5/5 live after, 604 offline.
 - [ ] A70: committed
 - [ ] A28: committed
 - [ ] A60 (a): committed
@@ -773,18 +775,6 @@ settings the same 10k; `set_pcb_layer_stackup` returns `requested` and `stack` b
 for a 2- or 4-layer board. Local: a summary (plotted layers as "every copper layer" plus the
 others by name; the stack only where it differs from what was asked) with the full read
 behind a flag. (2026-11-15, second entry, 7.) For the next run.
-
-### A41 - `make_pcblib_from_board` loses the footprints' descriptions - OPEN 2026-11-15
-
-Six of the twelve
-components of a 2-layer board carry a footprint description
-(`IPCB_Component.FootprintDescription`), and the library Altium's menu makes from that board
-keeps them; in every library the tool made, read back with `get_footprint_primitives`, every
-description is empty, and `problems` stays [] because the comparison checks patterns and pads
-only. Reported success with less than the board has. Local: find where they are lost (the
-hidden run, the filter or the save), give each footprint the board's description before the
-save, and compare descriptions too; a live test that fails today. (2026-11-15, third entry,
-5.) For the next run.
 
 ### A42 - `edit_schematic` that applies nothing leaves the sheet modified - OPEN 2026-11-15
 
@@ -1648,4 +1638,47 @@ the test of a name-only link now asserts its problem line), and with the live te
 tools touched (`test_live_libraries`, `test_live_build_footprint`, `test_live_body_lock`,
 `test_live_library_reads`, `test_live_multipart`, `test_live_pin_map`) 40/40; offline 7 new
 (`tests/test_symbol_footprint.py`, `tests/test_pcblib_file.py`), 603/603 in all.
+Fixed in the commit that moves it here.
+
+### A41 - `make_pcblib_from_board` loses the footprints' descriptions - BUILT 2026-11-23, proof: the scenario test
+
+Six of the twelve
+components of a 2-layer board carry a footprint description
+(`IPCB_Component.FootprintDescription`), and the library Altium's menu makes from that board
+keeps them; in every library the tool made, read back with `get_footprint_primitives`, every
+description is empty, and `problems` stays [] because the comparison checks patterns and pads
+only. Reported success with less than the board has. Local: find where they are lost (the
+hidden run, the filter or the save), give each footprint the board's description before the
+save, and compare descriptions too; a live test that fails today. (2026-11-15, third entry,
+5.) For the next run.
+
+Cause, found by a probe: Altium's own `PCB:BuildPCBLibrary`, run hidden as the bridge runs
+it, makes every footprint with an empty description; read in memory straight after the run,
+before the filter and the save, all twelve footprints of a board whose components carry
+eleven descriptions had none. The save and the filter lose nothing; the comparison checked
+patterns and pads only, so nothing saw it.
+
+Fixed: the bridge (`MakePcbLibFromBoard` in `other_utils.pas`) reads each component's
+`FootprintDescription` with its pattern, and gives each footprint it keeps, Altium's
+`_<n>` variants too, its pattern's description before the save, where Altium left it
+empty (`FootprintPatternIndex`, shared with the filter's `FootprintWanted`). It returns the
+board's descriptions per pattern and the saved file's per footprint, and
+`server/board_library.py` puts a line in `problems` for a footprint whose description read
+back is not one its pattern's components carry (success false). No new tool or argument;
+the result is as before but for that line; the tool's description names the check, the
+tool listing 159,605 to 159,622 characters.
+Decided 2026-11-23 by the run, not the owner: the description given is the first one met on
+the board for the pattern, to every footprint of it, and the check accepts any its
+components carry, because Altium's library records no component a `_<n>` variant comes
+from, and the components of one pattern carry one description on the boards seen.
+Decided 2026-11-23 by the run, not the owner: the descriptions are not added to each
+footprint of the result, only a problem line when one differs, because the token rule
+asks that a result not grow.
+Test before (`tests/test_live_pcblib_from_board.py`, `LivePcbLibDescriptionsTest`, a copy
+of an Altium example board whose components carry footprint descriptions, read back with
+`get_footprint_primitives`): failed, "AssertionError: {'STM-LQFP64_L': ('', ['Thin QFP,
+64-Leads[1039 chars]n'])} != {} : footprints whose description is not the board's", every
+footprint of the twelve empty.
+Test after: 5/5 of `tests/test_live_pcblib_from_board.py` live (the one above among them);
+offline 1 new (`tests/test_board_library.py`), 604/604 in all.
 Fixed in the commit that moves it here.

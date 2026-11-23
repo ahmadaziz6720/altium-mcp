@@ -5,11 +5,14 @@ The bridge command (other_utils.pas, MakePcbLibFromBoard) runs Altium's own
 Make PCB Library on the board, saves the library and reads the saved file
 back. It returns the board's components as "pattern|pads", the footprints it
 kept before saving as names, and the footprints read back from the saved file
-as "name|pads|primitives". This module turns that into the tool's result and
-says what does not agree: a pattern of the board (in scope) with no footprint
-in the saved file, a footprint whose pad count no component of its pattern
-has, a component pad count no footprint of its pattern has, or a footprint
-kept that the saved file does not hold.
+as "name|pads|primitives", with the footprint descriptions of both
+({pattern|name, description}). This module turns that into the tool's result
+and says what does not agree: a pattern of the board (in scope) with no
+footprint in the saved file, a footprint whose pad count no component of its
+pattern has, a component pad count no footprint of its pattern has, a
+footprint kept that the saved file does not hold, or a footprint whose
+description is not one its pattern's components carry (A41: Altium's hidden
+run drops them, the bridge gives them back before the save).
 
 Altium writes one footprint per pattern, and a second footprint of a pattern
 whose components differ gets "_<n>" after the name (CR2012-0805_2).
@@ -67,6 +70,15 @@ def in_scope(patterns, wanted):
     return {w.strip().upper() for w in wanted if w.strip().upper() in patterns}
 
 
+def descriptions(items, key):
+    """{key (upper case): set of descriptions} of [{key, description}]."""
+    out = {}
+    for item in items or []:
+        if isinstance(item, dict) and item.get(key) and item.get("description"):
+            out.setdefault(str(item[key]).upper(), set()).add(str(item["description"]))
+    return out
+
+
 def summarise(reply, wanted=None):
     """The tool's result from the bridge's reply. "problems" lists what does
     not agree with the board; empty means every pattern in scope was written
@@ -84,6 +96,8 @@ def summarise(reply, wanted=None):
         except ValueError:
             continue
 
+    board_descs = descriptions(reply.get("board_descriptions"), "pattern")
+    saved_descs = descriptions(reply.get("written_descriptions"), "name")
     problems = []
     covered = {}
     for fp in written:
@@ -97,6 +111,11 @@ def summarise(reply, wanted=None):
         if fp["pads"] not in patterns[pattern]["pads"]:
             problems.append(f"{fp['name']}: {fp['pads']} pads, its components on the board have "
                             f"{', '.join(str(p) for p in sorted(patterns[pattern]['pads']))}")
+        if pattern in board_descs:
+            saved = sorted(saved_descs.get(fp["name"].upper(), {""}))[0]
+            if saved not in board_descs[pattern]:
+                problems.append(f"{fp['name']}: description \"{saved}\" in the saved library, "
+                                f"its components on the board have \"{sorted(board_descs[pattern])[0]}\"")
 
     not_written = []
     for pattern in sorted(scope):

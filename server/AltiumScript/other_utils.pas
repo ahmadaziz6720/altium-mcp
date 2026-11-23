@@ -2014,17 +2014,18 @@ begin
     end;
 end;
 
-// Whether a footprint Altium's Make PCB Library wrote is one of Wanted (upper
-// case names): its own name, or that name with the "_<n>" Altium adds to a
-// second, different footprint of one pattern (CR2012-0805_2)
-function FootprintWanted(Name: String; Wanted: TStringList): Boolean;
+// The index in Patterns (upper case names) of the pattern of a footprint
+// Altium's Make PCB Library wrote: its own name, or that name without the
+// "_<n>" Altium adds to a second, different footprint of one pattern
+// (CR2012-0805_2); -1 when neither is there
+function FootprintPatternIndex(Name: String; Patterns: TStringList): Integer;
 var
     U : String;
     i : Integer;
 begin
     U := UpperCase(Name);
-    Result := Wanted.IndexOf(U) >= 0;
-    if Result then Exit;
+    Result := Patterns.IndexOf(U);
+    if Result >= 0 then Exit;
     // The digits at the end, then the underscore before them (no short
     // circuit is relied on: the index is checked before the character)
     i := Length(U);
@@ -2035,7 +2036,14 @@ begin
     end;
     if (i > 1) and (i < Length(U)) then
         if Copy(U, i, 1) = '_' then
-            Result := Wanted.IndexOf(Copy(U, 1, i - 1)) >= 0;
+            Result := Patterns.IndexOf(Copy(U, 1, i - 1));
+end;
+
+// Whether a footprint Altium's Make PCB Library wrote is one of Wanted (upper
+// case names), by its pattern
+function FootprintWanted(Name: String; Wanted: TStringList): Boolean;
+begin
+    Result := FootprintPatternIndex(Name, Wanted) >= 0;
 end;
 
 // The primitives of a library footprint, all kinds a footprint holds
@@ -2068,7 +2076,9 @@ end;
 // closed. Wanted (upper case names), when not empty, keeps those footprints
 // only. The saved file is opened again and read back. The board is left as it
 // was found: opened and closed again when it was not open, its unsaved-changes
-// flag as before, the document that had focus focused again.
+// flag as before, the document that had focus focused again. Altium's hidden
+// run leaves every footprint's description empty (A41): each footprint kept is
+// given its pattern's footprint description from the board before the save.
 function MakePcbLibFromBoard(BoardPath: String; LibPath: String; Wanted: TStringList): String;
 var
     BoardDoc, LibDoc, Prev : IServerDocument;
@@ -2086,6 +2096,11 @@ var
     WrittenItems: TStringList;
     Unknown     : TStringList;
     Props       : TStringList;
+    DescPatterns: TStringList;
+    DescTexts   : TStringList;
+    DescSeen    : TStringList;
+    BoardDescs  : TStringList;
+    WrittenDescs: TStringList;
     Doomed      : TInterfaceList;
     WasOpen     : Boolean;
     WasModified : Boolean;
@@ -2095,7 +2110,8 @@ var
     PrevName    : String;
     MadeName    : String;
     Err         : String;
-    i           : Integer;
+    Desc        : String;
+    i, k        : Integer;
 begin
     Result := '';
     if FileExists(LibPath) then
@@ -2143,12 +2159,18 @@ begin
     WrittenItems := TStringList.Create;
     Unknown := TStringList.Create;
     Props := TStringList.Create;
+    DescPatterns := TStringList.Create;
+    DescTexts := TStringList.Create;
+    DescSeen := TStringList.Create;
+    BoardDescs := TStringList.Create;
+    WrittenDescs := TStringList.Create;
     Doomed := TInterfaceList.Create;
     LibDoc := nil;
     Err := '';
     try
         Patterns.Sorted := True;
         Patterns.Duplicates := dupIgnore;
+        DescSeen.Sorted := True;
         Client.ShowDocument(BoardDoc);
         Board := FocusedBoard(0);
         if (Board = nil) or (NormalizedPath(Board.FileName) <> NormalizedPath(BoardDoc.FileName)) then
@@ -2166,6 +2188,22 @@ begin
                 BoardItems.Add('"' + JSONEscapeString(Comp.Pattern + '|' +
                     IntToStr(Comp.GetPrimitiveCount(MkSet(ePadObject)))) + '"');
                 Patterns.Add(UpperCase(Comp.Pattern));
+                // Its pattern's description: the first one met is the one given
+                Desc := Comp.FootprintDescription;
+                if Desc <> '' then
+                begin
+                    if DescPatterns.IndexOf(UpperCase(Comp.Pattern)) < 0 then
+                    begin
+                        DescPatterns.Add(UpperCase(Comp.Pattern));
+                        DescTexts.Add(Desc);
+                    end;
+                    if DescSeen.IndexOf(UpperCase(Comp.Pattern) + #9 + Desc) < 0 then
+                    begin
+                        DescSeen.Add(UpperCase(Comp.Pattern) + #9 + Desc);
+                        BoardDescs.Add('{"pattern": "' + JSONEscapeString(Comp.Pattern) +
+                            '", "description": "' + JSONEscapeString(Desc) + '"}');
+                    end;
+                end;
                 Comp := BIt.NextPCBObject;
             end;
             Board.BoardIterator_Destroy(BIt);
@@ -2215,7 +2253,12 @@ begin
                 if (Wanted.Count > 0) and (not FootprintWanted(LibComp.Name, Wanted)) then
                     Doomed.Add(LibComp)
                 else
+                begin
                     MadeItems.Add('"' + JSONEscapeString(LibComp.Name) + '"');
+                    k := FootprintPatternIndex(LibComp.Name, DescPatterns);
+                    if (k >= 0) and (LibComp.Description = '') then
+                        LibComp.Description := DescTexts[k];
+                end;
                 LibComp := LIt.NextPCBObject;
             end;
             Lib.LibraryIterator_Destroy(LIt);
@@ -2268,6 +2311,9 @@ begin
                     WrittenItems.Add('"' + JSONEscapeString(LibComp.Name + '|' +
                         IntToStr(LibComp.GetPrimitiveCount(MkSet(ePadObject))) + '|' +
                         IntToStr(LibFootprintPrimitives(LibComp))) + '"');
+                    if LibComp.Description <> '' then
+                        WrittenDescs.Add('{"name": "' + JSONEscapeString(LibComp.Name) +
+                            '", "description": "' + JSONEscapeString(LibComp.Description) + '"}');
                     LibComp := LIt.NextPCBObject;
                 end;
                 Lib.LibraryIterator_Destroy(LIt);
@@ -2313,6 +2359,8 @@ begin
             Props.Add(BuildJSONArray(BoardItems, 'board_components'));
             Props.Add(BuildJSONArray(MadeItems, 'made'));
             Props.Add(BuildJSONArray(WrittenItems, 'written'));
+            Props.Add(BuildJSONArray(BoardDescs, 'board_descriptions'));
+            Props.Add(BuildJSONArray(WrittenDescs, 'written_descriptions'));
             Result := BuildJSONObject(Props);
         end;
         Before.Free;
@@ -2323,6 +2371,11 @@ begin
         WrittenItems.Free;
         Unknown.Free;
         Props.Free;
+        DescPatterns.Free;
+        DescTexts.Free;
+        DescSeen.Free;
+        BoardDescs.Free;
+        WrittenDescs.Free;
         Doomed.Free;
     end;
 end;

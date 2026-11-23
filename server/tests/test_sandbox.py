@@ -120,6 +120,33 @@ class CheckTest(unittest.TestCase):
         self.assertEqual(missing, [])
 
 
+class OpenSchDocTest(unittest.TestCase):
+    """A70: the helper opens a .SchLib as a library, by its extension; opened
+    as 'SCH' it is a sheet and every library call on it fails."""
+
+    def test_kind_follows_the_extension(self):
+        text = TEMPLATE[TEMPLATE.index("function OpenSchDoc"):]
+        text = text[:text.index("\nend;")]
+        self.assertIn("'.SCHLIB'", text.upper())
+        self.assertRegex(text, r"Client\.OpenDocument\(Kind,\s*Path\)")
+        self.assertNotRegex(text, r"Client\.OpenDocument\('SCH',")
+        self.assertRegex(text, r"Kind\s*:=\s*'SCHLIB'")
+
+    def test_a_schlib_already_open_as_a_sheet_is_logged(self):
+        text = TEMPLATE[TEMPLATE.index("function OpenSchDoc"):]
+        text = text[:text.index("\nend;")]
+        self.assertIn("ObjectId <> 33", text)
+        self.assertIn("is open as a schematic sheet, not a library", text)
+
+    def test_batch_error_names_the_kind_found(self):
+        pas = (Path(__file__).resolve().parent.parent / "AltiumScript" / "schematic_utils.pas").read_text(encoding="utf-8")
+        self.assertRegex(pas, r"Could not open and focus ' \+ LibPath \+ OpenKindNote\(LibPath\)")
+        note = pas[pas.index("function OpenKindNote"):]
+        note = note[:note.index("\nend;")]
+        self.assertIn("FindOpenDocument(Path)", note)
+        self.assertIn("kind SCH (a schematic sheet", note)
+
+
 class LintTest(unittest.TestCase):
     def lint(self, script):
         sp = sandbox.split_var_block(script)

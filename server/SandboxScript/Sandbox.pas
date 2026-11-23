@@ -151,19 +151,29 @@ end;
 
 // The ISch_Document for Path, opening the file first if it is not open.
 // SchServer.GetSchDocumentByPath alone returns nil for a closed document, and
-// calling anything on nil stops the script.
+// calling anything on nil stops the script. A .SchLib is opened as a library
+// (kind SCHLIB, ObjectId 33), never as a sheet: opened as 'SCH' it is a sheet
+// (ObjectId 32) until closed, and the library calls on it fail.
 function OpenSchDoc(Path : String) : IDispatch;
 var
-    D : IDispatch;
+    D    : IDispatch;
+    Kind : String;
+    IsLib : Boolean;
 begin
+    IsLib := Copy(UpperCase(Path), Length(Path) - 6, 7) = '.SCHLIB';
+    Kind := 'SCH';
+    if IsLib then Kind := 'SCHLIB';
     Result := SchServer.GetSchDocumentByPath(Path);
     if Result = nil then
     begin
-        D := Client.OpenDocument('SCH', Path);
+        D := Client.OpenDocument(Kind, Path);
         if D <> nil then Client.ShowDocument(D);
         Result := SchServer.GetSchDocumentByPath(Path);
     end;
-    if Result = nil then SandboxLog('OpenSchDoc: could not open ' + Path);
+    if Result = nil then
+        SandboxLog('OpenSchDoc: could not open ' + Path)
+    else if IsLib and (Result.ObjectId <> 33) then
+        SandboxLog('OpenSchDoc: ' + Path + ' is open as a schematic sheet, not a library; close it unsaved and call again');
 end;
 
 // Mark an open document modified and save it. Not after the loop guard has

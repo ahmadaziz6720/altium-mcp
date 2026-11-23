@@ -12,7 +12,7 @@ upstream, run and held, or decided against moves with its record to
 [`closed_items.md`](closed_items.md), and so does a run's section once every step of it is
 ticked. The layout is the `backlog` plugin's `format.md` (v0.1, since 2026-11-15).
 
-**Open: A11, A15, A23, A25, A28, A31 to A34, A36 to A39, A42 to A44, A47, A48, A51 to A54, A59 to A65, A67 to A70, A72, A73, A76 to A78.** Sorted
+**Open: A11, A15, A23, A25, A28, A31 to A34, A36 to A39, A42 to A44, A47, A48, A51 to A54, A59 to A65, A67 to A69, A72, A73, A76 to A78.** Sorted
 2026-11-23, the third entry of 2026-11-23 (the scenario test of group 2's build,
 `build-20261123-103915`): A46, A58, A45, A26, A27, A71, A56 and A75 held and closed, A55
 closed as usage; A77 and A78, new, taken into group 3; A61, met again; A34 and A52,
@@ -457,10 +457,13 @@ is written down before it.
 - [x] A66: committed (3ab04ad)
   - About 172k tokens, 16 minutes; 3 of 3 live failed before, 11/11 after (40/40 with the
     touched tools' live tests), 603 offline.
-- [x] A41: committed
+- [x] A41: committed (e4a6669)
   - About 90k tokens, 20 minutes; the probe found Altium's hidden Make PCB Library empties every
     description; 12 of 12 empty before, 5/5 live after, 604 offline.
-- [ ] A70: committed
+- [x] A70: committed
+  - Sonnet, about 150k tokens, 25 minutes; 2 live failures before, 4/4 after, 607 offline. One
+    run of the touched tools' 32 live tests failed `test_parts_from_an_intlib` once at about
+    600 MB free, held alone and in sequence: watched at group 3's full pass.
 - [ ] A28: committed
 - [ ] A60 (a): committed
 - [x] The recipes (A47, A51, A52, A54, A55, A59, A62 to A65, A67, A69, A34 (f), A56 (b)): committed (ba17162)
@@ -1119,20 +1122,6 @@ the record: (a) a note added or changed, (b) the Comment set and a parameter rem
 block moved (done by 51 ops only), (d) the swap in place by `LibReference` and the fields
 beside it.
 
-### A70 - `run_altium_script`'s `OpenSchDoc` opens a `.SchLib` as a sheet - OPEN 2026-11-22
-
-Sorted out of the entries of 2026-11-19 (fifth), point 1, and (twelfth), point 1. Given a
-`.SchLib`, the helper opens it as a schematic (kind `SCH`, `ObjectId` 32; opened as a
-library it reads 33). Until it is closed every call that needs the library fails:
-`SchLibIterator_Create` and `AddSchComponent` "Undeclared identifier", `create_symbols_batch`
-"Could not open and focus ... - nothing was created or edited", a script's
-`Client.OpenDocument('SCHLIB', ...)` returning the same sheet, one run hanging 120 s. Seven
-calls to find the cause in one session; saved, the library would have been overwritten as a
-sheet. Workaround: close it unsaved and open it as `SchLib`.
-
-Proposed: local; `OpenSchDoc` opens by the file's extension or refuses a `.SchLib`, and the
-batch tool's "could not open and focus" names the kind it found. Not decided.
-
 ### A72 - `check_schematic` misses overlaps a screenshot shows - OPEN 2026-11-22
 
 2026-11-19 (thirteenth), point 1: a sheet reported clean while a placed symbol's own pin
@@ -1681,4 +1670,51 @@ of an Altium example board whose components carry footprint descriptions, read b
 footprint of the twelve empty.
 Test after: 5/5 of `tests/test_live_pcblib_from_board.py` live (the one above among them);
 offline 1 new (`tests/test_board_library.py`), 604/604 in all.
+Fixed in the commit that moves it here.
+
+### A70 - `run_altium_script`'s `OpenSchDoc` opens a `.SchLib` as a sheet - BUILT 2026-11-23, proof: the scenario test
+
+Sorted out of the entries of 2026-11-19 (fifth), point 1, and (twelfth), point 1. Given a
+`.SchLib`, the helper opens it as a schematic (kind `SCH`, `ObjectId` 32; opened as a
+library it reads 33). Until it is closed every call that needs the library fails:
+`SchLibIterator_Create` and `AddSchComponent` "Undeclared identifier", `create_symbols_batch`
+"Could not open and focus ... - nothing was created or edited", a script's
+`Client.OpenDocument('SCHLIB', ...)` returning the same sheet, one run hanging 120 s. Seven
+calls to find the cause in one session; saved, the library would have been overwritten as a
+sheet. Workaround: close it unsaved and open it as `SchLib`.
+
+Proposed: local; `OpenSchDoc` opens by the file's extension or refuses a `.SchLib`, and the
+batch tool's "could not open and focus" names the kind it found. Not decided.
+
+Cause: the helper (`Sandbox.pas`) called `Client.OpenDocument('SCH', Path)` for every path, and
+Altium opens the file as the kind it is told: a `.SchLib` told `SCH` is a sheet (kind SCH,
+ObjectId 32) until closed. `create_symbols_batch` then found the file open (it only
+focuses an open library), `SchLibIsFocused` was false (not ObjectId 33), and its error gave
+no reason.
+
+Fixed: `OpenSchDoc` opens by the file's extension, `SCHLIB` for `.SchLib` (any case), `SCH`
+otherwise; when the file is already open as a sheet it returns that sheet and logs
+"is open as a schematic sheet, not a library; close it unsaved and call again", in the
+script's steps. `create_symbols_batch`'s "Could not open and focus <path>" gains
+`OpenKindNote`: " - it is open as kind SCH (a schematic sheet, not a library; close it unsaved
+and call again)", or " - it is open as kind <K>" for another kind, nothing when the file is
+not open. No new tool or argument; `run_altium_script`'s description gains "(a .SchLib as a
+library; ...)" in the helpers line, the tool listing 159,622 to 159,646 characters.
+Decided 2026-11-23 by the run, not the owner: a `.SchLib` already open as a sheet is
+returned as that sheet with a logged line, not closed or reopened by the helper, because
+closing a document the caller may have changed is not the helper's call, and the log keeps
+the result true.
+Test before (`tests/test_live_open_schlib.py`, a copy of an Altium example library):
+failed twice, "AssertionError: Tuples differ: ('32', 'SCH|32') != ('33', 'SCHLIB|33') :
+OpenSchDoc did not open the .SchLib as a library (ObjectId 33, kind SCHLIB)", and the batch
+tool's error "Failed batch creation: Could not open and focus <path> - nothing was created or
+edited" without the kind ("'open as kind SCH (a schematic sheet' not found").
+Test after: 4/4 of `tests/test_live_open_schlib.py` live (a new module: the library opened
+as a library, a sheet still as a sheet, the logged line for a library open as a sheet, the
+batch error naming the kind); the live tests of the tools touched, `test_live_symbol_footprint`,
+`test_live_multipart`, `test_live_body_lock`, `test_live_compile_refresh`, 32 in one run with
+the new ones, 31 passing; `test_live_multipart`'s `test_parts_from_an_intlib` failed once in
+that run (the message was not kept, Altium had about 600 MB free) and passed alone and in two
+reruns (`test_live_multipart` 8/8, the first three modules in sequence 23/23): not
+reproduced, not from this change; offline 3 new (`tests/test_sandbox.py`), 607/607 in all.
 Fixed in the commit that moves it here.

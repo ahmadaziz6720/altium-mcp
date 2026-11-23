@@ -2005,8 +2005,8 @@ async def run_altium_script(ctx: Context, script: str, timeout_seconds: int = 12
       outside, so open the picture to see the message.
     - Helpers: MM(mm) converts millimetres to internal units;
       OpenSchDoc(path) returns the ISch_Document, opening the file if needed
-      (GetSchDocumentByPath alone returns nil for a closed file, and a call on
-      nil stops the script); SaveDoc(path) marks a document modified and saves it.
+      (a .SchLib as a library; GetSchDocumentByPath alone returns nil for a
+      closed file, and a call on nil stops the script); SaveDoc(path) marks a document modified and saves it.
     - Errors inside the script (undeclared identifiers, calls on nil, bad
       conversions) are caught by the sandbox and come back as "script error"
       with Altium's message and the last step; no try/except is needed.

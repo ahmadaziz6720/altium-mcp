@@ -913,6 +913,25 @@ begin
     end;
 end;
 
+// What Altium holds for a library path that could not be focused, for the
+// error text: ' - it is open as kind SCH (a schematic sheet, not a library;
+// close it unsaved and call again)', or ' - it is open as kind <K>', or ''
+// when it is not open
+function OpenKindNote(Path: String): String;
+var
+    Doc  : IServerDocument;
+    Kind : String;
+begin
+    Result := '';
+    Doc := FindOpenDocument(Path);
+    if (Doc = nil) then Exit;
+    Kind := Doc.Kind;
+    if (UpperCase(Kind) = 'SCH') then
+        Result := ' - it is open as kind SCH (a schematic sheet, not a library; close it unsaved and call again)'
+    else
+        Result := ' - it is open as kind ' + Kind;
+end;
+
 // Create or edit many symbols in a single script run from a spec file. The
 // file is plain text, one record per line, pipe-delimited (no JSON, so field
 // text is preserved exactly):
@@ -1006,7 +1025,7 @@ begin
                     ServerDoc := OpenLibraryDocument('SchLib', LibPath);
                 if not SchLibIsFocused(LibPath) then
                 begin
-                    Result := 'ERROR: Could not open and focus ' + LibPath + ' - nothing was created or edited';
+                    Result := 'ERROR: Could not open and focus ' + LibPath + OpenKindNote(LibPath) + ' - nothing was created or edited';
                     Exit;
                 end;
             end

@@ -492,10 +492,15 @@ is written down before it.
   - About 115k tokens, 40 minutes; failed before, 31/31 live after in eight modules, 608 offline.
     `test_live_symbol_footprint` and `test_live_project_setup` cut by Claude Code for low memory
     (about 0.8 GB free), left to group 3's full pass.
-- [x] A78: committed
+- [x] A78: committed (049670b)
   - Sonnet, offline, about 40k tokens, 6 minutes; 608 offline, `test_recipes` 5/5.
-- [ ] Group 3: tests and release (build: )
-- [ ] Group 3: scenario test (session id: ), its outcome sorted
+- [x] Group 3: tests and release (build: 0.7.0-20261123-140004, tag build-20261123-140004)
+  - Sonnet, about 115k tokens, 33 minutes: 608 offline and 125 live tests OK in 26 modules (2
+    expected failures, A48 (b)), Altium restarted first (pid 11028 to 20088), every document
+    unmodified, the 242 files of the test project hashed before and after, none changed;
+    free memory 918 MB after, 766 MB lowest. The listing 159,660 to 159,813 characters
+    (+0.10%), by the subagents' measure of group 2's method. `ad25` pushed at 049670b.
+- [ ] Group 3: scenario test (session id: 9b50c01a-2013-453c-be37-d4a6e543e2bc), its outcome sorted
 - [ ] The report
 
 ## Open
@@ -960,6 +965,8 @@ black border closed on four sides in A3's proportion), 2 of 2 failed:
 2/2, twice; `test_live_unrouted` 4/4 (the PCB capture, its view read from the image);
 offline 608/608. (a) fixed in the commit that writes this paragraph. A60 stays Open for (b),
 out of the run.
+
+(a) built in build `0.7.0-20261123-140004` (tag `build-20261123-140004`), commit `4eef324`.
 
 ### A61 - `edit_schematic` leaves Altium's focus or selection changed - OPEN 2026-11-22
 
@@ -1561,6 +1568,8 @@ this fix: it is left for an item of its own, filed with the run's other leftover
 end.
 Fixed in the commit that moves it here.
 
+Built in build `0.7.0-20261123-140004` (tag `build-20261123-140004`), commit `c7aac0a`.
+
 ### A66 - `create_schematic_symbol` reports a footprint linked by name that no library of the project holds - BUILT 2026-11-23, proof: the scenario test
 
 Sorted out of the entry of 2026-11-20, point 5: `footprints: ["<name>"]` reported the
@@ -1615,6 +1624,8 @@ tools touched (`test_live_libraries`, `test_live_build_footprint`, `test_live_bo
 (`tests/test_symbol_footprint.py`, `tests/test_pcblib_file.py`), 603/603 in all.
 Fixed in the commit that moves it here.
 
+Built in build `0.7.0-20261123-140004` (tag `build-20261123-140004`), commit `3ab04ad`.
+
 ### A41 - `make_pcblib_from_board` loses the footprints' descriptions - BUILT 2026-11-23, proof: the scenario test
 
 Six of the twelve
@@ -1657,6 +1668,8 @@ footprint of the twelve empty.
 Test after: 5/5 of `tests/test_live_pcblib_from_board.py` live (the one above among them);
 offline 1 new (`tests/test_board_library.py`), 604/604 in all.
 Fixed in the commit that moves it here.
+
+Built in build `0.7.0-20261123-140004` (tag `build-20261123-140004`), commit `e4a6669`.
 
 ### A70 - `run_altium_script`'s `OpenSchDoc` opens a `.SchLib` as a sheet - BUILT 2026-11-23, proof: the scenario test
 
@@ -1704,6 +1717,8 @@ that run (the message was not kept, Altium had about 600 MB free) and passed alo
 reruns (`test_live_multipart` 8/8, the first three modules in sequence 23/23): not
 reproduced, not from this change; offline 3 new (`tests/test_sandbox.py`), 607/607 in all.
 Fixed in the commit that moves it here.
+
+Built in build `0.7.0-20261123-140004` (tag `build-20261123-140004`), commit `f4ae3d3`.
 
 ### A28 - No tool makes an empty library - BUILT 2026-11-23, proof: the scenario test
 
@@ -1755,6 +1770,8 @@ a second `create` refused, the file unchanged); `test_live_project_setup` and
 `test_live_build_focus` 14/14 live; offline 1 new (`tests/test_project_setup.py`, the kind
 sent for each of the four extensions), 608/608 in all.
 Fixed in the commit that moves it here.
+
+Built in build `0.7.0-20261123-140004` (tag `build-20261123-140004`), commit `ad9e9da`.
 
 ### A77 - The parts of one component placed by `build_schematic` and by `place_component` do not compile as one - BUILT 2026-11-23, proof: the scenario test
 
@@ -1813,6 +1830,8 @@ saved fields of both parts equal), `test_live_pin_map` 2/2, `test_live_body_lock
 the whole list of `tests.yml`, 608/608.
 Fixed in the commit that moves it here.
 
+Built in build `0.7.0-20261123-140004` (tag `build-20261123-140004`), commit `afc0fad`.
+
 ### A78 - A52's recipe says its script does not mark the sheet modified, but it does - BUILT 2026-11-23, proof: the scenario test
 
 Sorted out of the group 2 entry of 2026-11-23, point 10, the scenario test of build
@@ -1836,3 +1855,5 @@ flag is set, and `unsaved_in_altium` lists it): save it, or leave it unsaved on 
 No script, tool or description changed. Offline: `tests.test_recipes` 5/5 and the whole list
 of `tests.yml`, 608/608.
 Fixed in the commit that moves it here.
+
+Built in build `0.7.0-20261123-140004` (tag `build-20261123-140004`), commit `049670b`.

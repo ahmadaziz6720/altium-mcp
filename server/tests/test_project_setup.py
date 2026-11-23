@@ -243,9 +243,21 @@ class ToolChecksTest(unittest.TestCase):
             out, _ = run(main.add_project_document(None, prj, sheet, create=True))
             self.assertIn("already exists", out["error"])
             out, _ = run(main.add_project_document(None, prj, os.path.join(d, "x.OutJob"), create=True))
-            self.assertIn(".SchDoc or a .PcbDoc", out["error"])
+            self.assertIn(".SchDoc, .PcbDoc, .SchLib or .PcbLib", out["error"])
             out, _ = run(main.add_project_document(None, prj, os.path.join(d, "none.SchDoc")))
             self.assertIn("not found", out["error"])
+
+    def test_create_sends_the_kind(self):
+        """A28: a new library is made by its extension's kind."""
+        with tempfile.TemporaryDirectory() as d:
+            prj = os.path.join(d, "P.PrjPcb")
+            open(prj, "w").close()
+            reply = {"success": True, "result": {"success": True, "documents": []}}
+            for name, kind in (("S.SchDoc", "SCH"), ("B.PcbDoc", "PCB"), ("L.SchLib", "SCHLIB"),
+                               ("F.PcbLib", "PCBLIB")):
+                _, calls = run(main.add_project_document(None, prj, os.path.join(d, name), create=True),
+                               {"add_project_document": reply})
+                self.assertEqual(calls[0][1]["new_kind"], kind, name)
 
     def test_add_reads_the_saved_project_file(self):
         with tempfile.TemporaryDirectory() as d:

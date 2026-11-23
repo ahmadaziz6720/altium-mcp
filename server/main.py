@@ -7538,14 +7538,16 @@ async def create_project(ctx: Context, project_path: str) -> str:
 @_tool()
 async def add_project_document(ctx: Context, project_path: str, document_path: str, create: bool = False) -> str:
     """
-    Add a document to a PCB project, or create a new schematic or board in it.
+    Add a document to a PCB project, or create a new one in it.
 
     With create=False the document must exist: any document a project holds
     (.SchDoc, .PcbDoc, .OutJob, .SchLib, .PcbLib, ...). With create=True a
-    new, empty .SchDoc or .PcbDoc (by document_path's extension) is made,
-    saved at document_path and left open; refused when a file is there,
-    nothing is overwritten. A new board has Altium's default shape: set it
-    with set_board_shape.
+    new, empty .SchDoc, .PcbDoc, .SchLib or .PcbLib (by document_path's
+    extension) is made, saved at document_path and left open; refused when a
+    file is there, nothing is overwritten. A new board has Altium's default
+    shape: set it with set_board_shape. A new library holds no symbol or
+    footprint (Altium shows a Component_1 in a .SchLib that has none when it
+    opens it again).
 
     The project is opened when it is not, and its file is saved after the
     add, so the add holds when the project is closed. A document already in
@@ -7557,7 +7559,7 @@ async def add_project_document(ctx: Context, project_path: str, document_path: s
     Args:
         project_path (str): Full path of an existing .PrjPcb.
         document_path (str): Full path of the document.
-        create (bool): Make a new .SchDoc or .PcbDoc there first.
+        create (bool): Make a new document there first.
 
     Returns:
         str: JSON with project_path, documents [{path, kind}] as Altium lists
@@ -7580,14 +7582,14 @@ async def add_project_document(ctx: Context, project_path: str, document_path: s
         document_path, error = _new_document_path(document_path, tuple(project_setup.NEW_KINDS))
         if error:
             return json.dumps({"success": False,
-                               "error": error + (" (create makes a .SchDoc or a .PcbDoc)"
+                               "error": error + (" (create makes a .SchDoc, .PcbDoc, .SchLib or .PcbLib)"
                                                  if "must end" in error else "")})
         new_kind = project_setup.NEW_KINDS[os.path.splitext(document_path)[1].lower()]
     else:
         document_path = long_path(document_path)
         if not document_path or not os.path.isfile(document_path):
             return json.dumps({"success": False, "error": f"Document not found: {document_path} "
-                                                          "(create=True makes a new .SchDoc or .PcbDoc)"})
+                                                          "(create=True makes a new one)"})
     result = await _add_to_project(project_path, document_path, new_kind=new_kind)
     if result.get("success") and not result.get("in_project_file"):
         result["success"] = False

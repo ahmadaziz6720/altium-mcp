@@ -34,7 +34,7 @@ TOLERANCE_MILS = 0.1
 # An arc edge is checked as straight pieces at most this many degrees apart
 ARC_STEP_DEG = 5.0
 # A document's kind, by its extension, for a new document
-NEW_KINDS = {".schdoc": "SCH", ".pcbdoc": "PCB"}
+NEW_KINDS = {".schdoc": "SCH", ".pcbdoc": "PCB", ".schlib": "SCHLIB", ".pcblib": "PCBLIB"}
 
 
 def _finite(v) -> bool:

@@ -101,6 +101,54 @@ ResultText := BoolToStr(B.BoardOutline.PointInPolygon(B.XOrigin + {int(x * 10000
     return out.strip() == "True"
 
 
+def library_items(path):
+    """The symbols or footprints of the open library at path, as Altium
+    holds them, by name."""
+    if str(path).lower().endswith(".schlib"):
+        body = f"""var
+    L : ISch_Lib;
+    It : ISch_Iterator;
+    C : ISch_Component;
+    S : String;
+L := SchServer.GetSchDocumentByPath('{path}');
+S := '';
+It := L.SchLibIterator_Create;
+It.AddFilter_ObjectSet(MkSet(eSchComponent));
+C := It.FirstSchObject;
+while C <> nil do begin S := S + C.LibReference + '|'; C := It.NextSchObject; end;
+L.SchIterator_Destroy(It);
+ResultText := S;"""
+    else:
+        body = f"""var
+    L : IPCB_Library;
+    It : IPCB_LibraryIterator;
+    C : IPCB_LibComponent;
+    S : String;
+L := PCBServer.GetPCBLibraryByPath('{path}');
+S := '';
+It := L.LibraryIterator_Create;
+It.SetState_FilterAll;
+C := It.FirstPCBObject;
+while C <> nil do begin S := S + C.Name + '|'; C := It.NextPCBObject; end;
+L.LibraryIterator_Destroy(It);
+ResultText := S;"""
+    return sorted(n for n in script(body).strip().split("|") if n)
+
+
+def saved_items(path):
+    """The symbols or footprints a saved library file holds, by name: a
+    .SchLib's FileHeader names them (LibRefn, any case), a .PcbLib keeps
+    each footprint in a storage of its own beside Library and
+    FileVersionInfo."""
+    st = pythoncom.StgOpenStorage(str(path), None, sc.STGM_READ | sc.STGM_SHARE_DENY_WRITE, None, 0)
+    if str(path).lower().endswith(".schlib"):
+        stm = st.OpenStream("FileHeader", None, sc.STGM_READ | sc.STGM_SHARE_EXCLUSIVE, 0)
+        text = stm.Read(stm.Stat()[2]).decode("latin-1")
+        return sorted(re.findall(r"\|LIBREF\d+=([^|\x00]*)", text, re.I))
+    return sorted(e[0] for e in st.EnumElements() if e[1] == sc.STGTY_STORAGE
+                  and e[0] not in ("Library", "FileVersionInfo"))
+
+
 def save(path):
     out = script(f"Obj1 := Client.GetDocumentByPath('{path}');\n"
                  "ResultText := BoolToStr(Obj1.DoFileSave(''), True);").strip()
@@ -202,6 +250,50 @@ class LiveProjectTest(_Temp):
         self.assertFalse(kind.get("success"), kind)
         self.assertEqual(file_documents(prj), want, "a refused add changed the project")
 
+    def test_create_libraries(self):
+        """A28: create=True makes an empty .SchLib or .PcbLib, in the
+        project named, and the batch tools fill it."""
+        prj = self.tmp / "Libs.PrjPcb"
+        self.assertTrue(tool(main.create_project(None, str(prj)))["success"])
+        sch = self.tmp / "Parts.SchLib"
+        pcb = self.tmp / "Parts.PcbLib"
+        for path, kind in ((sch, "SCHLIB"), (pcb, "PCBLIB")):
+            out = tool(main.add_project_document(None, str(prj), str(path), create=True))
+            self.assertTrue(out.get("success"), out)
+            self.assertTrue(out["created"])
+            self.assertTrue(path.is_file(), f"{path.name} was not written")
+            self.assertIn({"path": str(path), "kind": kind},
+                          [{"path": d["path"], "kind": d["kind"]} for d in out["documents"]], out["documents"])
+            self.assertTrue(out["in_project_file"], out)
+            self.assertFalse(out["project_modified"], "the project file was not saved")
+            self.assertEqual(saved_items(path), [], f"the saved {path.name} is not empty")
+            self.assertEqual(library_items(path), [], f"the open {path.name} is not empty")
+            self.assertFalse(modified(str(path)), f"{path.name} is left modified")
+        self.assertEqual(file_documents(prj), sorted(str(p).lower() for p in (sch, pcb)))
+        self.assertEqual(project_documents(prj), sorted(str(p).lower() for p in (sch, pcb)))
+
+        # The batch tools fill them, and a save writes only what they made
+        spec = self.tmp / "symbols.txt"
+        spec.write_text(f"LIBRARY|{sch}\nSYMBOL|A28_SYM|x|1\nPIN|1|A|eElectricPassive|eRotate180|0|0\n",
+                        encoding="utf-8")
+        out = tool(main.create_symbols_batch(None, str(spec)))
+        self.assertEqual(out.get("created"), 1, out)
+        spec = self.tmp / "footprints.txt"
+        spec.write_text(f"FPLIB|{pcb}\nFOOTPRINT|A28_FP|x\nPAD|1|0|0|0|Top Layer|0|0|0|0|0|40|40|2\n",
+                        encoding="utf-8")
+        out = tool(main.create_footprints_batch(None, str(spec)))
+        self.assertEqual(out.get("created"), 1, out)
+        for path, name in ((sch, "A28_SYM"), (pcb, "A28_FP")):
+            self.assertEqual(library_items(path), [name])
+            save(path)
+            self.assertEqual(saved_items(path), [name], f"the saved {path.name}")
+
+        # Refused: a library that is there, nothing overwritten
+        before = sch.read_bytes()
+        over = tool(main.add_project_document(None, str(prj), str(sch), create=True))
+        self.assertFalse(over.get("success"), over)
+        self.assertEqual(sch.read_bytes(), before)
+
     @unittest.skipUnless(WIFI.exists(), f"Altium's example board is not at {WIFI}")
     def test_new_document_stays_out_of_the_focused_project(self):
         # A new document can be taken into the focused project: here a copy
@@ -216,13 +308,14 @@ class LiveProjectTest(_Temp):
 
         prj = self.tmp / "Mine.PrjPcb"
         self.assertTrue(tool(main.create_project(None, str(prj)))["success"])
-        for name in ("New.SchDoc", "New.PcbDoc"):
+        names = ("New.SchDoc", "New.PcbDoc", "New.SchLib", "New.PcbLib")
+        for name in names:
             out = tool(main.add_project_document(None, str(prj), str(self.tmp / name), create=True))
             self.assertTrue(out.get("success"), out)
         self.assertEqual(project_documents(other_prj), other_docs, "the other project took a new document")
         self.assertFalse(modified(str(other_prj)), "the other project was left modified")
         self.assertEqual(project_documents(prj),
-                         sorted(str(self.tmp / n).lower() for n in ("New.SchDoc", "New.PcbDoc")))
+                         sorted(str(self.tmp / n).lower() for n in names))
 
     @unittest.skipUnless(SCHLIB.exists(), f"Altium's example library is not at {SCHLIB}")
     def test_build_schematic_into_a_project(self):

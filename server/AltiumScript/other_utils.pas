@@ -1847,11 +1847,84 @@ begin
     end;
 end;
 
+// The symbols (a SCHLIB) or footprints (a PCBLIB) the open library of the
+// document named Name holds, or -1 when it cannot be read as one. With Empty
+// they are removed, and the count is of what is left: a new library holds
+// Altium's Component_1 or PCBComponent_1.
+function LibraryItemCount(Name: String; Kind: String; Empty: Boolean): Integer;
+var
+    SchLib  : ISch_Lib;
+    SIt     : ISch_Iterator;
+    SComp   : ISch_Component;
+    PcbLib  : IPCB_Library;
+    PIt     : IPCB_LibraryIterator;
+    PComp   : IPCB_LibComponent;
+    Doomed  : TInterfaceList;
+    Pass, I : Integer;
+begin
+    Result := -1;
+    Doomed := TInterfaceList.Create;
+    try
+        // The second pass counts what the first one left
+        for Pass := 1 to 2 do
+        begin
+            Doomed.Clear;
+            if Kind = 'SCHLIB' then
+            begin
+                SchLib := SchServer.GetSchDocumentByPath(Name);
+                if SchLib = nil then Exit;
+                SIt := SchLib.SchLibIterator_Create;
+                SIt.AddFilter_ObjectSet(MkSet(eSchComponent));
+                SComp := SIt.FirstSchObject;
+                while SComp <> nil do
+                begin
+                    Doomed.Add(SComp);
+                    SComp := SIt.NextSchObject;
+                end;
+                SchLib.SchIterator_Destroy(SIt);
+                if Empty and (Pass = 1) then
+                    for I := 0 to Doomed.Count - 1 do
+                    begin
+                        SComp := Doomed[I];
+                        SchLib.RemoveSchComponent(SComp);
+                    end;
+            end
+            else if Kind = 'PCBLIB' then
+            begin
+                PcbLib := PCBServer.GetPCBLibraryByPath(Name);
+                if PcbLib = nil then Exit;
+                PIt := PcbLib.LibraryIterator_Create;
+                PIt.SetState_FilterAll;
+                PComp := PIt.FirstPCBObject;
+                while PComp <> nil do
+                begin
+                    Doomed.Add(PComp);
+                    PComp := PIt.NextPCBObject;
+                end;
+                PcbLib.LibraryIterator_Destroy(PIt);
+                if Empty and (Pass = 1) then
+                    for I := 0 to Doomed.Count - 1 do
+                    begin
+                        PComp := Doomed[I];
+                        PcbLib.RemoveComponent(PComp);
+                    end;
+            end
+            else
+                Exit;
+            Result := Doomed.Count;
+            if not Empty then Exit;
+        end;
+    finally
+        Doomed.Free;
+    end;
+end;
+
 // add_project_document: add the document at DocPath to the project at
 // ProjectPath (opened when it is not), then save the project file.
-// NewKind 'SCH' or 'PCB' first makes a new document of that kind and saves it
-// at DocPath; SourceName instead saves the open, unsaved document of that name
-// there (build_schematic's sheet). Altium may take a new document into the
+// NewKind 'SCH', 'PCB', 'SCHLIB' or 'PCBLIB' first makes a new document of
+// that kind and saves it at DocPath, a library emptied of Altium's default
+// symbol or footprint; SourceName instead saves the open, unsaved document
+// of that name there (build_schematic's sheet). Altium may take a new document into the
 // focused project: it is taken out of every project but this one again, and
 // such a project's file flag put back when it had no unsaved change before.
 function AddProjectDocument(ProjectPath: String; DocPath: String; NewKind: String; SourceName: String): String;
@@ -1946,6 +2019,13 @@ begin
             if Doc = nil then
             begin
                 Result := 'ERROR: Altium made no new ' + NewKind + ' document';
+                Exit;
+            end;
+            if ((NewKind = 'SCHLIB') or (NewKind = 'PCBLIB')) and
+               (LibraryItemCount(Doc.FileName, NewKind, True) <> 0) then
+            begin
+                Result := 'ERROR: The new ' + NewKind + ' document ' + Doc.FileName +
+                    ' could not be emptied of Altium''s default item (left open unsaved, not added to the project)';
                 Exit;
             end;
             Doc.DoSafeChangeFileNameAndSave(DocPath, Doc.Kind);

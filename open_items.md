@@ -12,7 +12,7 @@ upstream, run and held, or decided against moves with its record to
 [`closed_items.md`](closed_items.md), and so does a run's section once every step of it is
 ticked. The layout is the `backlog` plugin's `format.md` (v0.1, since 2026-11-15).
 
-**Open: A11, A15, A23, A25, A28, A31 to A34, A36 to A39, A42 to A44, A47, A48, A51 to A54, A59 to A65, A67 to A69, A72, A73, A76 to A78.** Sorted
+**Open: A11, A15, A23, A25, A31 to A34, A36 to A39, A42 to A44, A47, A48, A51 to A54, A59 to A65, A67 to A69, A72, A73, A76 to A78.** Sorted
 2026-11-23, the third entry of 2026-11-23 (the scenario test of group 2's build,
 `build-20261123-103915`): A46, A58, A45, A26, A27, A71, A56 and A75 held and closed, A55
 closed as usage; A77 and A78, new, taken into group 3; A61, met again; A34 and A52,
@@ -460,11 +460,12 @@ is written down before it.
 - [x] A41: committed (e4a6669)
   - About 90k tokens, 20 minutes; the probe found Altium's hidden Make PCB Library empties every
     description; 12 of 12 empty before, 5/5 live after, 604 offline.
-- [x] A70: committed
+- [x] A70: committed (f4ae3d3)
   - Sonnet, about 150k tokens, 25 minutes; 2 live failures before, 4/4 after, 607 offline. One
     run of the touched tools' 32 live tests failed `test_parts_from_an_intlib` once at about
     600 MB free, held alone and in sequence: watched at group 3's full pass.
-- [ ] A28: committed
+- [x] A28: committed
+  - About 130k tokens, 40 minutes; refused before, 14/14 live after, 608 offline.
 - [ ] A60 (a): committed
 - [x] The recipes (A47, A51, A52, A54, A55, A59, A62 to A65, A67, A69, A34 (f), A56 (b)): committed (ba17162)
   - Of fourteen items only A55 had a script proved in full: it waits, the others stay Open,
@@ -607,25 +608,6 @@ shape. Local: reproduce in a live test on a new board, then a fix (the region re
 the board saved and reopened by the tool), or the call refused or flagged on a board never
 saved. Usage until then: save, close and reopen a new board before setting its shape is
 relied on. (2026-11-14, fifth entry, 2.) For the next run.
-
-### A28 - No tool makes an empty library - OPEN 2026-11-14
-
-`create_symbols_batch`'s `LIBRARY` needs an
-existing `.SchLib` and `add_project_document`'s `create` makes sheets and boards only, so
-a new `.SchLib` or `.PcbLib` is made by script (`CreateNewDocumentFromDocumentKind`,
-`DoSafeChangeFileNameAndSave`, then `SetModified(True)` and `DoFileSave('')`), and it went
-into the project in focus, as A10's probe found for a sheet. Local: `create` for `.SchLib`
-and `.PcbLib` in `add_project_document`, or a library made by the symbol and footprint
-tools when missing. (2026-11-14, fifth entry, 7.) For the next run.
-Met again 2026-11-18 (findings 2026-11-18, second entry, point 4), build
-`0.7.0-20261115-172812`: the project's `.SchLib` made by script
-(`Client.OpenNewDocument('SCHLIB', ...)`, `SetFileName`, `DoFileSave`).
-Met again 2026-11-19 (findings 2026-11-19, third entry, point 1), same build: a new `.PcbLib`
-made by script with no project in focus joined none, and `add_project_document(create=False)`
-then added it cleanly; it holds Altium's empty default footprint `PCBComponent_1` beside the
-one made, and no tool deletes a footprint (A63), so a `create` should make it empty.
-
-Decided 2026-11-22 by the owner (the opening answer of `## Run 2026-11-22`): taken, `add_project_document(create=True)` makes an empty `.SchLib` or `.PcbLib` too, no new argument.
 
 ### A31 - A22's guard misses a call that starts with no window in front - OPEN 2026-11-14
 
@@ -1717,4 +1699,55 @@ the new ones, 31 passing; `test_live_multipart`'s `test_parts_from_an_intlib` fa
 that run (the message was not kept, Altium had about 600 MB free) and passed alone and in two
 reruns (`test_live_multipart` 8/8, the first three modules in sequence 23/23): not
 reproduced, not from this change; offline 3 new (`tests/test_sandbox.py`), 607/607 in all.
+Fixed in the commit that moves it here.
+
+### A28 - No tool makes an empty library - BUILT 2026-11-23, proof: the scenario test
+
+`create_symbols_batch`'s `LIBRARY` needs an
+existing `.SchLib` and `add_project_document`'s `create` makes sheets and boards only, so
+a new `.SchLib` or `.PcbLib` is made by script (`CreateNewDocumentFromDocumentKind`,
+`DoSafeChangeFileNameAndSave`, then `SetModified(True)` and `DoFileSave('')`), and it went
+into the project in focus, as A10's probe found for a sheet. Local: `create` for `.SchLib`
+and `.PcbLib` in `add_project_document`, or a library made by the symbol and footprint
+tools when missing. (2026-11-14, fifth entry, 7.) For the next run.
+Met again 2026-11-18 (findings 2026-11-18, second entry, point 4), build
+`0.7.0-20261115-172812`: the project's `.SchLib` made by script
+(`Client.OpenNewDocument('SCHLIB', ...)`, `SetFileName`, `DoFileSave`).
+Met again 2026-11-19 (findings 2026-11-19, third entry, point 1), same build: a new `.PcbLib`
+made by script with no project in focus joined none, and `add_project_document(create=False)`
+then added it cleanly; it holds Altium's empty default footprint `PCBComponent_1` beside the
+one made, and no tool deletes a footprint (A63), so a `create` should make it empty.
+
+Decided 2026-11-22 by the owner (the opening answer of `## Run 2026-11-22`): taken, `add_project_document(create=True)` makes an empty `.SchLib` or `.PcbLib` too, no new argument.
+
+Cause: `add_project_document`'s `create` knew two kinds only (`NEW_KINDS` in
+`server/project_setup.py`, `.schdoc` and `.pcbdoc`), so a `.SchLib` or `.PcbLib` path was
+refused before Altium was called. And a library Altium makes by script is not empty: a new
+`.SchLib` holds `Component_1`, a new `.PcbLib` `PCBComponent_1` (probed live, one each).
+
+Fixed: `NEW_KINDS` gains `.schlib` (`SCHLIB`) and `.pcblib` (`PCBLIB`), so `create=True` makes
+either through the same path as a sheet or a board: saved at `document_path`, added to the
+project named, taken out again of a project that had focus (`detached_from`), the project
+file saved. In `AddProjectDocument` (`other_utils.pas`) a new library is emptied before its
+first save by `LibraryItemCount` (`RemoveSchComponent` or `RemoveComponent` on each item,
+then counted again); one left, the call fails, the library open unsaved and not added. No
+new tool or argument; the description names the four kinds and that Altium shows a
+`Component_1` in a `.SchLib` that has none when it opens it again (probed: the saved file
+holds no symbol, the reopened library one, unmodified). The tool listing 159,646 to 159,770
+characters.
+Decided 2026-11-23 by the run, not the owner: the `.SchLib` emptied too, not only the
+`.PcbLib`, because the decision asks for an empty library of either kind and the file on
+disk is then empty, while the `Component_1` Altium shows on reopening is said in the
+description rather than hidden, so the result stays true.
+Test before (`tests/test_live_project_setup.py`, `test_create_libraries`, new): "AssertionError:
+False is not true : {'success': False, 'error': '...\\Parts.SchLib must end in .schdoc or
+.pcbdoc (create makes a .SchDoc or a .PcbDoc)'}", and the same for `New.SchLib` in
+`test_new_document_stays_out_of_the_focused_project`, extended to the two library kinds.
+Test after: `test_create_libraries` live (each library on disk, in the project as Altium
+and the saved `.PrjPcb` list it, kind `SCHLIB` or `PCBLIB`, no symbol or footprint in the
+saved file nor in the open library, unmodified; then one symbol by `create_symbols_batch` and
+one footprint by `create_footprints_batch`, and after a save each file holds only that one;
+a second `create` refused, the file unchanged); `test_live_project_setup` and
+`test_live_build_focus` 14/14 live; offline 1 new (`tests/test_project_setup.py`, the kind
+sent for each of the four extensions), 608/608 in all.
 Fixed in the commit that moves it here.

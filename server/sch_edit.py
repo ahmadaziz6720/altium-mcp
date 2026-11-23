@@ -5,6 +5,7 @@ reads (sch_edit_spec.txt). Coordinates are given in mil or mm, absolute on
 the sheet with Altium's origin at the bottom left, and sent in internal
 units, so a metric sheet keeps its exact positions.
 """
+import os
 from typing import List, Tuple
 
 COORD_PER = {"mil": 10000, "mm": 10000 / 0.0254}
@@ -26,6 +27,7 @@ OPS = {
     "add_no_erc": (("x", "y"), ()),
     "delete_at": (("kind", "x", "y"), ("text",)),
     "place_component": (("library", "symbol", "designator", "x", "y"), ("part", "rotation", "mirror", "comment")),
+    "set_footprint": (("designator", "footprint", "library"), ()),
 }
 
 
@@ -166,6 +168,22 @@ def encode_operations(operations: list, unit: str = "mil") -> Tuple[List[str], s
                                        _rotation(op.get("rotation", 0)), "1" if op.get("mirror") else "0",
                                        _text(op.get("comment", ""), "comment"),
                                        "1" if part == "0" else part]))
+            elif kind == "set_footprint":
+                lib = _text(op["library"], "library")
+                name = _text(op["footprint"], "footprint").strip()
+                if not lib.lower().endswith(".pcblib"):
+                    raise OpError("library must be the full path of a .PcbLib file")
+                if not os.path.isfile(lib):
+                    raise OpError(f"no footprint library at {lib}")
+                # A part linked to a library that lacks its footprint is
+                # what the op is for putting right (A56), so it is not made
+                import pcblib_file
+                holds = pcblib_file.holds_footprint(lib, name)
+                if holds is None:
+                    raise OpError(f"the footprint library {lib} could not be read")
+                if not holds:
+                    raise OpError(f"the saved library {lib} does not hold the footprint {name}")
+                lines.append("|".join(["FOOTPRINT", _text(op["designator"], "designator"), name, lib]))
         except OpError as e:
             return [], f"operation {i + 1}: {e}"
     if not lines:

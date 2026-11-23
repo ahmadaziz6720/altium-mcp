@@ -56,7 +56,8 @@ def _degrees(value):
 
 def _read_stream(storage, name):
     stream = storage.OpenStream(name, None, _CHILD, 0)
-    return stream.Read(stream.Stat()[2])
+    size = stream.Stat()[2]
+    return stream.Read(size) if size else b""
 
 
 def _open_root(path):
@@ -107,19 +108,13 @@ def _read_bodies(root, footprints):
     return found
 
 
-def body_placements(path, footprints):
-    """Model placement of each 3D body of the named footprints in the saved
-    file: {FOOTPRINT NAME (upper case): [{model_name, embedded, rotation_x,
-    rotation_y, rotation_z, model_z_offset}]} in file order (degrees, mils).
-    Footprints that are not in the file are left out; {} when the file
-    cannot be read."""
+def _read_footprints(path, footprints):
+    """_read_bodies on the saved file; raises when it cannot be read."""
     temp = None
     root = None
     try:
         root, temp = _open_root(path)
         return _read_bodies(root, footprints)
-    except (pythoncom.com_error, OSError):
-        return {}
     finally:
         root = None
         if temp:
@@ -127,6 +122,27 @@ def body_placements(path, footprints):
                 os.remove(temp)
             except OSError:
                 pass
+
+
+def body_placements(path, footprints):
+    """Model placement of each 3D body of the named footprints in the saved
+    file: {FOOTPRINT NAME (upper case): [{model_name, embedded, rotation_x,
+    rotation_y, rotation_z, model_z_offset}]} in file order (degrees, mils).
+    Footprints that are not in the file are left out; {} when the file
+    cannot be read."""
+    try:
+        return _read_footprints(path, footprints)
+    except (pythoncom.com_error, OSError):
+        return {}
+
+
+def holds_footprint(path, name):
+    """Whether the saved file holds the footprint name (any case); None when
+    the file cannot be read."""
+    try:
+        return name.upper() in _read_footprints(path, [name])
+    except (pythoncom.com_error, OSError):
+        return None
 
 
 _PLACEMENT = ("rotation_x", "rotation_y", "rotation_z", "model_z_offset")

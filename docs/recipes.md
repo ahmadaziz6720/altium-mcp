@@ -50,8 +50,10 @@ Result: one line per model, `type|name|parameters`. Of the `PCBLIB` lines, the o
 link by name only. It does not say whether that library holds the footprint.
 
 Proved by: `test_live_symbol_footprint` (`read_models`) on a placed part, for the model's
-name and current mark. `MODELDATAFILE0` was asserted on library symbols only, not yet on a
-placed part.
+name and current mark, and `test_live_set_footprint` (the same script, `read_model_list`)
+for `MODELDATAFILE0` on a placed part: the library `edit_schematic`'s `set_footprint` linked
+it to, checked against the saved sheet's record. To set the footprint and its library, that
+op.
 
 ```pascal
 var

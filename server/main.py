@@ -2752,8 +2752,9 @@ async def edit_schematic(ctx: Context, sheet_path: str = None, operations: list 
                          save: bool = None, spec_file: str = "") -> str:
     """
     Change an existing schematic sheet: move, rotate, delete or place parts,
-    set parameters, move designators and parameter text, add wires, net
-    labels, power ports, junctions and no-ERC markers, and delete objects.
+    set footprints and parameters, move designators and parameter text, add
+    wires, net labels, power ports, junctions and no-ERC markers, and delete
+    objects.
 
     The whole edit is one undo step in Altium (Ctrl+Z takes it all back),
     and the user's own edits stay undoable. Operations run in order; one
@@ -2772,6 +2773,9 @@ async def edit_schematic(ctx: Context, sheet_path: str = None, operations: list 
                         designator, x, y, [part], [rotation], [mirror],
                         [comment] (an .IntLib part is linked to its library by
                         its Design Item ID and carries the library's models)
+      set_footprint     designator, footprint, library (a .PcbLib holding
+                        it): every part of it gets that footprint as its
+                        only current one, linked to that library
       set_parameter     designator, name, value, [part], [visible]
                         (creates the parameter when missing)
       move_text         designator, name ("Designator", "Comment" or a
@@ -2821,7 +2825,8 @@ async def edit_schematic(ctx: Context, sheet_path: str = None, operations: list 
     # is already open
     sheet_path = long_path(sheet_path)
     operations = [dict(op, library=long_path(op["library"]))
-                  if isinstance(op, dict) and op.get("op") == "place_component" and op.get("library") else op
+                  if isinstance(op, dict) and op.get("op") in ("place_component", "set_footprint")
+                  and op.get("library") else op
                   for op in (operations or [])]
     lines, error = sch_edit.encode_operations(operations, unit)
     if error:

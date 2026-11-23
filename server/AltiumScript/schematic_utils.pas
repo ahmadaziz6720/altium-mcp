@@ -3724,6 +3724,84 @@ begin
     Result := True;
 end;
 
+// FOOTPRINT|designator|model|library: every part of that designator on the
+// sheet gets the footprint as its only current one, linked to the library
+// (ApplyFootprint, as a library symbol's FOOTPRINT record does). A footprint
+// of that name the part has already is linked anew, not added a second time;
+// the others lose their current mark and stay; 3D and simulation models are
+// left alone. The result is read back: one current footprint, the one asked,
+// linked to that library, or Msg says what is wrong.
+function SetPartFootprint(Doc: ISch_Document; Rec: String; var Msg: String): Boolean;
+var
+    Iterator  : ISch_Iterator;
+    Comp      : ISch_Component;
+    Impl      : ISch_Implementation;
+    Parts     : TList;
+    Problems  : TStringList;
+    Designator, Model, LibPath, Got : String;
+    i, Current : Integer;
+begin
+    Result := False;
+    Designator := GetFieldFromPipeString(Rec, 1);
+    Model := GetFieldFromPipeString(Rec, 2);
+    LibPath := GetFieldFromPipeString(Rec, 3);
+    Parts := TList.Create;
+    Problems := TStringList.Create;
+    try
+        Iterator := Doc.SchIterator_Create;
+        Iterator.AddFilter_ObjectSet(MkSet(eSchComponent));
+        Comp := Iterator.FirstSchObject;
+        while Comp <> nil do
+        begin
+            if UpperCase(Comp.Designator.Text) = UpperCase(Designator) then Parts.Add(Comp);
+            Comp := Iterator.NextSchObject;
+        end;
+        Doc.SchIterator_Destroy(Iterator);
+        if Parts.Count = 0 then
+        begin
+            Msg := 'no component ' + Designator + ' on the sheet';
+            Exit;
+        end;
+
+        for i := 0 to Parts.Count - 1 do
+        begin
+            Comp := Parts[i];
+            SchBeginModify(Comp);
+            ApplyFootprint(Comp, 'FOOTPRINT|' + Model + '|' + LibPath + '|1', Problems);
+            SchEndModify(Comp);
+
+            Current := 0;
+            Got := '';
+            Iterator := Comp.SchIterator_Create;
+            Iterator.AddFilter_ObjectSet(MkSet(eImplementation));
+            Impl := Iterator.FirstSchObject;
+            while Impl <> nil do
+            begin
+                if IsFootprintModel(Impl) and FootprintIsCurrent(Impl) then
+                begin
+                    Current := Current + 1;
+                    if (UpperCase(Impl.ModelName) = UpperCase(Model)) and
+                       (UpperCase(FootprintLibrary(Impl)) = UpperCase(LibPath)) then
+                        Got := Impl.ModelName;
+                end;
+                Impl := Iterator.NextSchObject;
+            end;
+            Comp.SchIterator_Destroy(Iterator);
+            if (Current <> 1) or (Got = '') then
+            begin
+                Msg := Designator + ': after the edit ' + IntToStr(Current) + ' footprints are current';
+                if Got = '' then
+                    Msg := Msg + ', and none is ' + Model + ' linked to ' + LibPath;
+                Exit;
+            end;
+        end;
+        Result := True;
+    finally
+        Parts.Free;
+        Problems.Free;
+    end;
+end;
+
 // One edit record; Msg says why it failed
 function ApplySchEdit(Doc: ISch_Document; Rec: String; var Msg: String): Boolean;
 var
@@ -3884,6 +3962,8 @@ begin
     end
     else if Kind = 'PLACE' then
         Result := PlaceSchComponent(Doc, Rec, Msg)
+    else if Kind = 'FOOTPRINT' then
+        Result := SetPartFootprint(Doc, Rec, Msg)
     else
         Msg := 'unknown edit ' + Kind;
 end;

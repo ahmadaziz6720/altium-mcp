@@ -12,7 +12,7 @@ upstream, run and held, or decided against moves with its record to
 [`closed_items.md`](closed_items.md), and so does a run's section once every step of it is
 ticked. The layout is the `backlog` plugin's `format.md` (v0.1, since 2026-11-15).
 
-**Open: A11, A15, A23, A25, A28, A31 to A34, A36 to A39, A41 to A44, A47, A48, A51 to A54, A56, A57, A59 to A70, A72, A73, A76.** Sorted
+**Open: A11, A15, A23, A25, A28, A31 to A34, A36 to A39, A41 to A44, A47, A48, A51 to A54, A57, A59 to A70, A72, A73, A76.** Sorted
 2026-11-23, the second entry of 2026-11-23 (the scenario test of group 1's second build,
 `build-20261123-031122`): A74 held and closed; A48 (b) checked, the part built held and the
 rest still open; A76, new, not taken into the run; A34, met again. Sorted
@@ -408,10 +408,11 @@ is written down before it.
     Nothing is pushed or released until the live tests can run.
 - [x] A27: committed (71f8054)
   - Sonnet, about 116k tokens, 15 minutes; 3 of 5 failed before, 5/5 after.
-- [x] A71: committed
+- [x] A71: committed (9ae6937)
   - About 153k tokens, 22 minutes; 10 of 20 failed before for each tool, 0 of 40 after. Its
     `check_schematic` part is a leftover, to be filed as an item at the run end.
-- [ ] A56 (a): committed
+- [x] A56 (a): committed
+  - About 161k tokens, 19 minutes; 3/3 live failed before, then held.
 - [ ] Group 2: tests and release (build: )
 - [ ] Group 2: scenario test (session id: ), its outcome sorted
   - The owner, 2026-11-23: "beres grup 2, kita pindah sesi ya": once this step is ticked
@@ -862,34 +863,6 @@ calls. Missing: the script that walks `DM_Nets` and `DM_Pins` (pin number and na
 to a file), with how it brings a stale compile up to date first: a script's own
 `DM_Compile` reads stale after a script's edit (A48). `test_live_multipart`'s compile
 script lists designators only.
-
-### A56 - No tool sets a placed part's footprint or says which library it links to - OPEN 2026-11-22
-
-A footprint given to a library symbol (A16, closed, the library side) does not reach the
-parts already placed from it, and no tool sets or changes a placed part's footprint. Done by
-`run_altium_script` (`AddSchImplementation`, `ModelType 'PCBLIB'`, `AddDataFileLink`,
-`IsCurrent`, inside `SCHM_BeginModify`/`EndModify`, then `SaveDoc`; to repoint,
-`RemoveSchImplementation` and a new implementation, no setter for a link's location found) in
-five sessions: 2026-11-19 (first), point 6; (third), point 3, the compile then stale
-(A48 (b)); (fifth), point 5, 11 parts; (seventh), points 1 and 5; (eighth), point 3.
-Also missing (2026-11-19 (seventh), point 2): which library each placed part's footprint
-links to. A script showed parts linked to a file that does not hold their footprint (an
-older copy of a vendor library at another path), which neither `get_project_components`
-(the footprint's name only) nor a compile reports.
-
-Proposed: local; an `edit_schematic` op setting a placed part's footprint (name and
-library), or one updating placed parts from their library symbol; a `footprint_library`
-field in `get_project_components`, flagged when the linked file lacks the footprint. Not
-decided.
-
-Decided 2026-11-22 by the owner (the opening answer of `## Run 2026-11-22`): (a) taken, an `edit_schematic` op setting a placed part's footprint. (b), which library a part links to: a recipe in `docs/recipes.md` if a session's script is in the record, no field in `get_project_components` (the plan, not the owner).
-
-(b) written 2026-11-23 in `docs/recipes.md`: `test_live_symbol_footprint`'s `read_models`,
-the script that test ran on a placed part, one designator per call, read from
-`ExportToParameters` (`ISCURRENT`, `MODELDATAFILE0`). On a placed part the test asserted the
-name and the current mark, and the library's field on library symbols only: that field on a
-placed part is not run, for the scenario test. Not covered: every part in one call, and
-whether the linked file holds the footprint. A56 stays Open for (a), another step.
 
 ### A57 - Library reads return too much, or one symbol per call - OPEN 2026-11-22
 
@@ -1916,3 +1889,68 @@ every body graphic from the saved sheet. Before: "10 of 20 placed parts have a b
 without IsNotAccesible=T" for each tool, the 10 every placement made while its own symbol
 was shown. After: 0 of 40, 2/2. The live tests of the tools touched 46 OK (2 expected
 failures, already marked); the offline list 585 OK.
+
+### A56 - No tool sets a placed part's footprint or says which library it links to - BUILT 2026-11-23, proof: the scenario test
+
+A footprint given to a library symbol (A16, closed, the library side) does not reach the
+parts already placed from it, and no tool sets or changes a placed part's footprint. Done by
+`run_altium_script` (`AddSchImplementation`, `ModelType 'PCBLIB'`, `AddDataFileLink`,
+`IsCurrent`, inside `SCHM_BeginModify`/`EndModify`, then `SaveDoc`; to repoint,
+`RemoveSchImplementation` and a new implementation, no setter for a link's location found)
+in five sessions: 2026-11-19 (first), point 6; (third), point 3, the compile then stale (A48
+(b)); (fifth), point 5, 11 parts; (seventh), points 1 and 5; (eighth), point 3. Also missing
+(2026-11-19 (seventh), point 2): which library each placed part's footprint links to. A
+script showed parts linked to a file that does not hold their footprint (an older copy of a
+vendor library at another path), which neither `get_project_components` (the footprint's
+name only) nor a compile reports.
+
+Proposed: local; an `edit_schematic` op setting a placed part's footprint (name and
+library), or one updating placed parts from their library symbol; a `footprint_library`
+field in `get_project_components`, flagged when the linked file lacks the footprint. Not
+decided.
+
+Decided 2026-11-22 by the owner (the opening answer of `## Run 2026-11-22`): (a) taken, an
+`edit_schematic` op setting a placed part's footprint. (b), which library a part links to: a
+recipe in `docs/recipes.md` if a session's script is in the record, no field in
+`get_project_components` (the plan, not the owner).
+
+(b) written 2026-11-23 in `docs/recipes.md`: `test_live_symbol_footprint`'s `read_models`,
+the script that test ran on a placed part, one designator per call, read from
+`ExportToParameters` (`ISCURRENT`, `MODELDATAFILE0`). Not covered: every part in one call,
+and whether the linked file holds the footprint. Its "Proved by" line now says that
+`MODELDATAFILE0` on a placed part is asserted by `test_live_set_footprint` (the same script,
+`read_model_list`).
+
+(a) fixed in the commit that moves it here: an `edit_schematic` op `set_footprint`
+(`designator`, `footprint`, `library`), one more entry in its operations list, no new tool
+or argument. Every part of that designator on the sheet gets the footprint as its only
+current one, linked to the `.PcbLib` given: `SetPartFootprint` in `schematic_utils.pas`
+calls the library side's `ApplyFootprint` (A16's `FOOTPRINT` record, current `1`) inside the
+part's `SCHM_BeginModify`/`EndModify`. A footprint of that name the part has already is
+linked anew (`ClearAllDatafileLinks`, `AddDataFileLink`), not added twice; the other
+footprints lose their current mark and stay; 3D and simulation models are left alone (A27's
+rule). After the edit each part is read back: one current footprint, the one asked, linked
+to that library, or the op fails saying how many are current. Before Altium is called,
+`sch_edit` refuses a library that is not a `.PcbLib`, does not exist, cannot be read, or
+whose saved file does not hold the footprint (`pcblib_file.holds_footprint`, by the
+`PATTERN` name). `pcblib_file` now reads an empty stream as no bytes, where it used to
+raise. The README's `edit_schematic` entry names the op.
+
+Decided 2026-11-23 by the run, not the owner:
+- the footprint replaced stays on the part as a non-current alternative, not removed with `RemoveSchImplementation` as the sessions' scripts did, because `ApplyFootprint` (A16, A27) does it so: one current footprint, nothing the part held lost, and reuse the smaller change;
+- the library required and checked to hold the footprint in its saved file (a footprint not saved yet refused until its library is saved), because the item's own failure was parts linked to a file that does not hold their footprint;
+- no `part` key: every part of the designator gets the footprint, because a footprint belongs to the component, not to one of its parts (a multi-part component not tested live);
+- the offline tests in the modules already in `tests.yml` (`test_sch_edit`, `test_pcblib_file`), because the op is encoded in `sch_edit` and the check is in `pcblib_file`.
+
+Tests before, on the code without the fix: `test_live_set_footprint` 3 of 3 failed, its
+setUp reading the part's own HDR1X2 as the only current footprint and every call returning
+`"operation 1: 'op' must be one of move_component, ..., place_component"`; offline
+`test_sch_edit.SetFootprintTest` 2 of 2 failed with the same message, and
+`test_pcblib_file.test_holds_footprint` with `AttributeError: module 'pcblib_file' has no
+attribute 'holds_footprint'`. After: `test_live_set_footprint` 3/3 (through Altium and from
+the saved sheet's `MODELDATAFILE0`, `ISCURRENT`: the footprint given the only current one,
+linked to the library given; one the part has linked anew, not added; the other models
+unchanged); the live tests of the tools touched (set_footprint, build_footprint,
+symbol_footprint, body_lock, compile_refresh, erc, libraries, multipart, spec_file) 43 OK, 2
+expected failures already marked; offline 588/588. The tool listing 159,429 to 159,660
+characters (+0.14%).

@@ -75,6 +75,15 @@ class PcbLibFileTests(unittest.TestCase):
     def test_unreadable_file_gives_nothing(self):
         self.assertEqual(pf.body_placements(Path(self.dir.name) / "none.PcbLib", ["OSC"]), {})
 
+    def test_holds_footprint(self):
+        # by the PATTERN name, in any case, past the 31 characters of a storage name
+        self.assertTrue(pf.holds_footprint(self.path, "osc"))
+        self.assertTrue(pf.holds_footprint(self.path, "QFN50P500X300X160-17N-LONGER-THAN-31"))
+        self.assertFalse(pf.holds_footprint(self.path, "QFN50P500X300X160-17N-LONGER-TH"))
+        self.assertFalse(pf.holds_footprint(self.path, "MISSING"))
+        # a file that cannot be read is neither
+        self.assertIsNone(pf.holds_footprint(Path(self.dir.name) / "none.PcbLib", "OSC"))
+
     def test_merge_matches_by_model_name_in_order(self):
         bodies = [{"model_file": "a.STEP"}, {"model_file": "new.step"}, {"model_file": "A.step"}]
         saved = [{"model_name": "A.step", "rotation_x": 1.0, "rotation_y": 0.0, "rotation_z": 0.0, "model_z_offset": 0.0},

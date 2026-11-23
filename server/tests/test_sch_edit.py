@@ -4,6 +4,7 @@ Run from server/:  python -m unittest tests.test_sch_edit -v
 """
 import os
 import sys
+import tempfile
 import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
@@ -94,6 +95,43 @@ class EncodeTest(unittest.TestCase):
             self.assertIn(expected, err, op)
         self.assertEqual(encode_operations([], "mil"), ([], "operations is empty"))
         self.assertIn("unit", encode_operations([{"op": "add_junction", "x": 0, "y": 0}], "inch")[1])
+
+
+class SetFootprintTest(unittest.TestCase):
+    """set_footprint (A56): a placed part's footprint, from a footprint
+    library that holds it."""
+
+    def setUp(self):
+        from tests.test_pcblib_file import write_library
+        self.dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.dir.cleanup)
+        self.lib = os.path.join(self.dir.name, "Footprints.PcbLib")
+        long_name = "QFN50P500X300X160-17N-LONGER-THAN-31"
+        write_library(self.lib, {"NT": ("NT", b""), long_name[:31]: (long_name, b"")})
+
+    def test_encodes_designator_footprint_and_library(self):
+        self.assertEqual(one({"op": "set_footprint", "designator": "U1", "footprint": "NT", "library": self.lib}),
+                         f"FOOTPRINT|U1|NT|{self.lib}")
+        # the name as the library has it is not needed: Altium matches it in any case
+        self.assertEqual(one({"op": "set_footprint", "designator": "U1", "footprint": "qfn50p500x300x160-17n-"
+                              "longer-than-31", "library": self.lib}),
+                         f"FOOTPRINT|U1|qfn50p500x300x160-17n-longer-than-31|{self.lib}")
+
+    def test_refused_unless_the_library_holds_the_footprint(self):
+        op = {"op": "set_footprint", "designator": "U1", "footprint": "NT", "library": self.lib}
+        cases = [
+            (dict(op, footprint="MISSING"), "does not hold the footprint MISSING"),
+            (dict(op, library=os.path.join(self.dir.name, "None.PcbLib")), "no footprint library at"),
+            (dict(op, library=os.path.join(self.dir.name, "Parts.SchLib")), ".PcbLib"),
+            ({"op": "set_footprint", "designator": "U1", "footprint": "NT"}, "needs library"),
+            ({"op": "set_footprint", "designator": "U1", "library": self.lib}, "needs footprint"),
+            (dict(op, part="B"), "does not take part"),
+            (dict(op, footprint="N|T"), "'|'"),
+        ]
+        for case, expected in cases:
+            lines, err = encode_operations([case])
+            self.assertEqual(lines, [], case)
+            self.assertIn(expected, err, case)
 
 
 if __name__ == "__main__":

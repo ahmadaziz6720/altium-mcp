@@ -1595,3 +1595,69 @@ Designer 25. 42 calls, 0 errors, 39.6k characters of results (14 `run_altium_scr
     `unsaved_in_altium`), as the notice does. Local: that sentence corrected.
 
 Sorted into A77 (4), new; A61 (6), met again; A78 (10), new; A34 (10), checked; A52 (10), checked. Held: A46 (1); A58 (2); A45 (3); A26 (5); A27 (7); A71 (8); A56 (9, 10); A75 (10); A55 (10), usage.
+
+**2026-11-23: scenario test of a release trimming library reads, resolving name-only footprints, keeping footprint descriptions, opening a symbol library as one, making empty libraries, fitting a sheet's capture and filling a placed part's library fields one way (group 3)**
+
+Release `bin\0.7.0-20261123-140004` (build `0.7.0-ad25-20261123-140004 049670b`), Altium
+Designer 25. 49 calls, 0 errors, 49.0k characters of results (19 `run_altium_script`: open,
+close, flags, A70's and A52's scripts; the largest 8.7k, a dump of two footprints).
+
+1. A57, held. Inventory mode gives `name`, `description` and `pins` (or `pads`) per entry,
+   one a line: 39 symbols 2.9k characters, 12 footprints 1.2k. Several comma-separated names
+   (any case, spaces after the comma) dump each into `symbols` / `footprints` with
+   `symbol_count` / `footprint_count` and `not_found` for the missing one; a symbol whose
+   own name holds a comma (`<word>, 2-Pin`) is dumped whole. The libraries at hand were
+   small (39 symbols, 12 footprints), so the size of an inventory of hundreds is the fork's
+   live test's measure, not this one's.
+2. A41, held. A library made from a 2-layer board of 16 components (12 patterns): the six
+   footprints whose components carry a description have it in the saved file, each equal
+   to the one in a library made from the same board by Altium's menu; the six without
+   stay empty in both. With `footprints` (three names in mixed case): the same for those
+   three. `problems` [] both times.
+3. A66, held. `create_symbols_batch` with `FOOTPRINT|<name>` and no library: linked to the
+   saved `.PcbLib` of the symbol library's project that holds it, current, `problems` [].
+   `create_schematic_symbol` with three names: one held by that `.PcbLib` (given in lower
+   case) linked to it and current; one held only by an installed `.IntLib` and one held
+   nowhere both linked by name, each with its line in `problems` ("... is in no saved
+   .PcbLib of the project or installed in Altium; linked by name only (give its library)").
+   The saved library holds the same. Small: the model name is stored as typed (lower
+   case), not as the library has it; the compile lists the part's footprint in that case.
+   Whether a board update resolves it was not tried.
+4. A70, held. `OpenSchDoc` on a closed `.SchLib`: ObjectId 33, kind `SCHLIB`, unmodified.
+   The same file opened first as a sheet by script (`Client.OpenDocument('SCH', ...)`):
+   the helper returned the sheet (ObjectId 32) and logged "is open as a schematic sheet, not
+   a library; close it unsaved and call again"; `create_symbols_batch` refused, "... - it is
+   open as kind SCH (a schematic sheet, not a library; close it unsaved and call again) -
+   nothing was created or edited". Closed unsaved as the message says, the same batch
+   created the symbol; the file on disk unchanged (md5).
+5. A28, held. Another project focused (unmodified, its board in front):
+   `add_project_document(create=True)` made an empty `.SchLib` (`detached_from` that
+   project, whose files kept their md5) and an empty `.PcbLib` in the project named, both
+   in its saved `.PrjPcb`, both read back with 0 symbols / 0 footprints; a second `create`
+   refused ("A file already exists ... not overwritten"). One footprint by
+   `create_footprints_batch` and one symbol by `create_symbols_batch`, saved, closed and
+   read again: each library holds only that one (no `Component_1`, no `PCBComponent_1`).
+6. A60 (a), held. A sheet zoomed in three times by `SCH:Zoom` `Action=ZoomIn`, then
+   `get_screenshot(view_type="sch", zoom_to=[<a part>])`: the whole A4 sheet, its border
+   and title block, in a 2418 x 1308 image of the whole window (the panels on the right
+   not cut), and `warnings: ["zoom_to is for PCB only; the sheet was fitted whole"]`.
+7. A77, held. Part B of a multi-part symbol by `build_schematic` and part C, same
+   designator and `.SchLib`, by `edit_schematic` `place_component`: one component in
+   `get_project_components`, no "Duplicate Component Designators", only "unused sub-part(s)
+   (1)" for the part not placed. The saved file gives both parts the same `DESIGNITEMID`,
+   `SOURCELIBRARYNAME` (the library's file name) and `LIBRARYPATH`.
+8. A78, held. A52's section now says the script marks the sheet modified; run on a saved
+   sheet with one no-ERC marker, the flag went 0 to -1, the sheet was listed in
+   `unsaved_in_altium`, `suppressed` 1 to 0.
+9. New, small: `build_schematic(project_path=P, sheet_path=...)` while P itself is the
+   focused project returns `detached_from: P`, the project the sheet was added to, as if
+   it had been taken out of another one. The sheet is in P and in its saved file; only the
+   field is wrong. Bears on A26.
+10. Lesson, the memory guard: at the session's start Altium held 3.7 GB (running since
+    the release's live tests) and every bridge call was refused ("Altium is using 3.7 GB
+    of memory ... restart it"), the script that would list each open document's unsaved
+    flag too, so what was unsaved could not be read before the restart. Done instead:
+    `get_project_info` on the focused project (clean), files of the open projects hashed,
+    Altium's main window closed (no save prompt, 6 s), started from its exe; hashes equal
+    after. A session starting on an Altium of a long live run should restart it first.
+
